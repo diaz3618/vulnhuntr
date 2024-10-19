@@ -8,6 +8,9 @@ A tool to identify remotely exploitable vulnerabilities using LLMs and static co
 
 </div>
 
+## Description
+Vulnhuntr leverages the power of LLMs to automatically create and analyze entire code call chains starting from remote user input and ending at server output for detection of complex, multi-step, security-bypassing vulnerabilities that go far beyond what traditional static code analysis tools are capable of performing.
+
 ## Vulnerabilities Found
 
 > [!NOTE]
