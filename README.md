@@ -4,7 +4,7 @@
 
 A tool to identify remotely exploitable vulnerabilities using LLMs and static code analysis.
 
-**World's first AI-discovered 0day vulnerabilities.**
+**World's first autonomous AI-discovered 0day vulnerabilities**
 
 </div>
 
