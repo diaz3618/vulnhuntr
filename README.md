@@ -15,12 +15,12 @@ A tool to identify remotely exploitable vulnerabilities using LLMs and static co
 
 | Repository | Stars | Vulnerabilities |
 | - | - | - |
-| [gpt_academic](https://github.com/binary-husky/gpt_academic) | 64k | LFI, XSS |
-| [ComfyUI](https://github.com/comfyanonymous/ComfyUI) | 50k | XSS |
-| [FastChat](https://github.com/lm-sys/FastChat) | 35k | SSRF | 
+| [gpt_academic](https://github.com/binary-husky/gpt_academic) | 64k | [LFI](https://nvd.nist.gov/vuln/detail/CVE-2024-10100), [XSS](https://nvd.nist.gov/vuln/detail/CVE-2024-10101) |
+| [ComfyUI](https://github.com/comfyanonymous/ComfyUI) | 50k | [XSS](https://nvd.nist.gov/vuln/detail/CVE-2024-10099) |
+| [FastChat](https://github.com/lm-sys/FastChat) | 35k | [SSRF](https://nvd.nist.gov/vuln/detail/CVE-2024-10044) | 
 | REDACTED | 29k | RCE, IDOR |
 | REDACTED | 20k | SSRF |
-| [Ragflow](https://github.com/infiniflow/ragflow) | 16k | RCE |
+| [Ragflow](https://github.com/infiniflow/ragflow) | 16k | [RCE](https://nvd.nist.gov/vuln/detail/CVE-2024-10131) |
 | REDACTED | 19k | AFO | 
 | REDACTED | 12k | AFO, IDOR |
 
@@ -181,3 +181,8 @@ vulnerability_types:
 ## Logging
 
 The tool logs the analysis process and results in a file named `vulhuntr.log`. This file contains detailed information about each step of the analysis, including the initial and secondary assessments.
+
+## Authors
+
+- Dan McInerney: dan@protectai.com, [@DanHMcinerney](https://x.com/DanHMcInerney)
+- Marcello Salvati: marcello@protectai.com, [@byt3bl33d3r](https://x.com/byt3bl33d3r)
