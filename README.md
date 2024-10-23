@@ -47,7 +47,7 @@ Vulnhuntr leverages the power of LLMs to automatically create and analyze entire
 We recommend using [pipx](https://github.com/pypa/pipx) or Docker to easily install and run Vulnhuntr.
 
 Using Docker:
-  1. Using `Claude`
+  1. With `Claude`
   ```	
   docker build -t vulnhuntr https://github.com/protectai/vulnhuntr.git#main
   docker run --rm -e ANTHROPIC_API_KEY=sk-ant-1234 -v /local/path/to/target/repo:/repo vulnhuntr:latest -r /repo -a target-file.py
@@ -57,7 +57,7 @@ Using Docker:
 docker build -t vulnhuntr https://github.com/protectai/vulnhuntr.git#main
 docker run --rm -e ANTHROPIC_API_KEY=sk-ant-1234 -e ANTHROPIC_BASE_URL="https://api.anthropic.com" -v /local/path/to/target/repo:/repo vulnhuntr:latest -r /repo -a target-file.py
 ```
-2. Using `GPT`
+2. With `GPT`
 ```
 docker build -t vulnhuntr https://github.com/protectai/vulnhuntr.git#main
 docker run --rm -e OPENAI_API_KEY=sk-1234 -v /local/path/to/target/repo:/repo vulnhuntr:latest -r /repo -a target-file.py
@@ -67,6 +67,7 @@ docker run --rm -e OPENAI_API_KEY=sk-1234 -v /local/path/to/target/repo:/repo vu
 docker build -t vulnhuntr https://github.com/protectai/vulnhuntr.git#main
 docker run --rm -e ANTHROPIC_API_KEY=sk-ant-1234 -e OPENAI_BASE_URL="https://api.openai.com/v1" -v /local/path/to/target/repo:/repo vulnhuntr:latest -r /repo -a target-file.py
 ```
+
 
 Using pipx:
 
