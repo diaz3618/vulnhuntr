@@ -47,10 +47,25 @@ Vulnhuntr leverages the power of LLMs to automatically create and analyze entire
 We recommend using [pipx](https://github.com/pypa/pipx) or Docker to easily install and run Vulnhuntr.
 
 Using Docker:
-
-```	
+  1. Using `Claude`
+  ```	
+  docker build -t vulnhuntr https://github.com/protectai/vulnhuntr.git#main
+  docker run --rm -e ANTHROPIC_API_KEY=sk-ant-1234 -v /local/path/to/target/repo:/repo vulnhuntr:latest -r /repo -a target-file.py
+  ```
+- Configuring a Custom endpoint
+```
 docker build -t vulnhuntr https://github.com/protectai/vulnhuntr.git#main
-docker run --rm -e ANTHROPIC_API_KEY=sk-1234 -v /local/path/to/target/repo:/repo vulnhuntr:latest -r /repo -a target-file.py
+docker run --rm -e ANTHROPIC_API_KEY=sk-ant-1234 -e ANTHROPIC_BASE_URL="https://api.anthropic.com" -v /local/path/to/target/repo:/repo vulnhuntr:latest -r /repo -a target-file.py
+```
+2. Using `GPT`
+```
+docker build -t vulnhuntr https://github.com/protectai/vulnhuntr.git#main
+docker run --rm -e OPENAI_API_KEY=sk-1234 -v /local/path/to/target/repo:/repo vulnhuntr:latest -r /repo -a target-file.py
+```
+- Configuring a custom endpoint
+```
+docker build -t vulnhuntr https://github.com/protectai/vulnhuntr.git#main
+docker run --rm -e ANTHROPIC_API_KEY=sk-ant-1234 -e OPENAI_BASE_URL="https://api.openai.com/v1" -v /local/path/to/target/repo:/repo vulnhuntr:latest -r /repo -a target-file.py
 ```
 
 Using pipx:
@@ -67,7 +82,7 @@ cd vulnhuntr && poetry install
 
 ## Usage
 
-This tool is designed to analyze a GitHub repository for potential remotely exploitable vulnerabilities. The tool requires an API key for the LLM service (GPT or Claude) and the URL of the GitHub repository or the path to a local folder.
+This tool is designed to analyze a GitHub repository for potential remotely exploitable vulnerabilities. The tool requires an API key or `optionally` an endpoint for the LLM service (GPT or Claude) and the URL of the GitHub repository or the path to a local folder.
 
 > [!CAUTION]
 > Always set spending limits or closely monitor costs with the LLM provider you use. This tool has the potential to rack up hefty bills as it tries to fit as much code in the LLMs context window as possible. 
@@ -95,6 +110,20 @@ options:
 
 Export your `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` before running.
 
+### Configuring Custom Endpoints
+
+You can configure custom endpoints for the LLM providers by setting the following environment variables:
+
+- For Claude: `ANTHROPIC_API_URL`
+- For GPT: `OPENAI_BASE_URL`
+
+Example:
+
+```bash
+export ANTHROPIC_BASE_URL="https://custom-anthropic-endpoint.com"
+export OPENAI_BASE_URL="https://custom-openai-endpoint.com" # Base url from providers like Openrouter, Groq, Sambanova, etc
+```
+
 Analyze the entire repository using Claude:
 
 ```bash
@@ -108,20 +137,6 @@ Below analyzes the `/path/to/target/repo/server.py` file using GPT-4o. Can also 
 
 ```bash
 python vulnhuntr.py -r /path/to/target/repo/ -a server.py -l gpt 
-```
-
-### Configuring Custom Endpoints
-
-You can configure custom endpoints for the LLM providers by setting the following environment variables:
-
-- For Claude: `ANTHROPIC_API_ENDPOINT`
-- For GPT: `OPENAI_API_ENDPOINT`
-
-Example:
-
-```bash
-export ANTHROPIC_API_ENDPOINT="https://custom-anthropic-endpoint.com"
-export OPENAI_API_ENDPOINT="https://custom-openai-endpoint.com"
 ```
 
 ## Logic Flow
