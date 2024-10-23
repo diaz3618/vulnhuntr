@@ -110,6 +110,20 @@ Below analyzes the `/path/to/target/repo/server.py` file using GPT-4o. Can also 
 python vulnhuntr.py -r /path/to/target/repo/ -a server.py -l gpt 
 ```
 
+### Configuring Custom Endpoints
+
+You can configure custom endpoints for the LLM providers by setting the following environment variables:
+
+- For Claude: `ANTHROPIC_API_ENDPOINT`
+- For GPT: `OPENAI_API_ENDPOINT`
+
+Example:
+
+```bash
+export ANTHROPIC_API_ENDPOINT="https://custom-anthropic-endpoint.com"
+export OPENAI_API_ENDPOINT="https://custom-openai-endpoint.com"
+```
+
 ## Logic Flow
 ![VulnHuntr logic](https://github.com/user-attachments/assets/7757b053-36ff-425e-ab3d-ab0100c81d49)
 - LLM summarizes the README and includes this in the system prompt
