@@ -4,6 +4,9 @@ from pydantic import BaseModel, ValidationError
 import anthropic
 import os
 import openai
+import dotenv
+
+dotenv.load_dotenv()
 
 log = logging.getLogger(__name__)
 
