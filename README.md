@@ -50,6 +50,7 @@ Using Docker:
 
 ```	
 docker build -t vulnhuntr https://github.com/protectai/vulnhuntr.git#main
+docker run --rm -e ANTHROPIC_API_KEY=sk-1234 -v /local/path/to/target/repo:/repo vulnhuntr:latest -r /repo -a target-file.py
 ```
 
 Using pipx:
