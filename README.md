@@ -69,7 +69,7 @@ Alternatively you can install directly from source using poetry:
   ```bash
   mv .env.example .env
   ```
-  3. Add required variables as needed in .env
+  3. Add required variables as needed in `.env`
 
 ## Usage
 
