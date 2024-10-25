@@ -13,6 +13,9 @@ Vulnhuntr leverages the power of LLMs to automatically create and analyze entire
 
 ## Vulnerabilities Found
 
+> [!TIP]
+> Found a vulnerability using Vulnhuntr? Submit a report to [huntr.com](https://huntr.com) to get $$ and submit a PR to add it to the list below!
+
 > [!NOTE]
 > This table is just a sample of the vulnerabilities found so far. We will unredact as responsible disclosure periods end.
 
