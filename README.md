@@ -50,49 +50,25 @@ Vulnhuntr leverages the power of LLMs to automatically create and analyze entire
 We recommend using [pipx](https://github.com/pypa/pipx) or Docker to easily install and run Vulnhuntr.
 
 Using Docker:
-  1. With `Claude`
-  ```	
-  docker build -t vulnhuntr https://github.com/protectai/vulnhuntr.git#main
-  docker run --rm -e ANTHROPIC_API_KEY=sk-ant-1234 -v /local/path/to/target/repo:/repo vulnhuntr:latest -r /repo -a target-file.py
-  ```
-- Configuring a Custom endpoint
-```
+1. With `Claude`
+```bash
 docker build -t vulnhuntr https://github.com/protectai/vulnhuntr.git#main
-docker run --rm -e ANTHROPIC_API_KEY=sk-ant-1234 -e ANTHROPIC_BASE_URL="https://api.anthropic.com" -v /local/path/to/target/repo:/repo vulnhuntr:latest -r /repo -a target-file.py
 ```
-2. With `GPT`
-```
-docker build -t vulnhuntr https://github.com/protectai/vulnhuntr.git#main
-docker run --rm -e OPENAI_API_KEY=sk-1234 -v /local/path/to/target/repo:/repo vulnhuntr:latest -r /repo -a target-file.py
-```
-- Configuring a custom endpoint
-```
-docker build -t vulnhuntr https://github.com/protectai/vulnhuntr.git#main
-docker run --rm -e ANTHROPIC_API_KEY=sk-ant-1234 -e OPENAI_BASE_URL="https://api.openai.com/v1" -v /local/path/to/target/repo:/repo vulnhuntr:latest -r /repo -a target-file.py
-```
-
 
 Using pipx:
-
 ```bash
-pipx install git+https://github.com/protectai/vulnhuntr.git
+pipx install git+https://github.com/protectai/vulnhuntr.git --python python3.10
 ```
 
 Alternatively you can install directly from source using poetry:
-  1. Install using poetry:
-  ```bash
-  git clone https://github.com/protectai/vulnhuntr
-  cd vulnhuntr && poetry install
-  ```
-  2. Rename `.env.example` to `.env`:
-  ```bash
-  mv .env.example .env
-  ```
-  3. Add required variables as needed in `.env`
+```bash
+git clone https://github.com/protectai/vulnhuntr
+cd vulnhuntr && poetry install
+```
 
 ## Usage
 
-This tool is designed to analyze a GitHub repository for potential remotely exploitable vulnerabilities. The tool requires an API key or `optionally` an endpoint for the LLM service (GPT or Claude) and the URL of the GitHub repository or the path to a local folder.
+This tool is designed to analyze a GitHub repository for potential remotely exploitable vulnerabilities. The tool requires an API key or `optionally` an endpoint for the LLM service (GPT or Claude) and the local path to a GitHub repository.
 
 > [!CAUTION]
 > Always set spending limits or closely monitor costs with the LLM provider you use. This tool has the potential to rack up hefty bills as it tries to fit as much code in the LLMs context window as possible. 
@@ -103,9 +79,9 @@ This tool is designed to analyze a GitHub repository for potential remotely expl
 ### Command Line Interface
 
 ```
-usage: vulnhuntr.py [-h] -r ROOT [-a ANALYZE] [-l {claude,gpt}] [-v]
+usage: vulnhuntr [-h] -r ROOT [-a ANALYZE] [-l {claude,gpt}] [-v]
 
-Analyze a GitHub project for vulnerabilities. Export your ANTHROPIC_API_KEY before running.
+Analyze a GitHub project for vulnerabilities. Export your ANTHROPIC_API_KEY/OPENAI_API_KEY before running.
 
 options:
   -h, --help            show this help message and exit
@@ -118,35 +94,34 @@ options:
 ```
 ### Example
 
-Export your `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` before running.
-
-### Configuring Custom Endpoints
-
-You can configure custom endpoints for the LLM providers by setting the following environment variables:
-
-- For Claude: `ANTHROPIC_API_URL`
-- For GPT: `OPENAI_BASE_URL`
-
-Example:
+Export your `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` before running or copy .env.example to .env and fill in your credentials. Custom endpoints are supported as well in environment variables if wanted.
 
 ```bash
-export ANTHROPIC_BASE_URL="https://custom-anthropic-endpoint.com"
-export OPENAI_BASE_URL="https://custom-openai-endpoint.com" # Base url from providers like Openrouter, Groq, Sambanova, etc
+export ANTHTOPIC_API_KEY="sk-1234"
+export ANTHROPIC_BASE_URL="https://custom-anthropic-endpoint.com" # Default: https://api.anthropic.com
+export OPENAI_API_KEY="sk-1234"
+export OPENAI_BASE_URL="https://custom-openai-endpoint.com" # Default: https://api.openai.com/v1
 ```
 
-Analyze the entire repository using Claude:
+From a pipx install, analyze the entire repository using Claude:
 
 ```bash
-python vulnhuntr.py -r /path/to/target/repo/
+vulnhuntr -r /path/to/target/repo/
 ```
 
 > [!TIP]
 > We recommend giving Vulnhuntr specific files that handle remote user input and scan them individually.
 
-Below analyzes the `/path/to/target/repo/server.py` file using GPT-4o. Can also specify a subdirectory instead of a file:
+From a pipx install, analyze the `/path/to/target/repo/server.py` file using GPT-4o. Can also specify a subdirectory instead of a file:
 
 ```bash
-python vulnhuntr.py -r /path/to/target/repo/ -a server.py -l gpt 
+vulnhuntr -r /path/to/target/repo/ -a server.py -l gpt 
+```
+
+From a docker installation, run it using Claude and a custom endpoint to analyze a specific file:
+
+```bash
+docker run --rm -e ANTHROPIC_API_KEY=sk-1234 -e ANTHROPIC_BASE_URL=https://localhost:1234/api -v /local/path/to/target/repo:/repo vulnhuntr:latest -r /repo -a target-file.py
 ```
 
 ## Logic Flow
@@ -171,7 +146,7 @@ The tool generates a detailed report of the vulnerabilities found in the analyze
 - Logs of the analysis process.
 - PoC exploit
 
-Below is an example of a Vulnhuntr report describing a 0day remote code execution vulnerability in [Ragflow](https://github.com/infiniflow/ragflow) (now fixed):
+Below is an example of a Vulnhuntr report describing a 0-day remote code execution vulnerability in [Ragflow](https://github.com/infiniflow/ragflow) (now fixed):
 
 ```
 scratchpad:

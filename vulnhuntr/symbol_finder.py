@@ -226,11 +226,12 @@ class SymbolExtractor:
                    file.read().replace(' ', '').replace('\n', '').replace('"', "'").replace('\r', '').replace('\t', '')
     
     def _get_definition_source(self, file_path: pathlib.Path, start, end):
-        if not start or not end:
-            return
-
         with file_path.open(encoding='utf-8') as f:
             lines = f.readlines()
+
+            if not start and not end:
+                s = ''.join(lines)
+                return s
 
             definition = lines[ start[0]-1:end[0] ]
             end_len_diff = len(definition[-1]) - end[1]
