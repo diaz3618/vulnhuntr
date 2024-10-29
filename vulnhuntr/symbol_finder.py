@@ -226,11 +226,12 @@ class SymbolExtractor:
                    file.read().replace(' ', '').replace('\n', '').replace('"', "'").replace('\r', '').replace('\t', '')
     
     def _get_definition_source(self, file_path: pathlib.Path, start, end):
-        if not start or not end:
-            return
-
         with file_path.open(encoding='utf-8') as f:
             lines = f.readlines()
+
+            if not start and not end:
+                s = ''.join(lines)
+                return s
 
             definition = lines[ start[0]-1:end[0] ]
             end_len_diff = len(definition[-1]) - end[1]
@@ -248,9 +249,11 @@ class SymbolExtractor:
             # Extract the third party library name
             source = f'Third party library. Claude, use what you already know about {name.full_name} to understand the code.'
         else:
+            start = name.get_definition_start_position()
+            end = name.get_definition_end_position()
             source = self._get_definition_source(name.module_path,
-                                                name.get_definition_start_position(),
-                                                name.get_definition_end_position()
+                                                start,
+                                                end
                                                 )
 
         return {'name': name.name,
