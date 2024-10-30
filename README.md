@@ -50,7 +50,6 @@ Vulnhuntr leverages the power of LLMs to automatically create and analyze entire
 We recommend using [pipx](https://github.com/pypa/pipx) or Docker to easily install and run Vulnhuntr.
 
 Using Docker:
-1. With `Claude`
 ```bash
 docker build -t vulnhuntr https://github.com/protectai/vulnhuntr.git#main
 ```
