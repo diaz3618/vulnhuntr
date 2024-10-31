@@ -67,7 +67,7 @@ cd vulnhuntr && poetry install
 
 ## Usage
 
-This tool is designed to analyze a GitHub repository for potential remotely exploitable vulnerabilities. The tool requires an API key or `optionally` an endpoint for the LLM service (GPT or Claude) and the local path to a GitHub repository.
+This tool is designed to analyze a GitHub repository for potential remotely exploitable vulnerabilities. The tool requires an API key and the local path to a GitHub repository. You may also optionally specify a custom endpoint for the LLM service.
 
 > [!CAUTION]
 > Always set spending limits or closely monitor costs with the LLM provider you use. This tool has the potential to rack up hefty bills as it tries to fit as much code in the LLMs context window as possible. 
@@ -78,7 +78,7 @@ This tool is designed to analyze a GitHub repository for potential remotely expl
 ### Command Line Interface
 
 ```
-usage: vulnhuntr [-h] -r ROOT [-a ANALYZE] [-l {claude,gpt}] [-v]
+usage: vulnhuntr [-h] -r ROOT [-a ANALYZE] [-l {claude,gpt,ollama}] [-v]
 
 Analyze a GitHub project for vulnerabilities. Export your ANTHROPIC_API_KEY/OPENAI_API_KEY before running.
 
@@ -87,24 +87,15 @@ options:
   -r ROOT, --root ROOT  Path to the root directory of the project
   -a ANALYZE, --analyze ANALYZE
                         Specific path or file within the project to analyze
-  -l {claude,gpt}, --llm {claude,gpt}
+  -l {claude,gpt,ollama}, --llm {claude,gpt,ollama}
                         LLM client to use (default: claude)
   -v, --verbosity       Increase output verbosity (-v for INFO, -vv for DEBUG)
 ```
-### Example
-
-Export your `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` before running or copy .env.example to .env and fill in your credentials. Custom endpoints are supported as well in environment variables if wanted.
-
-```bash
-export ANTHTOPIC_API_KEY="sk-1234"
-export ANTHROPIC_BASE_URL="https://custom-anthropic-endpoint.com" # Default: https://api.anthropic.com
-export OPENAI_API_KEY="sk-1234"
-export OPENAI_BASE_URL="https://custom-openai-endpoint.com" # Default: https://api.openai.com/v1
-```
-
+### Examples
 From a pipx install, analyze the entire repository using Claude:
 
 ```bash
+export ANTHROPIC_API_KEY="sk-1234"
 vulnhuntr -r /path/to/target/repo/
 ```
 
@@ -114,14 +105,25 @@ vulnhuntr -r /path/to/target/repo/
 From a pipx install, analyze the `/path/to/target/repo/server.py` file using GPT-4o. Can also specify a subdirectory instead of a file:
 
 ```bash
+export OPENAI_API_KEY="sk-1234"
 vulnhuntr -r /path/to/target/repo/ -a server.py -l gpt 
 ```
 
-From a docker installation, run it using Claude and a custom endpoint to analyze a specific file:
+From a docker installation, run using Claude and a custom endpoint to analyze /local/path/to/target/repo/repo-subfolder/target-file.py:
 
 ```bash
-docker run --rm -e ANTHROPIC_API_KEY=sk-1234 -e ANTHROPIC_BASE_URL=https://localhost:1234/api -v /local/path/to/target/repo:/repo vulnhuntr:latest -r /repo -a target-file.py
+docker run --rm -e ANTHROPIC_API_KEY=sk-1234 -e ANTHROPIC_BASE_URL=https://localhost:1234/api -v /local/path/to/target/repo:/repo vulnhuntr:latest -r /repo -a repo-subfolder/target-file.py
 ```
+
+*Experimental*
+
+Ollama is included as an option, however we haven't had success with the open source models structuring their output correctly.
+
+```bash
+export OLLAMA_BASE_URL=http://localhost:11434/api/generate
+export OLLAMA_MODEL=llama3.2
+vulnhuntr -r /path/to/target/repo/ -a server.py -l ollama
+``` 
 
 ## Logic Flow
 ![VulnHuntr logic](https://github.com/user-attachments/assets/7757b053-36ff-425e-ab3d-ab0100c81d49)
@@ -198,6 +200,7 @@ vulnerability_types:
 ## Logging
 
 The tool logs the analysis process and results in a file named `vulhuntr.log`. This file contains detailed information about each step of the analysis, including the initial and secondary assessments.
+
 
 ## Authors
 

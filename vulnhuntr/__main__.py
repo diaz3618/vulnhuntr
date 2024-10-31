@@ -3,7 +3,7 @@ import re
 import argparse
 import structlog
 from vulnhuntr.symbol_finder import SymbolExtractor
-from vulnhuntr.LLMs import Claude, ChatGPT
+from vulnhuntr.LLMs import Claude, ChatGPT, Ollama
 from vulnhuntr.prompts import *
 from rich import print
 from typing import List, Generator
@@ -11,7 +11,10 @@ from enum import Enum
 from pathlib import Path
 from pydantic_xml import BaseXmlModel, element
 from pydantic import BaseModel, Field
+import dotenv
+import os
 
+dotenv.load_dotenv()
 
 structlog.configure(
     processors=[
@@ -278,6 +281,24 @@ def extract_between_tags(tag: str, string: str, strip: bool = False) -> list[str
         ext_list = [e.strip() for e in ext_list]
     return ext_list
 
+def initialize_llm(llm_arg: str, system_prompt: str = "") -> Claude | ChatGPT | Ollama:
+    llm_arg = llm_arg.lower()
+    if llm_arg == 'claude':
+        anth_model = os.getenv("ANTHROPIC_MODEL", "claude-3-5-sonnet-latest")
+        anth_base_url = os.getenv("ANTHROPIC_BASE_URL", "https://api.anthropic.com")
+        llm = Claude(anth_model, anth_base_url, system_prompt)
+    elif llm_arg == 'gpt':
+        openai_model = os.getenv("OPENAI_MODEL", "chatgpt-4o-latest")
+        openai_base_url = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
+        llm = ChatGPT(openai_model, openai_base_url, system_prompt)
+    elif llm_arg == 'ollama':
+        ollama_model = os.getenv("OLLAMA_MODEL", "llama3")
+        ollama_base_url = os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434/api/generate")
+        llm = Ollama(ollama_model, ollama_base_url, system_prompt)
+    else:
+        raise ValueError(f"Invalid LLM argument: {llm_arg}\nValid options are: claude, gpt, ollama")
+    return llm
+
 def print_readable(report: Response) -> None:
     for attr, value in vars(report).items():
         print(f"{attr}:")
@@ -297,10 +318,10 @@ def print_readable(report: Response) -> None:
         print()  # Add an empty line between attributes
 
 def run():
-    parser = argparse.ArgumentParser(description='Analyze a GitHub project for vulnerabilities. Export your ANTHROPIC_API_KEY before running.')
+    parser = argparse.ArgumentParser(description='Analyze a GitHub project for vulnerabilities. Export your ANTHROPIC_API_KEY/OPENAI_API_KEY before running.')
     parser.add_argument('-r', '--root', type=str, required=True, help='Path to the root directory of the project')
     parser.add_argument('-a', '--analyze', type=str, help='Specific path or file within the project to analyze')
-    parser.add_argument('-l', '--llm', type=str, choices=['claude', 'gpt'], default='claude', help='LLM client to use (default: claude)')
+    parser.add_argument('-l', '--llm', type=str, choices=['claude', 'gpt', 'ollama'], default='claude', help='LLM client to use (default: claude)')
     parser.add_argument('-v', '--verbosity', action='count', default=0, help='Increase output verbosity (-v for INFO, -vv for DEBUG)')
     args = parser.parse_args()
 
@@ -323,11 +344,8 @@ def run():
     # Analyze the entire project for network-related files
     else:
         files_to_analyze = repo.get_network_related_files(files)
-
-    if args.llm == 'claude':
-        llm = Claude()
-    elif args.llm == 'gpt':
-        llm = ChatGPT()
+    
+    llm = initialize_llm(args.llm)
 
     readme_content = repo.get_readme_content()
     if readme_content:
@@ -342,14 +360,17 @@ def run():
     else:
         log.warning("No README summary found")
         summary = ''
+    
+    # Initialize the system prompt with the README summary
+    system_prompt = (Instructions(instructions=SYS_PROMPT_TEMPLATE).to_xml() + b'\n' +
+                ReadmeSummary(readme_summary=summary).to_xml()
+                ).decode()
+    
+    llm = initialize_llm(args.llm, system_prompt)
 
     # files_to_analyze is either a list of all network-related files or a list containing a single file/dir to analyze
     for py_f in files_to_analyze:
         log.info(f"Performing initial analysis", file=str(py_f))
-
-        system_prompt = (Instructions(instructions=SYS_PROMPT_TEMPLATE).to_xml() + b'\n' +
-                        ReadmeSummary(readme_summary=summary).to_xml()
-                        ).decode()
 
         # This is the Initial analysis
         with py_f.open(encoding='utf-8') as f:
@@ -359,11 +380,6 @@ def run():
 
             print(f"\nAnalyzing {py_f}")
             print('-' * 40 +'\n')
-
-            if args.llm == 'claude':
-                llm = Claude(system_prompt=system_prompt)
-            elif args.llm == 'gpt':
-                llm = ChatGPT(system_prompt=system_prompt)
 
             user_prompt =(
                     FileCode(file_path=str(py_f), file_source=content).to_xml() + b'\n' +
