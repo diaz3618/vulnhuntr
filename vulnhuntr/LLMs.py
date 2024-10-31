@@ -5,6 +5,7 @@ import anthropic
 import os
 import openai
 import dotenv
+import requests
 
 dotenv.load_dotenv()
 
@@ -41,7 +42,7 @@ class LLM:
                 response_text = self.prefill + response_text
             return response_model.model_validate_json(response_text)
         except ValidationError as e:
-            log.warning("Response validation failed", exc_info=e)
+            log.warning("[-] Response validation failed\n", exc_info=e)
             raise LLMError("Validation failed") from e
             # try:
             #     response_clean_attempt = response_text.split('{', 1)[1]
@@ -74,9 +75,11 @@ class LLM:
         return response_text
 
 class Claude(LLM):
-    def __init__(self, system_prompt: str = "") -> None:
+    def __init__(self, model: str, base_url: str, system_prompt: str = "") -> None:
         super().__init__(system_prompt)
-        self.client = anthropic.Anthropic(max_retries=3, base_url=os.getenv("ANTHROPIC_BASE_URL", "https://api.anthropic.com"))
+        # API key is retrieved from an environment variable by default
+        self.client = anthropic.Anthropic(max_retries=3, base_url=base_url)
+        self.model = model
 
     def create_messages(self, user_prompt: str) -> List[Dict[str, str]]:
         if "Provide a very concise summary of the README.md content" in user_prompt:
@@ -91,7 +94,7 @@ class Claude(LLM):
         try:
             # response_model is not used here, only in ChatGPT
             return self.client.messages.create(
-                model="claude-3-5-sonnet-20240620",
+                model=self.model,
                 max_tokens=max_tokens,
                 system=self.system_prompt,
                 messages=messages
@@ -108,30 +111,31 @@ class Claude(LLM):
 
 
 class ChatGPT(LLM):
-    def __init__(self, system_prompt: str = "") -> None:
+    def __init__(self, model: str, base_url: str, system_prompt: str = "") -> None:
         super().__init__(system_prompt)
-        self.client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"), base_url=os.getenv("OPENAI_BASE_URL", f"https://api.openai.com/v1"))  # Retrieves API key and API Endpoint if specified from an environment variable
+        self.client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"), base_url=base_url)
+        self.model = model
 
     def create_messages(self, user_prompt: str) -> List[Dict[str, str]]:
-        messages = [{"role": "system", "content": self.system_prompt}, {"role": "user", "content": user_prompt}]
+        messages = [{"role": "system", "content": self.system_prompt}, 
+                    {"role": "user", "content": user_prompt}]
         return messages
 
-    def send_message(self, messages: List[Dict[str, str]], max_tokens: int, response_model) -> Dict[str, Any]:
+    def send_message(self, messages: List[Dict[str, str]], max_tokens: int, response_model=None) -> Dict[str, Any]:
         try:
-            # For analyzing files and context code, use the beta endpoint and parse so we can feed it the pydantic model
+            params = {
+                "model": self.model,
+                "messages": messages,
+                "max_tokens": max_tokens,
+            }
+
+            # Add response format configuration if a model is provided
             if response_model:
-                return self.client.beta.chat.completions.parse(
-                    model="gpt-4o-2024-08-06",
-                    messages=messages,
-                    max_tokens=max_tokens,
-                    response_format=response_model
-                )
-            else:
-                return self.client.chat.completions.create(
-                    model="gpt-4o-2024-08-06",
-                    messages=messages,
-                    max_tokens=max_tokens,
-                )
+                params["response_format"] = {
+                    "type": "json_object"
+                }
+
+            return self.client.chat.completions.create(**params)
         except openai.APIConnectionError as e:
             raise APIConnectionError("The server could not be reached") from e
         except openai.RateLimitError as e:
@@ -141,17 +145,46 @@ class ChatGPT(LLM):
         except Exception as e:
             raise LLMError(f"An unexpected error occurred: {str(e)}") from e
 
-    def _clean_response(self, response: str) -> str:
-        # Step 1: Remove markdown code block wrappers
-        cleaned_text = response.strip('```json\n').strip('```')
-        # Step 2: Correctly handle newlines and escaped characters
-        cleaned_text = cleaned_text.replace('\n', '').replace('\\\'', '\'')
-        # Step 3: Replace escaped double quotes with regular double quotes
-        cleaned_text = cleaned_text.replace('\\"', '"')
-
-        return cleaned_text.replace('\n', '')
-
     def get_response(self, response: Dict[str, Any]) -> str:
         response = response.choices[0].message.content
-        cleaned_response = self._clean_response(response)
-        return cleaned_response
+        return response
+
+
+class Ollama(LLM):
+    def __init__(self, model: str, base_url: str, system_prompt: str = "") -> None:
+        super().__init__(system_prompt)
+        self.api_url = base_url
+        self.model = model
+
+    def create_messages(self, user_prompt: str) -> str:
+        return user_prompt
+
+    def send_message(self, user_prompt: str, max_tokens: int, response_model: BaseModel) -> Dict[str, Any]:
+        payload = {
+            "model": self.model,
+            "prompt": user_prompt,
+            "options": {
+            "temperature": 1,
+            "system": self.system_prompt,
+            }
+            ,"stream":False,
+        }
+
+        try:
+            response = requests.post(self.api_url, json=payload)
+            return response
+        except requests.exceptions.RequestException as e:
+            if e.response.status_code == 429:
+                raise RateLimitError("Request was rate-limited") from e
+            elif e.response.status_code >= 500:
+                raise APIConnectionError("Server could not be reached") from e
+            else:
+                raise APIStatusError(e.response.status_code, e.response.json()) from e
+
+    def get_response(self, response: Dict[str, Any]) -> str:
+        response = response.json()['response']
+        return response
+
+    def _log_response(self, response: Dict[str, Any]) -> None:
+        log.debug("Received chat response", extra={"usage": "Ollama"})
+
