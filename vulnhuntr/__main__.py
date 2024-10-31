@@ -284,11 +284,11 @@ def extract_between_tags(tag: str, string: str, strip: bool = False) -> list[str
 def initialize_llm(llm_arg: str, system_prompt: str = "") -> Claude | ChatGPT | Ollama:
     llm_arg = llm_arg.lower()
     if llm_arg == 'claude':
-        anth_model = os.getenv("ANTHROPIC_MODEL", "claude-3-5-sonnet-20240620")
+        anth_model = os.getenv("ANTHROPIC_MODEL", "claude-3-5-sonnet-latest")
         anth_base_url = os.getenv("ANTHROPIC_BASE_URL", "https://api.anthropic.com")
         llm = Claude(anth_model, anth_base_url, system_prompt)
     elif llm_arg == 'gpt':
-        openai_model = os.getenv("OPENAI_MODEL", "gpt-4o-2024-08-06")
+        openai_model = os.getenv("OPENAI_MODEL", "chatgpt-4o-latest")
         openai_base_url = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
         llm = ChatGPT(openai_model, openai_base_url, system_prompt)
     elif llm_arg == 'ollama':
