@@ -282,17 +282,21 @@ def extract_between_tags(tag: str, string: str, strip: bool = False) -> list[str
     return ext_list
 
 def initialize_llm(llm_arg: str, system_prompt: str = "") -> Claude | ChatGPT | Ollama:
+    llm_arg = llm_arg.lower()
     if llm_arg == 'claude':
         anth_model = os.getenv("ANTHROPIC_MODEL", "claude-3-5-sonnet-20240620")
-        llm = Claude(anth_model, system_prompt)
+        anth_base_url = os.getenv("ANTHROPIC_BASE_URL", "https://api.anthropic.com")
+        llm = Claude(anth_model, anth_base_url, system_prompt)
     elif llm_arg == 'gpt':
         openai_model = os.getenv("OPENAI_MODEL", "gpt-4o-2024-08-06")
-        llm = ChatGPT(openai_model, system_prompt)
+        openai_base_url = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
+        llm = ChatGPT(openai_model, openai_base_url, system_prompt)
     elif llm_arg == 'ollama':
         ollama_model = os.getenv("OLLAMA_MODEL", "llama3")
-        llm = Ollama(ollama_model, system_prompt)
+        ollama_base_url = os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434/api/generate")
+        llm = Ollama(ollama_model, ollama_base_url, system_prompt)
     else:
-        raise ValueError(f"Invalid LLM argument: {llm_arg}")
+        raise ValueError(f"Invalid LLM argument: {llm_arg}\nValid options are: claude, gpt, ollama")
     return llm
 
 def print_readable(report: Response) -> None:
