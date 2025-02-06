@@ -21,14 +21,14 @@ Vulnhuntr leverages the power of LLMs to automatically create and analyze entire
 
 | Repository | Stars | Vulnerabilities |
 | - | - | - |
-| [gpt_academic](https://github.com/binary-husky/gpt_academic) | 64k | [LFI](https://nvd.nist.gov/vuln/detail/CVE-2024-10100), [XSS](https://nvd.nist.gov/vuln/detail/CVE-2024-10101) |
-| [ComfyUI](https://github.com/comfyanonymous/ComfyUI) | 50k | [XSS](https://nvd.nist.gov/vuln/detail/CVE-2024-10099) |
-| [FastChat](https://github.com/lm-sys/FastChat) | 35k | [SSRF](https://nvd.nist.gov/vuln/detail/CVE-2024-10044) | 
-| REDACTED | 29k | RCE, IDOR |
-| REDACTED | 20k | SSRF |
-| [Ragflow](https://github.com/infiniflow/ragflow) | 16k | [RCE](https://nvd.nist.gov/vuln/detail/CVE-2024-10131) |
-| REDACTED | 19k | AFO | 
-| REDACTED | 12k | AFO, IDOR |
+| [gpt_academic](https://github.com/binary-husky/gpt_academic) | 67k | [LFI](https://nvd.nist.gov/vuln/detail/CVE-2024-10100), [XSS](https://nvd.nist.gov/vuln/detail/CVE-2024-10101) |
+| [ComfyUI](https://github.com/comfyanonymous/ComfyUI) | 66k | [XSS](https://nvd.nist.gov/vuln/detail/CVE-2024-10099) |
+| [Langflow](https://github.com/langflow-ai/langflow) | 46k | RCE, IDOR |
+| [FastChat](https://github.com/lm-sys/FastChat) | 37k | [SSRF](https://nvd.nist.gov/vuln/detail/CVE-2024-10044) | 
+| [Ragflow](https://github.com/infiniflow/ragflow) | 31k | [RCE](https://nvd.nist.gov/vuln/detail/CVE-2024-10131) |
+| [LLaVA](https://github.com/haotian-liu/LLaVA) | 21k | [SSRF](https://www.cve.org/CVERecord?id=CVE-2024-9309) |
+| [gpt-researcher](https://github.com/assafelovic/gpt-researcher) | 17k | [AFO](https://github.com/assafelovic/gpt-researcher/pull/935) |
+| [Letta](https://github.com/letta-ai/letta) | 14k | [AFO](https://github.com/letta-ai/letta/pull/2067) | 
 
 ## Limitations
 
