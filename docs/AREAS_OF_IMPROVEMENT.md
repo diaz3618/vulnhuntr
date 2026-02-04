@@ -7,8 +7,7 @@
 - Uses Jedi and Parso libraries specifically for Python parsing
 
 ### Proposed Improvements
-- **Multi-language support**: Extend to JavaScript/TypeScript, Java, Go, Rust
-- Abstract the symbol extraction logic to use language-agnostic parsers
+- **Multi-language support**: Extend to JavaScript/TypeScript, Go. Maybe more later.
 - Create language-specific symbol extractors inheriting from a base class
 - Use Tree-sitter for universal parsing across languages
 
@@ -47,11 +46,12 @@
 - No graceful degradation or retry logic
 
 ### Proposed Improvements
-- ✅ **Already Fixed**: Added regex-based JSON extraction
+- **Already Fixed**: Added regex-based JSON extraction
 - Add retry logic with exponential backoff for validation failures
 - Implement fallback prompts if initial response is malformed
 - Add response sanitization pipeline before validation
 - Provide better error messages with examples of what went wrong
+- Add `resume` option
 
 ### Impact
 - More robust analysis that doesn't fail on minor formatting issues
@@ -60,7 +60,7 @@
 
 ---
 
-## 4. Cost Management
+## 4. Cost Management **(big one)**
 
 ### Current Issues
 - No built-in token counting or cost estimation
@@ -70,10 +70,10 @@
 ### Proposed Improvements
 - Add token usage tracking and cost estimation before analysis
 - Implement dry-run mode to estimate costs
-- Add configurable token limits per file/analysis
+- Add configurable token limits per file/analysis; maybe in .env or a separate config file.
 - Implement checkpointing to resume interrupted analyses
 - Create a cost-aware mode that limits context size
-- Add budget alerts and hard limits
+- **Add budget alerts and hard limits**
 
 ### Impact
 - Prevent unexpected API costs
@@ -106,14 +106,14 @@
 ## 6. False Positive Reduction
 
 ### Current Issues
-- No mechanism to track or learn from false positives
+- No mechanism to track or **learn** from false positives
 - Confidence scores are subjective (LLM-generated)
-- No validation against known vulnerability databases
+- **No validation against known vulnerability databases**
 
 ### Proposed Improvements
 - Add human feedback loop to improve accuracy
 - Implement machine learning classifier on top of LLM results
-- Cross-reference with CVE databases and known vulnerable patterns
+- **Cross-reference with CVE databases and known vulnerable patterns**
 - Add configurable confidence threshold filtering
 - Implement taint analysis to verify data flow paths
 - Add automated PoC verification when safe to do so
@@ -135,7 +135,6 @@
 ### Proposed Improvements
 - Generate SARIF format reports for IDE/CI integration
 - Add HTML/PDF report generation
-- Create GitHub Security Advisory integration
 - Support for JIRA/GitHub Issues automatic creation
 - Add VS Code extension for inline warnings
 - Implement webhook support for custom integrations
@@ -153,48 +152,24 @@
 ### Current Issues
 - Sequential file analysis (no parallelization)
 - Entire file contents sent to LLM each time
-- No caching of symbol definitions
+- **No caching of symbol definitions**
 - Repeated analysis of same code paths
 
 ### Proposed Improvements
 - Implement parallel file analysis with worker pools
 - Add intelligent context pruning (only send relevant functions)
-- Cache symbol definitions and LLM responses
+- **Cache symbol definitions and LLM responses**
 - Use incremental analysis (only analyze changed files)
 - Implement code chunking for large files
-- Add GPU acceleration for local LLM inference
 
 ### Impact
 - Faster analysis of large repositories
-- Reduced API costs through caching
+- **Reduced API costs through caching**
 - Better scalability
 
 ---
 
-## 9. Local LLM Support
-
-### Current Issues
-- Ollama support exists but unreliable ("haven't had success")
-- Requires internet connection and API keys
-- Privacy concerns with sending proprietary code to external APIs
-
-### Proposed Improvements
-- Improve Ollama integration with better prompts
-- Add support for llama.cpp, vLLM, and other local inference engines
-- Optimize prompts for open-source models
-- Add fine-tuning scripts for custom models
-- Provide pre-trained models for vulnerability detection
-- Support for quantized models on consumer hardware
-
-### Impact
-- Enable air-gapped/offline analysis
-- Better privacy for sensitive codebases
-- Lower operational costs
-- Democratize access to vulnerability scanning
-
----
-
-## 10. Context Understanding
+## 09. Context Understanding
 
 ### Current Issues
 - Limited understanding of application architecture
@@ -219,7 +194,7 @@
 
 ---
 
-## 11. Documentation and Usability
+## 10. Documentation and Usability
 
 ### Current Issues
 - Limited inline code documentation
@@ -232,9 +207,8 @@
 - Create architecture decision records (ADRs)
 - Build contributor guide with development setup
 - Add interactive Jupyter notebooks demonstrating usage
-- Create video tutorials
 - Add CLI improvements (progress bars, better formatting)
-- Implement configuration file support (.vulnhuntr.yaml)
+- **Implement configuration file support (.vulnhuntr.yaml)**
 
 ### Impact
 - Easier onboarding for contributors
@@ -244,7 +218,7 @@
 
 ---
 
-## 12. Testing and Quality Assurance
+## 11. Testing and Quality Assurance
 
 ### Current Issues
 - No visible test suite
@@ -269,7 +243,7 @@
 
 ---
 
-## 13. Security of the Tool Itself
+## 12. Security of the Tool Itself
 
 ### Current Issues
 - Executes on untrusted code without sandboxing
@@ -292,7 +266,7 @@
 
 ---
 
-## 14. Extensibility and Plugins
+## 13. Extensibility and Plugins
 
 ### Current Issues
 - Monolithic architecture
@@ -316,7 +290,7 @@
 
 ---
 
-## 15. Reproducibility and Auditing
+## 14. Reproducibility and Auditing
 
 ### Current Issues
 - Non-deterministic LLM outputs
@@ -358,7 +332,6 @@
 
 ### Long-term (Strategic)
 11. Language Support
-12. Local LLM Support
-13. Extensibility and Plugins
-14. Security of the Tool Itself
-15. Reproducibility and Auditing
+12. Extensibility and Plugins
+13. Security of the Tool Itself
+14. Reproducibility and Auditing
