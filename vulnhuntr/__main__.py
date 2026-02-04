@@ -326,7 +326,7 @@ def run():
     args = parser.parse_args()
 
     repo = RepoOps(args.root)
-    code_extractor = SymbolExtractor(args.root)
+    code_extractor = (args.root)
     # Get repo files that don't include stuff like tests and documentation
     files = repo.get_relevant_py_files()
 
@@ -392,7 +392,7 @@ def run():
                 ).to_xml()
             ).decode()
 
-            initial_analysis_report: Response = llm.chat(user_prompt, response_model=Response)
+            initial_analysis_report: Response = llm.chat(user_prompt, response_model=Response, max_tokens=8192)
             log.info("Initial analysis complete", report=initial_analysis_report.model_dump())
 
             print_readable(initial_analysis_report)
@@ -461,7 +461,7 @@ def run():
                             ).to_xml()
                         ).decode()
 
-                        secondary_analysis_report: Response = llm.chat(vuln_specific_user_prompt, response_model=Response)
+                        secondary_analysis_report: Response = llm.chat(vuln_specific_user_prompt, response_model=Response, max_tokens=8192)
                         log.info("Secondary analysis complete", secondary_analysis_report=secondary_analysis_report.model_dump())
 
                         if args.verbosity > 0:
