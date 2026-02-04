@@ -166,3 +166,4 @@ cython_debug/
 # repos
 repos/
 .vscode/launch.json
+docs/archive

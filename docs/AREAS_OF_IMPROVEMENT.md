@@ -46,7 +46,7 @@
 - No graceful degradation or retry logic
 
 ### Proposed Improvements
-- **Already Fixed**: Added regex-based JSON extraction
+- ✅ **Already Fixed**: ---Added regex-based JSON extraction---
 - Add retry logic with exponential backoff for validation failures
 - Implement fallback prompts if initial response is malformed
 - Add response sanitization pipeline before validation
@@ -136,9 +136,10 @@
 - Generate SARIF format reports for IDE/CI integration
 - Add HTML/PDF report generation
 - Support for JIRA/GitHub Issues automatic creation
-- Add VS Code extension for inline warnings
+- Add VS Code extension for inline warnings; caching would be essential
 - Implement webhook support for custom integrations
 - Export to security platforms (Snyk, SonarQube, etc.)
+- OS tool access could vastly improve vulnhuntr; deploy it in a kali container?
 
 ### Impact
 - Better integration into existing development workflows
@@ -198,13 +199,13 @@
 
 ### Current Issues
 - Limited inline code documentation
-- No architecture documentation
+- ✅ No architecture documentation
 - Steep learning curve for contributors
 - No interactive tutorials
 
 ### Proposed Improvements
 - Add comprehensive API documentation
-- Create architecture decision records (ADRs)
+- ✅ ---Create architecture decision records (ADRs)---
 - Build contributor guide with development setup
 - Add interactive Jupyter notebooks demonstrating usage
 - Add CLI improvements (progress bars, better formatting)
@@ -317,8 +318,8 @@
 ## Priority Ranking
 
 ### High Priority (Immediate Impact)
-1. ✅ Python Version Compatibility (partially addressed)
-2. ✅ LLM Response Validation (fixed)
+1. **Python Version Compatibility (partially addressed)**
+2. ✅ ---LLM Response Validation (fixed)---
 3. Cost Management
 4. Reporting and Integration
 5. False Positive Reduction
@@ -327,7 +328,7 @@
 6. Performance Optimization
 7. Vulnerability Detection Coverage
 8. Testing and Quality Assurance
-9. Documentation and Usability
+9. **Documentation and Usability (partially done)**
 10. Context Understanding
 
 ### Long-term (Strategic)
