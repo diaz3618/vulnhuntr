@@ -40,6 +40,13 @@ class LLM:
         try:
             if self.prefill:
                 response_text = self.prefill + response_text
+            
+            # Strip markdown code blocks if present (e.g., ```json ... ```)
+            import re
+            match = re.search(r'\{.*\}', response_text, re.DOTALL)
+            if match:
+                response_text = match.group(0)
+            
             return response_model.model_validate_json(response_text)
         except ValidationError as e:
             log.warning("[-] Response validation failed\n", exc_info=e)
@@ -78,7 +85,8 @@ class Claude(LLM):
     def __init__(self, model: str, base_url: str, system_prompt: str = "") -> None:
         super().__init__(system_prompt)
         # API key is retrieved from an environment variable by default
-        self.client = anthropic.Anthropic(max_retries=3, base_url=base_url)
+        api_key = os.getenv("ANTHROPIC_API_KEY")
+        self.client = anthropic.Anthropic(api_key=api_key, max_retries=3, base_url=base_url)
         self.model = model
 
     def create_messages(self, user_prompt: str) -> List[Dict[str, str]]:
