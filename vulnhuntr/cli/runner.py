@@ -492,13 +492,9 @@ def _generate_reports(
     # SARIF report
     if args.sarif:
         try:
-            reporter = SARIFReporter(
-                tool_name="Vulnhuntr",
-                tool_version="1.0.0",
-                repo_root=Path(args.root),
-            )
+            reporter = SARIFReporter(output_path=Path(args.sarif))
             reporter.add_findings(all_findings)
-            reporter.write(Path(args.sarif))
+            reporter.write()
             print_report_status("SARIF", args.sarif, True)
         except Exception as e:
             print_report_status("SARIF", args.sarif, False, str(e))
@@ -507,12 +503,9 @@ def _generate_reports(
     # HTML report
     if args.html:
         try:
-            reporter = HTMLReporter(
-                title=f"Vulnhuntr Security Report - {Path(args.root).name}",
-                repo_root=Path(args.root),
-            )
+            reporter = HTMLReporter(output_path=Path(args.html))
             reporter.add_findings(all_findings)
-            reporter.write(Path(args.html))
+            reporter.write()
             print_report_status("HTML", args.html, True)
         except Exception as e:
             print_report_status("HTML", args.html, False, str(e))
@@ -521,9 +514,9 @@ def _generate_reports(
     # JSON report
     if args.json:
         try:
-            reporter = JSONReporter(repo_root=Path(args.root))
+            reporter = JSONReporter(output_path=Path(args.json))
             reporter.add_findings(all_findings)
-            reporter.write(Path(args.json))
+            reporter.write()
             print_report_status("JSON", args.json, True)
         except Exception as e:
             print_report_status("JSON", args.json, False, str(e))
@@ -586,17 +579,18 @@ def _export_all_reports(args: "argparse.Namespace", findings: List[Finding]) -> 
         
         # Export each format
         formats = [
-            (SARIFReporter("Vulnhuntr", "1.0.0", Path(args.root)), "sarif"),
-            (HTMLReporter(f"Vulnhuntr Security Report - {repo_name}", Path(args.root)), "html"),
-            (JSONReporter(repo_root=Path(args.root)), "json"),
-            (CSVReporter(repo_root=Path(args.root)), "csv"),
-            (MarkdownReporter(f"Vulnhuntr Security Report - {repo_name}", Path(args.root)), "md"),
+            (SARIFReporter(), "sarif"),
+            (HTMLReporter(), "html"),
+            (JSONReporter(), "json"),
+            (CSVReporter(), "csv"),
+            (MarkdownReporter(), "md"),
         ]
         
         for reporter, ext in formats:
             path = export_dir / f"vulnhuntr_{repo_name}_{timestamp}.{ext}"
+            reporter.output_path = path  # Set output path dynamically
             reporter.add_findings(findings)
-            reporter.write(path)
+            reporter.write()
         
         console.print(f"[green]✓ All reports exported to: {export_dir}[/green]")
     except Exception as e:
