@@ -199,7 +199,7 @@ def track_llm_call(
 
 ## Integration with Main Agent
 
-This logging agent is consulted by COPILOT_AGENT.md for:
+This logging agent is consulted by AGENT.md for:
 - Structlog usage patterns
 - Sensitive data sanitization
 - Cost tracking implementation

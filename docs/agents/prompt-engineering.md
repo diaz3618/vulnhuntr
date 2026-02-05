@@ -909,7 +909,7 @@ def query_user(user_id):
 
 ## 11. Integration with Main Agent
 
-This prompt engineering agent is **automatically consulted** by COPILOT_AGENT.md for:
+This prompt engineering agent is **automatically consulted** by AGENT.md for:
 
 - LLM integration questions
 - Prompt construction review

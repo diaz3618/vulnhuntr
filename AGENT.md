@@ -1,4 +1,4 @@
-# COPILOT_AGENT.md
+# AGENT.md
 
 **Vulnhuntr Autonomous Development Agent System**
 
@@ -634,7 +634,7 @@ See `docs/MCP_SERVERS.md` for potential Model Context Protocol server integratio
 1. **Re-read Core Files**:
 ```bash
 # Essential files to refresh
-- COPILOT_AGENT.md (this file)
+- AGENT.md (this file)
 - ARCHITECTURE.md
 - vulnhuntr/__main__.py (orchestration)
 - vulnhuntr/LLMs.py (LLM abstraction)
