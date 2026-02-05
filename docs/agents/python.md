@@ -232,7 +232,7 @@ except (JediException, ValueError) as e:
 
 ## Integration with Main Agent
 
-This Python agent is consulted by COPILOT_AGENT.md for:
+This Python agent is consulted by AGENT.md for:
 - Python version compatibility questions
 - Code style and type hint reviews
 - Dependency management decisions

@@ -197,7 +197,7 @@ pipdeptree
 
 ## Integration with Main Agent
 
-This dependency management agent is consulted by COPILOT_AGENT.md for:
+This dependency management agent is consulted by AGENT.md for:
 - Python version compatibility decisions
 - Jedi/Parso update considerations
 - LLM client update impacts

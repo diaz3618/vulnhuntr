@@ -13,7 +13,7 @@ This repository has a **comprehensive agent system** that GitHub Copilot uses au
 ### What This Means
 
 When you ask GitHub Copilot questions in this workspace:
-1. It **automatically references** [COPILOT_AGENT.md](../COPILOT_AGENT.md)
+1. It **automatically references** [AGENT.md](../AGENT.md)
 2. It **consults specialized sub-agents** for domain-specific guidance
 3. It **enforces project constraints** (Python 3.10-3.13, security-first, cost-aware)
 4. It **maintains context** through knowledge refresh protocol
@@ -35,7 +35,7 @@ It should mention:
 ## Agent Architecture
 
 ```
-📄 COPILOT_AGENT.md (27KB)
+📄 AGENT.md (27KB)
    Main coordinator - routes to specialists
    ├── 🔒 code-review/SKILL.md (15KB)
    │   Security, LLM integration, Python, Jedi, performance
@@ -245,7 +245,7 @@ gh pr create --draft --title "feat(llm): add Ollama local model support"
 - When project constraints change
 
 **Core Files to Refresh**:
-1. `COPILOT_AGENT.md` - Main coordinator
+1. `AGENT.md` - Main coordinator
 2. `vulnhuntr/__main__.py` - Entry point
 3. `vulnhuntr/LLMs.py` - LLM clients
 4. `vulnhuntr/symbol_finder.py` - Jedi integration
@@ -268,7 +268,7 @@ gh pr create --draft --title "feat(llm): add Ollama local model support"
 
 1. **Check agent version** in file headers
 2. **Update agents** if codebase has changed significantly
-3. **Re-read COPILOT_AGENT.md** - May need manual refresh
+3. **Re-read AGENT.md** - May need manual refresh
 4. **Consult AREAS_OF_IMPROVEMENT.md** - Known limitations
 
 ### Need to Update Agents?
@@ -331,7 +331,7 @@ When project changes significantly:
 
 1. Create in `docs/agents/`
 2. Follow existing structure
-3. Add reference in `COPILOT_AGENT.md`
+3. Add reference in `AGENT.md`
 4. Add reference in `.github/copilot-instructions.md`
 5. Update `AGENT_STATUS.md`
 6. Test with Copilot
@@ -340,7 +340,7 @@ When project changes significantly:
 
 ## Support
 
-- **Main Coordinator**: [COPILOT_AGENT.md](../COPILOT_AGENT.md)
+- **Main Coordinator**: [AGENT.md](../AGENT.md)
 - **Status Tracking**: [docs/AGENT_STATUS.md](docs/AGENT_STATUS.md)
 - **Architecture**: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 - **Roadmap**: [docs/AREAS_OF_IMPROVEMENT.md](docs/AREAS_OF_IMPROVEMENT.md)

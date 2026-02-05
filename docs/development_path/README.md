@@ -28,7 +28,7 @@ This directory contains detailed, phased implementation plans for improving Vuln
 | 12 | Python Version Compatibility | 🔴 HIGH | Low | 1-2 weeks | ✅ Partially Done |
 | 13 | Documentation & Usability | 🟡 MEDIUM | Low-Medium | 2-3 weeks | ✅ Partially Done |
 | 14 | LLM Response Validation | 🔴 HIGH | Low | 1 week | ✅ Fixed |
-| 15 | [MCP Server Integration](15_mcp_integration.md) | 🟡 MEDIUM | High | 6-8 weeks | ⏳ Planned |
+| 15 | [MCP Server Integration](06_mcp_integration.md) | 🟡 MEDIUM | High | 6-8 weeks | ⏳ Planned |
 
 **Priority Legend**:
 - 🔴 **HIGH** - Immediate Impact (implement first)
@@ -202,13 +202,13 @@ Extensibility & Plugins (#12)
 
 **Problem: Only supports Python**
 - Solution: [Multi-Language Support](03_multi_language_support.md) - JavaScript/TypeScript, Go, Tree-sitter
-- Related: [MCP Server Integration](15_mcp_integration.md) - Tree-sitter MCP for multi-language parsing
+- Related: [MCP Server Integration](06_mcp_integration.md) - Tree-sitter MCP for multi-language parsing
 
 **Problem: Analysis is slow on large repositories**
-- Solution: [MCP Server Integration](15_mcp_integration.md) - Ripgrep MCP for 5-10x faster code search
+- Solution: [MCP Server Integration](06_mcp_integration.md) - Ripgrep MCP for 5-10x faster code search
 
 **Problem: Need to validate findings with external tools**
-- Solution: [MCP Server Integration](15_mcp_integration.md) - CodeQL MCP for CVE cross-reference
+- Solution: [MCP Server Integration](06_mcp_integration.md) - CodeQL MCP for CVE cross-reference
 
 **Problem: Can't extend with custom detectors**
 - Solution: Extensibility & Plugins - Plugin architecture, DSL for patterns

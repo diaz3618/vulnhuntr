@@ -636,7 +636,7 @@ for file in large_file_list:
 
 ## Integration with Main Agent
 
-This code review agent is **automatically consulted** by the main COPILOT_AGENT.md during:
+This code review agent is **automatically consulted** by the main AGENT.md during:
 - Code changes
 - Pull request reviews
 - Pre-commit checks

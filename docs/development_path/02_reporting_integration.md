@@ -14,7 +14,7 @@
 | 1 | SARIF Support | ✅ COMPLETE | `reporters/sarif.py`, `--sarif` flag |
 | 2 | HTML Reports | ✅ COMPLETE | `reporters/html.py` with Jinja2, `--html` flag |
 | 3 | GitHub Issues | ✅ COMPLETE | `integrations/github_issues.py`, `--create-issues` flag |
-| 4 | VS Code Extension | ❌ NOT IMPLEMENTED | Out of scope, requires separate project |
+| 4 | ---VS Code Extension | ❌ NOT IMPLEMENTED | Out of scope, requires separate project--- **IGNORE THIS FOR NOW** |
 | 5 | Webhook Integration | ✅ COMPLETE | `integrations/webhook.py`, `--webhook` flag |
 | 6 | Export Formats | ✅ COMPLETE | JSON, CSV, Markdown reporters |
 | - | `--export-all` flag | ❌ NOT IMPLEMENTED | CLI convenience flag not added |

@@ -10,7 +10,7 @@ This project uses a **main coordinator agent** with **specialized sub-agents** f
 
 ### Main Coordinator
 
-**File**: [`COPILOT_AGENT.md`](../COPILOT_AGENT.md)
+**File**: [`AGENT.md`](../AGENT.md)
 
 The main agent coordinates all interactions and routes to specialized sub-agents as needed. It contains:
 - Project overview and architecture
@@ -76,7 +76,7 @@ The main agent coordinates all interactions and routes to specialized sub-agents
 
 ## Deployment & Setup
 
-**For deployment/setup questions**: Consult [`COPILOT_AGENT.md`](../COPILOT_AGENT.md) "Environment Setup" section and [`QUICKSTART.md`](../QUICKSTART.md).
+**For deployment/setup questions**: Consult [`AGENT.md`](../AGENT.md) "Environment Setup" section and [`QUICKSTART.md`](../QUICKSTART.md).
 
 **Critical deployment constraints**:
 - Python 3.10-3.13 ONLY (3.14+ breaks Jedi/Parso)
@@ -90,7 +90,7 @@ The main agent coordinates all interactions and routes to specialized sub-agents
 ### 1. Before Answering Any Question
 
 - **Identify domain** - Which sub-agent is relevant?
-- **Read [`COPILOT_AGENT.md`](../COPILOT_AGENT.md)** for project context (if needed for architecture, constraints, or complex questions)
+- **Read [`AGENT.md`](../AGENT.md)** for project context (if needed for architecture, constraints, or complex questions)
 - **Consult sub-agent** - Read the appropriate docs/agents/ file **only if domain-specific** (don't load all agents)
 - **Check constraints** - Especially Python version, LLM integration patterns
 - **Research if unsure** - Never guess, always verify
@@ -102,7 +102,7 @@ The main agent coordinates all interactions and routes to specialized sub-agents
 - **Git workflow/commits** → Load `docs/agents/git-workflow.md`
 - **Logging/structlog** → Load `docs/agents/logging.md`
 - **Dependencies/versions** → Load `docs/agents/dependency-management.md`
-- **Deployment/setup** → Load `COPILOT_AGENT.md` + `QUICKSTART.md`
+- **Deployment/setup** → Load `AGENT.md` + `QUICKSTART.md`
 
 ### 2. Knowledge Refresh Triggers
 
@@ -114,7 +114,7 @@ The main agent coordinates all interactions and routes to specialized sub-agents
 - When project constraints change
 
 **Core files to re-read**:
-- `COPILOT_AGENT.md` (main coordinator)
+- `AGENT.md` (main coordinator)
 - `vulnhuntr/__main__.py` (entry point)
 - `vulnhuntr/LLMs.py` (LLM clients)
 - `vulnhuntr/symbol_finder.py` (Jedi integration)
@@ -153,7 +153,7 @@ The main agent coordinates all interactions and routes to specialized sub-agents
 
 ## Common Pitfalls to Avoid
 
-**Based on [`COPILOT_AGENT.md`](../COPILOT_AGENT.md) Emergency Procedures**:
+**Based on [`AGENT.md`](../AGENT.md) Emergency Procedures**:
 
 1. **Don't update Python beyond 3.13** - Jedi/Parso won't work
 2. **Don't skip Pydantic validation** - LLMs are unreliable
@@ -224,7 +224,7 @@ No configuration needed! The file location (`.github/copilot-instructions.md`) i
 ## Version History
 
 - **1.0.0** (2026-02-04): Initial comprehensive agent system configuration
-  - Main coordinator (COPILOT_AGENT.md): 27KB
+  - Main coordinator (AGENT.md): 27KB
   - Code review agent: 15KB (security, LLM, Python, Jedi, performance)
   - Prompt engineering agent: 20KB (vulnerability prompts, validation, iteration)
   - Python agent: Adapted for 3.10-3.13 strict
