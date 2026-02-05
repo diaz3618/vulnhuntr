@@ -55,11 +55,11 @@ def print_readable(report: "Response") -> None:
         print()  # Add an empty line between attributes
 
 
-def print_dry_run_report(estimate: "CostEstimate") -> None:
+def print_dry_run_report(estimate: dict) -> None:
     """Print a formatted dry-run cost estimation report.
     
     Args:
-        estimate: Cost estimation data
+        estimate: Cost estimation data (dict from estimate_analysis_cost)
     """
     console.print("\n[bold cyan]═══════════════════════════════════════════════════════════════[/bold cyan]")
     console.print("[bold cyan]              VULNHUNTR COST ESTIMATION (DRY RUN)               [/bold cyan]")
@@ -70,11 +70,11 @@ def print_dry_run_report(estimate: "CostEstimate") -> None:
     table.add_column("Metric", style="dim")
     table.add_column("Value", justify="right")
     
-    table.add_row("Total Files", str(estimate.total_files))
-    table.add_row("Model", estimate.model)
-    table.add_row("Est. Total Tokens", f"{estimate.estimated_total_tokens:,}")
-    table.add_row("Est. Input Tokens", f"{estimate.estimated_input_tokens:,}")
-    table.add_row("Est. Output Tokens", f"{estimate.estimated_output_tokens:,}")
+    table.add_row("Total Files", str(estimate["file_count"]))
+    table.add_row("Model", estimate["model"])
+    table.add_row("Est. Total Tokens", f"{estimate['estimated_total_tokens']:,}")
+    table.add_row("Est. Input Tokens", f"{estimate['estimated_input_tokens']:,}")
+    table.add_row("Est. Output Tokens", f"{estimate['estimated_output_tokens']:,}")
     
     console.print(table)
     console.print()
@@ -84,15 +84,27 @@ def print_dry_run_report(estimate: "CostEstimate") -> None:
     cost_table.add_column("Category", style="dim")
     cost_table.add_column("Amount", justify="right")
     
-    cost_table.add_row("Input Cost", f"${estimate.estimated_input_cost:.4f}")
-    cost_table.add_row("Output Cost", f"${estimate.estimated_output_cost:.4f}")
-    cost_table.add_row("[bold]Total Estimated Cost[/bold]", f"[bold]${estimate.estimated_total_cost:.4f}[/bold]")
+    # Calculate cost breakdown (approximate 15% input, 85% output)
+    estimated_cost = estimate["estimated_cost_usd"]
+    input_cost = estimated_cost * 0.15
+    output_cost = estimated_cost * 0.85
+    
+    cost_table.add_row("Input Cost", f"${input_cost:.4f}")
+    cost_table.add_row("Output Cost", f"${output_cost:.4f}")
+    cost_table.add_row("[bold]Total Estimated Cost[/bold]", f"[bold]${estimated_cost:.4f}[/bold]")
+    
+    # Cost range
+    cost_range = estimate.get("estimated_cost_range", {})
+    if cost_range:
+        cost_table.add_row("", "")  # Spacer
+        cost_table.add_row("Low Estimate", f"${cost_range['low']:.4f}")
+        cost_table.add_row("High Estimate", f"${cost_range['high']:.4f}")
     
     console.print(cost_table)
     console.print()
     
     # Warnings
-    if estimate.estimated_total_cost > 1.0:
+    if estimated_cost > 1.0:
         console.print("[yellow]⚠ Estimated cost exceeds $1.00. Consider using --budget flag.[/yellow]")
     
     console.print("\n[dim]Note: This is an estimate. Actual costs may vary based on LLM responses.[/dim]")
