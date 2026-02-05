@@ -172,3 +172,7 @@ repos/
 docs/archive
 scripts
 internal
+# Test files
+test_*.py
+test_results.*
+integration_test.log
