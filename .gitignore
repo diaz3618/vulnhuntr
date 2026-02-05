@@ -4,6 +4,9 @@ __pycache__/
 *$py.class
 fake_project/
 
+# Memory Bank (MCP server context management)
+memory-bank/
+
 # C extensions
 *.so
 
