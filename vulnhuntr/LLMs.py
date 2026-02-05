@@ -177,7 +177,12 @@ class Claude(LLM):
     ) -> None:
         super().__init__(system_prompt, cost_callback)
         import os
-        self.client = anthropic.Anthropic(api_key=api_key, max_retries=3, base_url=base_url)
+        api_key = os.getenv("ANTHROPIC_API_KEY")
+        # Initialize client without base_url initially to avoid httpx issues
+        if base_url and base_url != "https://api.anthropic.com":
+            self.client = anthropic.Anthropic(api_key=api_key, max_retries=3, base_url=base_url)
+        else:
+            self.client = anthropic.Anthropic(api_key=api_key, max_retries=3)
         self.model = model
 
     def create_messages(self, user_prompt: str) -> List[Dict[str, str]]:
