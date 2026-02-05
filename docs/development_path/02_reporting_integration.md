@@ -17,11 +17,11 @@
 | 4 | ---VS Code Extension | ❌ NOT IMPLEMENTED | Out of scope, requires separate project--- **IGNORE THIS FOR NOW** |
 | 5 | Webhook Integration | ✅ COMPLETE | `integrations/webhook.py`, `--webhook` flag |
 | 6 | Export Formats | ✅ COMPLETE | JSON, CSV, Markdown reporters |
-| - | `--export-all` flag | ❌ NOT IMPLEMENTED | CLI convenience flag not added |
+| - | `--export-all` flag | ✅ COMPLETE | CLI convenience flag added |
 | - | Unit Tests | ❌ NOT IMPLEMENTED | No test files exist |
-| - | Documentation | ⚠️ PARTIAL | Code documented, user docs not created |
-| - | REPORTING.md | ❌ NOT CREATED | New documentation file not created |
-| - | INTEGRATIONS.md | ❌ NOT CREATED | New documentation file not created |
+| - | Documentation | ✅ COMPLETE | REPORTING.md and INTEGRATIONS.md created |
+| - | REPORTING.md | ✅ COMPLETE | Documentation file created |
+| - | INTEGRATIONS.md | ✅ COMPLETE | Documentation file created |
 
 ---
 
