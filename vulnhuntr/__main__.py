@@ -21,6 +21,21 @@ from vulnhuntr.config import (
     load_config,
     merge_config_with_args,
 )
+from vulnhuntr.reporters import (
+    Finding,
+    SARIFReporter,
+    HTMLReporter,
+    JSONReporter,
+    CSVReporter,
+    MarkdownReporter,
+    response_to_finding,
+)
+from vulnhuntr.integrations import (
+    GitHubIssueCreator,
+    GitHubConfig,
+    WebhookNotifier,
+    PayloadFormat,
+)
 from rich import print
 from rich.console import Console
 from typing import List, Generator, Optional
@@ -371,6 +386,19 @@ def run():
     parser.add_argument('--resume', type=str, nargs='?', const='.vulnhuntr_checkpoint', help='Resume from checkpoint (default: .vulnhuntr_checkpoint)')
     parser.add_argument('--no-checkpoint', action='store_true', help='Disable checkpointing')
     
+    # Reporting arguments
+    parser.add_argument('--sarif', type=str, metavar='PATH', help='Output SARIF 2.1.0 report to specified file')
+    parser.add_argument('--html', type=str, metavar='PATH', help='Output HTML report to specified file')
+    parser.add_argument('--json', type=str, metavar='PATH', help='Output JSON report to specified file')
+    parser.add_argument('--csv', type=str, metavar='PATH', help='Output CSV report to specified file')
+    parser.add_argument('--markdown', type=str, metavar='PATH', help='Output Markdown report to specified file')
+    
+    # Integration arguments
+    parser.add_argument('--create-issues', action='store_true', help='Create GitHub issues for findings (requires GITHUB_TOKEN, GITHUB_OWNER, GITHUB_REPO env vars)')
+    parser.add_argument('--webhook', type=str, metavar='URL', help='Send findings to webhook URL')
+    parser.add_argument('--webhook-format', type=str, choices=['json', 'slack', 'discord', 'teams'], default='json', help='Webhook payload format (default: json)')
+    parser.add_argument('--webhook-secret', type=str, help='Secret for HMAC webhook signature (or set WEBHOOK_SECRET env var)')
+    
     args = parser.parse_args()
     
     console = Console()
@@ -494,6 +522,9 @@ def run():
     
     # Track analysis success for checkpoint finalization
     analysis_success = True
+    
+    # Collect findings for reporting
+    all_findings: List[Finding] = []
 
     # files_to_analyze is either a list of all network-related files or a list containing a single file/dir to analyze
     for py_f in files_to_analyze:
@@ -634,6 +665,21 @@ def run():
                                 break
                             same_context = True
                             log.debug("No new context functions or classes requested")
+                    
+                    # After secondary analysis loop completes, collect finding if vulnerability confirmed
+                    # Use the last secondary_analysis_report (most refined analysis)
+                    if 'secondary_analysis_report' in dir() and secondary_analysis_report.confidence_score >= 5:
+                        finding = response_to_finding(
+                            response=secondary_analysis_report,
+                            file_path=py_f,
+                            vuln_type=vuln_type,
+                            context_code=stored_code_definitions,
+                        )
+                        all_findings.append(finding)
+                        log.info("Finding collected for reporting", 
+                                 vuln_type=vuln_type.value, 
+                                 file=str(py_f),
+                                 confidence=secondary_analysis_report.confidence_score)
                     pass
         
         # Mark file as complete in checkpoint
@@ -647,6 +693,143 @@ def run():
     
     # Log final cost summary
     log.info("Analysis complete", cost_summary=cost_tracker.get_summary())
+    
+    # =========================================================================
+    # Report Generation
+    # =========================================================================
+    
+    if all_findings:
+        console.print(f"\n[bold green]Found {len(all_findings)} potential vulnerabilities[/bold green]\n")
+        
+        # Generate SARIF report
+        if args.sarif:
+            try:
+                reporter = SARIFReporter(
+                    tool_name="Vulnhuntr",
+                    tool_version="1.0.0",
+                    repo_root=Path(args.root),
+                )
+                reporter.add_findings(all_findings)
+                reporter.write(Path(args.sarif))
+                console.print(f"[green]✓ SARIF report written to: {args.sarif}[/green]")
+            except Exception as e:
+                console.print(f"[red]✗ Failed to write SARIF report: {e}[/red]")
+                log.error("SARIF report failed", error=str(e))
+        
+        # Generate HTML report
+        if args.html:
+            try:
+                reporter = HTMLReporter(
+                    title=f"Vulnhuntr Security Report - {Path(args.root).name}",
+                    repo_root=Path(args.root),
+                )
+                reporter.add_findings(all_findings)
+                reporter.write(Path(args.html))
+                console.print(f"[green]✓ HTML report written to: {args.html}[/green]")
+            except Exception as e:
+                console.print(f"[red]✗ Failed to write HTML report: {e}[/red]")
+                log.error("HTML report failed", error=str(e))
+        
+        # Generate JSON report
+        if args.json:
+            try:
+                reporter = JSONReporter(repo_root=Path(args.root))
+                reporter.add_findings(all_findings)
+                reporter.write(Path(args.json))
+                console.print(f"[green]✓ JSON report written to: {args.json}[/green]")
+            except Exception as e:
+                console.print(f"[red]✗ Failed to write JSON report: {e}[/red]")
+                log.error("JSON report failed", error=str(e))
+        
+        # Generate CSV report
+        if args.csv:
+            try:
+                reporter = CSVReporter(repo_root=Path(args.root))
+                reporter.add_findings(all_findings)
+                reporter.write(Path(args.csv))
+                console.print(f"[green]✓ CSV report written to: {args.csv}[/green]")
+            except Exception as e:
+                console.print(f"[red]✗ Failed to write CSV report: {e}[/red]")
+                log.error("CSV report failed", error=str(e))
+        
+        # Generate Markdown report
+        if args.markdown:
+            try:
+                reporter = MarkdownReporter(
+                    title=f"Vulnhuntr Security Report - {Path(args.root).name}",
+                    repo_root=Path(args.root),
+                )
+                reporter.add_findings(all_findings)
+                reporter.write(Path(args.markdown))
+                console.print(f"[green]✓ Markdown report written to: {args.markdown}[/green]")
+            except Exception as e:
+                console.print(f"[red]✗ Failed to write Markdown report: {e}[/red]")
+                log.error("Markdown report failed", error=str(e))
+        
+        # Create GitHub issues
+        if args.create_issues:
+            github_token = os.getenv("GITHUB_TOKEN")
+            github_owner = os.getenv("GITHUB_OWNER")
+            github_repo = os.getenv("GITHUB_REPO")
+            
+            if not all([github_token, github_owner, github_repo]):
+                console.print("[red]✗ GitHub integration requires GITHUB_TOKEN, GITHUB_OWNER, and GITHUB_REPO environment variables[/red]")
+            else:
+                try:
+                    github_config = GitHubConfig(
+                        token=github_token,
+                        owner=github_owner,
+                        repo=github_repo,
+                        labels=["security", "vulnhuntr"],
+                    )
+                    issue_creator = GitHubIssueCreator(github_config)
+                    results = issue_creator.create_issues_for_findings(all_findings)
+                    
+                    created = sum(1 for r in results if r.created)
+                    skipped = sum(1 for r in results if r.duplicate)
+                    failed = sum(1 for r in results if r.error)
+                    
+                    console.print(f"[green]✓ GitHub issues: {created} created, {skipped} skipped (duplicates), {failed} failed[/green]")
+                except Exception as e:
+                    console.print(f"[red]✗ Failed to create GitHub issues: {e}[/red]")
+                    log.error("GitHub issue creation failed", error=str(e))
+        
+        # Send to webhook
+        if args.webhook:
+            try:
+                # Map format string to enum
+                format_map = {
+                    'json': PayloadFormat.JSON,
+                    'slack': PayloadFormat.SLACK,
+                    'discord': PayloadFormat.DISCORD,
+                    'teams': PayloadFormat.TEAMS,
+                }
+                webhook_format = format_map.get(args.webhook_format, PayloadFormat.JSON)
+                webhook_secret = args.webhook_secret or os.getenv("WEBHOOK_SECRET")
+                
+                notifier = WebhookNotifier(
+                    webhook_url=args.webhook,
+                    payload_format=webhook_format,
+                    secret=webhook_secret,
+                )
+                success = notifier.send_findings(
+                    findings=all_findings,
+                    scan_summary={
+                        "repo_path": str(args.root),
+                        "files_analyzed": len(files_to_analyze),
+                        "total_findings": len(all_findings),
+                        "total_cost_usd": cost_tracker.total_cost,
+                    }
+                )
+                if success:
+                    console.print(f"[green]✓ Findings sent to webhook: {args.webhook}[/green]")
+                else:
+                    console.print(f"[red]✗ Failed to send findings to webhook[/red]")
+            except Exception as e:
+                console.print(f"[red]✗ Webhook notification failed: {e}[/red]")
+                log.error("Webhook notification failed", error=str(e))
+    else:
+        console.print("\n[dim]No vulnerabilities found with confidence >= 5[/dim]\n")
 
 if __name__ == '__main__':
     run()
