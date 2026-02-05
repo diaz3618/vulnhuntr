@@ -357,6 +357,7 @@ class BudgetEnforcer:
         max_budget_usd: Optional[float] = None,
         warning_threshold: float = 0.8,
         max_cost_per_file: Optional[float] = None,
+        max_cost_per_iteration: Optional[float] = None,
     ) -> None:
         """Initialize budget enforcer.
         
@@ -364,11 +365,14 @@ class BudgetEnforcer:
             max_budget_usd: Maximum budget in USD (None = no limit)
             warning_threshold: Warn when this fraction of budget is used (0.0-1.0)
             max_cost_per_file: Maximum cost per file in USD (None = no limit)
+            max_cost_per_iteration: Maximum cost per iteration in USD (None = no limit)
         """
         self.max_budget_usd = max_budget_usd
         self.warning_threshold = warning_threshold
         self.max_cost_per_file = max_cost_per_file
+        self.max_cost_per_iteration = max_cost_per_iteration
         self._warning_issued = False
+        self._iteration_costs: dict[str, list[float]] = {}  # Track costs per file+iteration
     
     def check(
         self,
@@ -431,6 +435,66 @@ class BudgetEnforcer:
         if self.max_budget_usd is None:
             return None
         return max(0.0, self.max_budget_usd - current_cost)
+    
+    def should_continue_iteration(
+        self,
+        file_path: str,
+        iteration: int,
+        iteration_cost: float,
+        total_cost: float,
+    ) -> bool:
+        """Determine if analysis should continue with more iterations.
+        
+        This implements cost-aware context limiting by preventing expensive
+        iteration loops that accumulate large context without improving results.
+        
+        Args:
+            file_path: Path to file being analyzed
+            iteration: Current iteration number (0-indexed)
+            iteration_cost: Cost of the current iteration in USD
+            total_cost: Total cost so far in USD
+            
+        Returns:
+            True if should continue iterating, False if should stop
+        """
+        # Track iteration costs for this file
+        file_key = file_path
+        if file_key not in self._iteration_costs:
+            self._iteration_costs[file_key] = []
+        
+        self._iteration_costs[file_key].append(iteration_cost)
+        
+        # Check per-iteration cost limit
+        if self.max_cost_per_iteration is not None:
+            if iteration_cost >= self.max_cost_per_iteration:
+                log.warning(
+                    "Per-iteration cost limit reached",
+                    file=file_path,
+                    iteration=iteration,
+                    iteration_cost_usd=round(iteration_cost, 4),
+                    limit_usd=self.max_cost_per_iteration,
+                )
+                return False
+        
+        # Check if costs are escalating (diminishing returns)
+        # If iteration costs keep increasing without plateau, stop
+        if len(self._iteration_costs[file_key]) >= 3:
+            recent_costs = self._iteration_costs[file_key][-3:]
+            # If each iteration is significantly more expensive than the last,
+            # we're likely accumulating too much context
+            if all(recent_costs[i] < recent_costs[i+1] * 0.8 for i in range(len(recent_costs)-1)):
+                log.warning(
+                    "Iteration costs escalating - stopping to prevent runaway context growth",
+                    file=file_path,
+                    recent_costs=[round(c, 4) for c in recent_costs],
+                )
+                return False
+        
+        # Check overall budget
+        if not self.check(total_cost):
+            return False
+        
+        return True
 
 
 # =============================================================================
