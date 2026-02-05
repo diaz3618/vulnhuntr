@@ -1,15 +1,39 @@
 import logging
-from typing import List, Union, Dict, Any
-from pydantic import BaseModel, ValidationError
+import re
+from dataclasses import dataclass
+from typing import Callable, Dict, Any, List, Optional, Union
+
 import anthropic
-import os
-import openai
 import dotenv
+import openai
 import requests
+from pydantic import BaseModel, ValidationError
 
 dotenv.load_dotenv()
 
 log = logging.getLogger(__name__)
+
+
+# =============================================================================
+# Token Usage Tracking
+# =============================================================================
+
+@dataclass
+class LLMUsage:
+    """Token usage from an LLM API call."""
+    
+    input_tokens: int
+    output_tokens: int
+    model: str
+    
+    @property
+    def total_tokens(self) -> int:
+        """Total tokens for this call."""
+        return self.input_tokens + self.output_tokens
+
+
+# Type alias for cost tracking callback
+CostCallback = Callable[[int, int, str, Optional[str], str], None]
 
 class LLMError(Exception):
     """Base class for all LLM-related exceptions."""
@@ -27,14 +51,50 @@ class APIStatusError(LLMError):
         self.response = response
         super().__init__(f"Received non-200 status code: {status_code}")
 
+
+# =============================================================================
+# Base LLM Class
+# =============================================================================
+
 # Base LLM class to handle common functionality
 class LLM:
-    def __init__(self, system_prompt: str = "") -> None:
+    def __init__(
+        self,
+        system_prompt: str = "",
+        cost_callback: Optional[CostCallback] = None,
+    ) -> None:
+        """Initialize LLM.
+        
+        Args:
+            system_prompt: System prompt to use for all requests
+            cost_callback: Optional callback for cost tracking.
+                           Called with (input_tokens, output_tokens, model, file_path, call_type)
+        """
         self.system_prompt = system_prompt
         self.history: List[Dict[str, str]] = []
         self.prev_prompt: Union[str, None] = None
         self.prev_response: Union[str, None] = None
-        self.prefill = None
+        self.prefill: Optional[str] = None
+        self.model: str = ""
+        self._cost_callback = cost_callback
+        self._current_file: Optional[str] = None
+        self._current_call_type: str = "analysis"
+        self._last_usage: Optional[LLMUsage] = None
+    
+    def set_context(self, file_path: Optional[str] = None, call_type: str = "analysis") -> None:
+        """Set context for cost tracking.
+        
+        Args:
+            file_path: Path to file being analyzed
+            call_type: Type of call ('readme', 'initial', 'secondary')
+        """
+        self._current_file = file_path
+        self._current_call_type = call_type
+    
+    @property
+    def last_usage(self) -> Optional[LLMUsage]:
+        """Get token usage from the last API call."""
+        return self._last_usage
 
     def _validate_response(self, response_text: str, response_model: BaseModel) -> BaseModel:
         try:
@@ -42,7 +102,6 @@ class LLM:
                 response_text = self.prefill + response_text
             
             # Strip markdown code blocks if present (e.g., ```json ... ```)
-            import re
             match = re.search(r'\{.*\}', response_text, re.DOTALL)
             if match:
                 response_text = match.group(0)
@@ -51,12 +110,6 @@ class LLM:
         except ValidationError as e:
             log.warning("[-] Response validation failed\n", exc_info=e)
             raise LLMError("Validation failed") from e
-            # try:
-            #     response_clean_attempt = response_text.split('{', 1)[1]
-            #     return response_model.model_validate_json(response_clean_attempt)
-            # except ValidationError as e:
-            #     log.warning("Response validation failed", exc_info=e)
-            #    raise LLMError("Validation failed") from e
 
     def _add_to_history(self, role: str, content: str) -> None:
         self.history.append({"role": role, "content": content})
@@ -65,9 +118,37 @@ class LLM:
         log.error(f"An error occurred on attempt {attempt}: {str(e)}", exc_info=e)
         raise e
 
-    def _log_response(self, response: Dict[str, Any]) -> None:
-        usage_info = response.usage.__dict__
-        log.debug("Received chat response", extra={"usage": usage_info})
+    def _extract_usage(self, response: Any) -> LLMUsage:
+        """Extract token usage from API response. Override in subclasses."""
+        # Default implementation - subclasses should override
+        return LLMUsage(input_tokens=0, output_tokens=0, model=self.model)
+
+    def _log_response(self, response: Any) -> None:
+        """Log response and track costs."""
+        usage = self._extract_usage(response)
+        self._last_usage = usage
+        
+        log.debug(
+            "Received chat response",
+            extra={
+                "usage": {
+                    "input_tokens": usage.input_tokens,
+                    "output_tokens": usage.output_tokens,
+                    "total_tokens": usage.total_tokens,
+                    "model": usage.model,
+                }
+            }
+        )
+        
+        # Call cost callback if set
+        if self._cost_callback:
+            self._cost_callback(
+                usage.input_tokens,
+                usage.output_tokens,
+                usage.model,
+                self._current_file,
+                self._current_call_type,
+            )
 
     def chat(self, user_prompt: str, response_model: BaseModel = None, max_tokens: int = 4096) -> Union[BaseModel, str]:
         self._add_to_history("user", user_prompt)
@@ -77,15 +158,25 @@ class LLM:
 
         response_text = self.get_response(response)
         if response_model:
-            response_text = self._validate_response(response_text, response_model) if response_model else response_text
-        self._add_to_history("assistant", response_text)
+            response_text = self._validate_response(response_text, response_model)
+        self._add_to_history("assistant", str(response_text))
         return response_text
 
+
+# =============================================================================
+# Claude (Anthropic)
+# =============================================================================
+
 class Claude(LLM):
-    def __init__(self, model: str, base_url: str, system_prompt: str = "") -> None:
-        super().__init__(system_prompt)
-        # API key is retrieved from an environment variable by default
-        api_key = os.getenv("ANTHROPIC_API_KEY")
+    def __init__(
+        self,
+        model: str,
+        base_url: str,
+        system_prompt: str = "",
+        cost_callback: Optional[CostCallback] = None,
+    ) -> None:
+        super().__init__(system_prompt, cost_callback)
+        import os
         self.client = anthropic.Anthropic(api_key=api_key, max_retries=3, base_url=base_url)
         self.model = model
 
@@ -114,13 +205,32 @@ class Claude(LLM):
         except anthropic.APIStatusError as e:
             raise APIStatusError(e.status_code, e.response) from e
 
-    def get_response(self, response: Dict[str, Any]) -> str:
+    def get_response(self, response: Any) -> str:
         return response.content[0].text.replace('\n', '')
+    
+    def _extract_usage(self, response: Any) -> LLMUsage:
+        """Extract token usage from Claude response."""
+        return LLMUsage(
+            input_tokens=response.usage.input_tokens,
+            output_tokens=response.usage.output_tokens,
+            model=self.model,
+        )
 
+
+# =============================================================================
+# ChatGPT (OpenAI)
+# =============================================================================
 
 class ChatGPT(LLM):
-    def __init__(self, model: str, base_url: str, system_prompt: str = "") -> None:
-        super().__init__(system_prompt)
+    def __init__(
+        self,
+        model: str,
+        base_url: str,
+        system_prompt: str = "",
+        cost_callback: Optional[CostCallback] = None,
+    ) -> None:
+        super().__init__(system_prompt, cost_callback)
+        import os
         self.client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"), base_url=base_url)
         self.model = model
 
@@ -153,46 +263,71 @@ class ChatGPT(LLM):
         except Exception as e:
             raise LLMError(f"An unexpected error occurred: {str(e)}") from e
 
-    def get_response(self, response: Dict[str, Any]) -> str:
-        response = response.choices[0].message.content
-        return response
+    def get_response(self, response: Any) -> str:
+        return response.choices[0].message.content
+    
+    def _extract_usage(self, response: Any) -> LLMUsage:
+        """Extract token usage from ChatGPT response."""
+        return LLMUsage(
+            input_tokens=response.usage.prompt_tokens,
+            output_tokens=response.usage.completion_tokens,
+            model=self.model,
+        )
 
+
+# =============================================================================
+# Ollama (Local)
+# =============================================================================
 
 class Ollama(LLM):
-    def __init__(self, model: str, base_url: str, system_prompt: str = "") -> None:
-        super().__init__(system_prompt)
+    def __init__(
+        self,
+        model: str,
+        base_url: str,
+        system_prompt: str = "",
+        cost_callback: Optional[CostCallback] = None,
+    ) -> None:
+        super().__init__(system_prompt, cost_callback)
         self.api_url = base_url
         self.model = model
 
     def create_messages(self, user_prompt: str) -> str:
         return user_prompt
 
-    def send_message(self, user_prompt: str, max_tokens: int, response_model: BaseModel) -> Dict[str, Any]:
+    def send_message(self, user_prompt: str, max_tokens: int, response_model: BaseModel) -> Any:
         payload = {
             "model": self.model,
             "prompt": user_prompt,
             "options": {
-            "temperature": 1,
-            "system": self.system_prompt,
-            }
-            ,"stream":False,
+                "temperature": 1,
+                "system": self.system_prompt,
+            },
+            "stream": False,
         }
 
         try:
             response = requests.post(self.api_url, json=payload)
             return response
         except requests.exceptions.RequestException as e:
-            if e.response.status_code == 429:
-                raise RateLimitError("Request was rate-limited") from e
-            elif e.response.status_code >= 500:
-                raise APIConnectionError("Server could not be reached") from e
-            else:
-                raise APIStatusError(e.response.status_code, e.response.json()) from e
+            if hasattr(e, 'response') and e.response is not None:
+                if e.response.status_code == 429:
+                    raise RateLimitError("Request was rate-limited") from e
+                elif e.response.status_code >= 500:
+                    raise APIConnectionError("Server could not be reached") from e
+                else:
+                    raise APIStatusError(e.response.status_code, e.response.json()) from e
+            raise APIConnectionError(f"Request failed: {str(e)}") from e
 
-    def get_response(self, response: Dict[str, Any]) -> str:
-        response = response.json()['response']
-        return response
+    def get_response(self, response: Any) -> str:
+        return response.json()['response']
 
-    def _log_response(self, response: Dict[str, Any]) -> None:
-        log.debug("Received chat response", extra={"usage": "Ollama"})
+    def _extract_usage(self, response: Any) -> LLMUsage:
+        """Extract token usage from Ollama response (local, no cost)."""
+        # Ollama may include usage info in some versions
+        data = response.json()
+        return LLMUsage(
+            input_tokens=data.get('prompt_eval_count', 0),
+            output_tokens=data.get('eval_count', 0),
+            model=self.model,
+        )
 
