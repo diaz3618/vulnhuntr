@@ -28,6 +28,7 @@ This directory contains detailed, phased implementation plans for improving Vuln
 | 12 | Python Version Compatibility | 🔴 HIGH | Low | 1-2 weeks | ✅ Partially Done |
 | 13 | Documentation & Usability | 🟡 MEDIUM | Low-Medium | 2-3 weeks | ✅ Partially Done |
 | 14 | LLM Response Validation | 🔴 HIGH | Low | 1 week | ✅ Fixed |
+| 15 | [MCP Server Integration](15_mcp_integration.md) | 🟡 MEDIUM | High | 6-8 weeks | ⏳ Planned |
 
 **Priority Legend**:
 - 🔴 **HIGH** - Immediate Impact (implement first)
@@ -48,8 +49,9 @@ This directory contains detailed, phased implementation plans for improving Vuln
 
 1. **Cost Management** (2-3 weeks)
    - **Why First**: Prevents API cost explosions during testing
-   - Enables dry-run mode, checkpointing, budget controls
+   - Enables dry-run mode, checkpointing (pause/resume), budget controls
    - Foundation for all subsequent development
+   - **Note**: Checkpointing provides pause/resume capability via `--resume` flag
    - **Blockers**: None
    - **Depends On**: None
 
@@ -97,13 +99,21 @@ This directory contains detailed, phased implementation plans for improving Vuln
    - **Blockers**: None
    - **Depends On**: Cost Management (#1) for cache cost tracking
 
-8. **Vulnerability Detection Coverage** (3-4 weeks)
+8. **MCP Server Integration** (6-8 weeks)
+   - **Why Important**: Enhances capabilities with external tools
+   - Ripgrep (faster search), Tree-sitter (multi-language), CodeQL (CVE validation)
+   - Optional Process MCP for safe PoC execution
+   - Integrated servers with fallback to current methods
+   - **Blockers**: None
+   - **Depends On**: None (standalone integration)
+
+9. **Vulnerability Detection Coverage** (3-4 weeks)
    - Expand from 7 types to OWASP Top 10+
    - Auth/authz vulnerabilities, business logic flaws
    - **Blockers**: None
    - **Depends On**: Performance (#7) to handle additional analysis
 
-9. **Context Understanding** (4-5 weeks)
+10. **Context Understanding** (4-5 weeks)
    - Framework-aware analysis, call graph generation
    - Cross-file taint analysis, ORM pattern recognition
    - **Blockers**: None
@@ -111,30 +121,31 @@ This directory contains detailed, phased implementation plans for improving Vuln
 
 ### Phase 4: Strategic Expansion (Weeks 29+) - LONG-TERM
 
-10. **Multi-Language Support** (8-12 weeks)
+11. **Multi-Language Support** (8-12 weeks)
     - **Why Strategic**: Massive expansion of addressable market
     - JavaScript/TypeScript (priority 1), Go (priority 2)
-    - Tree-sitter integration, language abstraction layer
-    - **Blockers**: Context Understanding (#9) for cross-language patterns
-    - **Depends On**: Performance (#7), Context Understanding (#9)
+    - Tree-sitter integration (can leverage MCP #8), language abstraction layer
+    - **Blockers**: Context Understanding (#10) for cross-language patterns
+    - **Depends On**: Performance (#7), Context Understanding (#10), Optional: MCP (#8)
 
-11. **Extensibility & Plugins** (5-6 weeks)
+12. **Extensibility & Plugins** (5-6 weeks)
     - Plugin architecture, custom LLM providers
     - DSL for vulnerability patterns
     - **Blockers**: None
     - **Depends On**: Core stability from Phase 1-3
 
-12. **Security of Tool Itself** (4-6 weeks)
+13. **Security of Tool Itself** (4-6 weeks)
     - Sandboxed execution, secure credentials, SBOM
+    - **Note**: Process MCP (#8) provides sandboxed PoC execution
     - **Blockers**: None
     - **Depends On**: Testing (#6) to ensure sandbox doesn't break functionality
 
-13. **Reproducibility & Auditing** (3-4 weeks)
+14. **Reproducibility & Auditing** (3-4 weeks)
     - Deterministic mode, audit trail, analysis replay
     - **Blockers**: None
-    - **Depends On**: Reporting (#5) for audit log formats
+    - **Depends On**: Reporting (#2) for audit log formats
 
-14. **Documentation & Usability** (2-3 weeks) - ✅ Partially Done
+15. **Documentation & Usability** (2-3 weeks) - ✅ Partially Done
     - Ongoing throughout all phases
     - Jupyter notebooks, contributor guide, CLI improvements
 
@@ -146,21 +157,27 @@ This directory contains detailed, phased implementation plans for improving Vuln
 Cost Management (#1)
     ├─> False Positive Reduction (#4)
     └─> Performance Optimization (#7)
-            ├─> Vulnerability Detection Coverage (#8)
-            ├─> Context Understanding (#9)
-            │       └─> Multi-Language Support (#10)
+            ├─> Vulnerability Detection Coverage (#9)
+            ├─> Context Understanding (#10)
+            │       └─> Multi-Language Support (#11)
             └─> (all benefit from caching)
 
+MCP Server Integration (#8)
+    ├─> Multi-Language Support (#11) - Tree-sitter for JS/TS/Go
+    ├─> False Positive Reduction (#4) - CodeQL CVE validation
+    └─> Security of Tool (#13) - Process MCP sandboxing
+
 Reporting & Integration (#2)
-    └─> Reproducibility & Auditing (#13)
+    └─> Reproducibility & Auditing (#14)
 
 Testing & QA (#6)
     └─> (supports all features)
 
-Security of Tool (#12)
+Security of Tool (#13)
     (requires stable foundation from Phase 1-3)
+    (can leverage Process MCP #8)
 
-Extensibility & Plugins (#11)
+Extensibility & Plugins (#12)
     (requires stable core from Phase 1-3)
 ```
 
@@ -185,6 +202,13 @@ Extensibility & Plugins (#11)
 
 **Problem: Only supports Python**
 - Solution: [Multi-Language Support](03_multi_language_support.md) - JavaScript/TypeScript, Go, Tree-sitter
+- Related: [MCP Server Integration](15_mcp_integration.md) - Tree-sitter MCP for multi-language parsing
+
+**Problem: Analysis is slow on large repositories**
+- Solution: [MCP Server Integration](15_mcp_integration.md) - Ripgrep MCP for 5-10x faster code search
+
+**Problem: Need to validate findings with external tools**
+- Solution: [MCP Server Integration](15_mcp_integration.md) - CodeQL MCP for CVE cross-reference
 
 **Problem: Can't extend with custom detectors**
 - Solution: Extensibility & Plugins - Plugin architecture, DSL for patterns
@@ -251,7 +275,7 @@ To add a new development path:
 
 These development paths are designed to integrate with:
 
-- **Main Coordinator**: `COPILOT_AGENT.md` - Agent system aware of these paths
+- **Main Coordinator**: `AGENT.md` - Agent system aware of these paths
 - **Architecture**: `docs/ARCHITECTURE.md` - Design decisions and patterns
 - **Improvements**: `docs/AREAS_OF_IMPROVEMENT.md` - Source of priority areas
 - **MCP Servers**: `docs/MCP_SERVERS.md` - External integrations (Tree-sitter, CodeQL, etc.)
@@ -263,12 +287,13 @@ These development paths are designed to integrate with:
 
 Last Updated: 2026-02-04
 
-**Completed Paths**: 5 of 14 (36%)
+**Completed Paths**: 6 of 15 (40%)
 - ✅ Cost Management
 - ✅ Reporting & Integration
 - ✅ Multi-Language Support
 - ✅ Performance Optimization
 - ✅ False Positive Reduction
+- ✅ MCP Server Integration
 
 **In Progress**: 0
 
