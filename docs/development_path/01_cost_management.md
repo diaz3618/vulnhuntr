@@ -7,6 +7,22 @@
 
 ---
 
+## Implementation Status
+
+| Phase | Feature | Status | Notes |
+|-------|---------|--------|-------|
+| 1 | Token Usage Tracking | ✅ COMPLETE | `cost_tracker.py`, `LLMs.py` integration |
+| 2 | Dry-Run Mode | ✅ COMPLETE | `--dry-run` CLI flag, `estimate_analysis_cost()` |
+| 3 | Checkpointing | ✅ COMPLETE | `checkpoint.py`, `--resume`, `--no-checkpoint` |
+| 4 | Budget Management | ✅ COMPLETE | `BudgetEnforcer`, `--budget` flag |
+| 5 | Cost-Aware Context Limiting | ❌ NOT IMPLEMENTED | `should_continue_iteration()` not added |
+| 6 | Configuration File | ✅ COMPLETE | `.vulnhuntr.yaml` support via `config.py` |
+| - | Unit Tests | ❌ NOT IMPLEMENTED | No test files exist |
+| - | Documentation Updates | ⚠️ PARTIAL | README/QUICKSTART not updated with new flags |
+| - | New: COST_MANAGEMENT.md | ❌ NOT CREATED | Documentation file not created |
+
+---
+
 ## Current State Analysis
 
 ### Existing Implementation
