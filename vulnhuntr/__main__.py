@@ -591,6 +591,9 @@ def run():
                             console.print(f"\n[bold yellow]Budget limit reached during secondary analysis.[/bold yellow]")
                             break
                         
+                        # Track cost before iteration for cost-aware limiting
+                        cost_before_iteration = cost_tracker.total_cost
+                        
                         log.info(f"Performing vuln-specific analysis", iteration=i, vuln_type=vuln_type, file=py_f)
                         
                         # Set LLM context for secondary analysis
@@ -645,6 +648,20 @@ def run():
 
                         secondary_analysis_report: Response = llm.chat(vuln_specific_user_prompt, response_model=Response, max_tokens=8192)
                         log.info("Secondary analysis complete", secondary_analysis_report=secondary_analysis_report.model_dump())
+                        
+                        # Check if iteration costs are too high (cost-aware context limiting)
+                        if budget_enforcer:
+                            iteration_cost = cost_tracker.total_cost - cost_before_iteration
+                            if not budget_enforcer.should_continue_iteration(
+                                file_path=str(py_f),
+                                iteration=i,
+                                iteration_cost=iteration_cost,
+                                total_cost=cost_tracker.total_cost,
+                            ):
+                                if args.verbosity == 0:
+                                    print_readable(secondary_analysis_report)
+                                console.print(f"\n[bold yellow]Stopping iterations - cost escalating.[/bold yellow]")
+                                break
 
                         if args.verbosity > 0:
                             print_readable(secondary_analysis_report)
@@ -765,6 +782,55 @@ def run():
             except Exception as e:
                 console.print(f"[red]✗ Failed to write Markdown report: {e}[/red]")
                 log.error("Markdown report failed", error=str(e))
+        
+        # Export all formats to directory
+        if args.export_all:
+            try:
+                export_dir = Path(args.export_all)
+                export_dir.mkdir(parents=True, exist_ok=True)
+                
+                repo_name = Path(args.root).name
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                
+                # Export SARIF
+                sarif_path = export_dir / f"vulnhuntr_{repo_name}_{timestamp}.sarif"
+                reporter = SARIFReporter("Vulnhuntr", "1.0.0", Path(args.root))
+                reporter.add_findings(all_findings)
+                reporter.write(sarif_path)
+                
+                # Export HTML
+                html_path = export_dir / f"vulnhuntr_{repo_name}_{timestamp}.html"
+                reporter = HTMLReporter(f"Vulnhuntr Security Report - {repo_name}", Path(args.root))
+                reporter.add_findings(all_findings)
+                reporter.write(html_path)
+                
+                # Export JSON
+                json_path = export_dir / f"vulnhuntr_{repo_name}_{timestamp}.json"
+                reporter = JSONReporter(repo_root=Path(args.root))
+                reporter.add_findings(all_findings)
+                reporter.write(json_path)
+                
+                # Export CSV
+                csv_path = export_dir / f"vulnhuntr_{repo_name}_{timestamp}.csv"
+                reporter = CSVReporter(repo_root=Path(args.root))
+                reporter.add_findings(all_findings)
+                reporter.write(csv_path)
+                
+                # Export Markdown
+                md_path = export_dir / f"vulnhuntr_{repo_name}_{timestamp}.md"
+                reporter = MarkdownReporter(f"Vulnhuntr Security Report - {repo_name}", Path(args.root))
+                reporter.add_findings(all_findings)
+                reporter.write(md_path)
+                
+                console.print(f"[green]✓ All reports exported to: {export_dir}[/green]")
+                console.print(f"  - SARIF: {sarif_path.name}")
+                console.print(f"  - HTML: {html_path.name}")
+                console.print(f"  - JSON: {json_path.name}")
+                console.print(f"  - CSV: {csv_path.name}")
+                console.print(f"  - Markdown: {md_path.name}")
+            except Exception as e:
+                console.print(f"[red]✗ Failed to export all reports: {e}[/red]")
+                log.error("Export all failed", error=str(e))
         
         # Create GitHub issues
         if args.create_issues:
