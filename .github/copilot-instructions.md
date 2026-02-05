@@ -61,6 +61,85 @@ The main agent coordinates all interactions and routes to specialized sub-agents
 
 ---
 
+## MCP Server Integration
+
+This project uses **Model Context Protocol (MCP) servers** for enhanced capabilities:
+
+### Available MCP Servers
+
+1. **memory-bank-mcp** (CRITICAL - Context Management)
+   - **Purpose**: Maintain project context across sessions
+   - **Location**: `memory-bank/` directory (gitignored)
+   - **Files**: product-context.md, active-context.md, progress.md, decision-log.md, system-patterns.md
+   - **Usage**: The agent MUST use this to maintain long-term memory
+   - **⚠️ Known Issue**: Path nesting bug - manually edit files instead of using write tool
+   - **Workaround**: Use `replace_string_in_file` for memory-bank files, not `mcp_memory-bank-m_write_memory_bank_file`
+
+2. **mcp-server-analyzer** (Code Analysis)
+   - **Purpose**: Python code analysis with ruff and vulture
+   - **Tools**: 
+     - `mcp_analyzer_analyze-code`: Comprehensive linting + dead code detection
+     - `mcp_analyzer_ruff-check`: RUFF linting only
+     - `mcp_analyzer_ruff-format`: RUFF formatting
+     - `mcp_analyzer_vulture-scan`: Dead code detection
+     - `mcp_analyzer_ruff-check-ci`: CI/CD output formats
+   - **Usage**: Use before committing code to catch issues
+
+3. **mcp-github** (GitHub Integration)
+   - **Purpose**: GitHub repository operations
+   - **Tools**: create_or_update_file, push_files, create_pull_request, fork_repository, etc.
+   - **Usage**: For GitHub operations (currently not heavily used)
+
+4. **mcp-pylance-mcp-s** (Pylance Documentation)
+   - **Purpose**: Search Pylance/Python documentation
+   - **Tools**: 
+     - `mcp_pylance_mcp_s_pylanceDocuments`: Search Python language server help
+     - `mcp_pylance_mcp_s_pylanceInvokeRefactoring`: Apply automated refactorings
+   - **Usage**: For Python language server questions and automated refactorings
+
+### MCP Server Configuration
+
+Configuration is in `.vscode/mcp.json`:
+
+```json
+{
+  "servers": {
+    "analyzer": {
+      "command": "uvx",
+      "args": ["mcp-server-analyzer"]
+    },
+    "memory-bank-mcp": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "@aakarsh-sasi/memory-bank-mcp@1.1.4",
+        "--mode", "code",
+        "--path", "/home/diaz/workspace/CS5374/vulnhuntr",
+        "--folder", "memory-bank"
+      ]
+    }
+  }
+}
+```
+
+### Memory Bank Best Practices
+
+1. **ALWAYS update memory-bank** after significant changes
+2. **Use direct file edits** (replace_string_in_file) due to path nesting bug
+3. **Keep context current** - update active-context.md with ongoing tasks
+4. **Log decisions** in decision-log.md with rationale
+5. **Track progress** in progress.md chronologically
+6. **Document patterns** in system-patterns.md for consistency
+
+### When to Use Each MCP Server
+
+- **memory-bank-mcp**: After commits, architectural changes, major milestones
+- **mcp-server-analyzer**: Before commits, during code review
+- **mcp-pylance-mcp-s**: When refactoring Python code, searching language features
+- **mcp-github**: For repository operations (less common in this workflow)
+
+---
+
 ## Critical Project Constraints
 
 **NEVER VIOLATE THESE**:
