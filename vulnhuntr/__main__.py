@@ -1,18 +1,34 @@
 import json
+import os
 import re
 import argparse
 import structlog
 from vulnhuntr.symbol_finder import SymbolExtractor
-from vulnhuntr.LLMs import Claude, ChatGPT, Ollama
+from vulnhuntr.LLMs import Claude, ChatGPT, Ollama, CostCallback
 from vulnhuntr.prompts import *
+from vulnhuntr.cost_tracker import (
+    CostTracker, 
+    BudgetEnforcer, 
+    estimate_analysis_cost, 
+    print_dry_run_report,
+)
+from vulnhuntr.checkpoint import (
+    AnalysisCheckpoint,
+    print_resume_info,
+)
+from vulnhuntr.config import (
+    VulnhuntrConfig,
+    load_config,
+    merge_config_with_args,
+)
 from rich import print
-from typing import List, Generator
+from rich.console import Console
+from typing import List, Generator, Optional
 from enum import Enum
 from pathlib import Path
 from pydantic_xml import BaseXmlModel, element
 from pydantic import BaseModel, Field
 import dotenv
-import os
 
 dotenv.load_dotenv()
 
@@ -281,23 +297,48 @@ def extract_between_tags(tag: str, string: str, strip: bool = False) -> list[str
         ext_list = [e.strip() for e in ext_list]
     return ext_list
 
-def initialize_llm(llm_arg: str, system_prompt: str = "") -> Claude | ChatGPT | Ollama:
+def initialize_llm(
+    llm_arg: str, 
+    system_prompt: str = "",
+    cost_callback: Optional[CostCallback] = None,
+) -> Claude | ChatGPT | Ollama:
+    """Initialize LLM client with optional cost tracking callback.
+    
+    Args:
+        llm_arg: LLM provider ('claude', 'gpt', 'ollama')
+        system_prompt: System prompt to use
+        cost_callback: Optional callback for cost tracking
+        
+    Returns:
+        Initialized LLM client
+    """
     llm_arg = llm_arg.lower()
     if llm_arg == 'claude':
         anth_model = os.getenv("ANTHROPIC_MODEL", "claude-3-5-sonnet-latest")
         anth_base_url = os.getenv("ANTHROPIC_BASE_URL", "https://api.anthropic.com")
-        llm = Claude(anth_model, anth_base_url, system_prompt)
+        llm = Claude(anth_model, anth_base_url, system_prompt, cost_callback)
     elif llm_arg == 'gpt':
         openai_model = os.getenv("OPENAI_MODEL", "chatgpt-4o-latest")
         openai_base_url = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
-        llm = ChatGPT(openai_model, openai_base_url, system_prompt)
+        llm = ChatGPT(openai_model, openai_base_url, system_prompt, cost_callback)
     elif llm_arg == 'ollama':
         ollama_model = os.getenv("OLLAMA_MODEL", "llama3")
         ollama_base_url = os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434/api/generate")
-        llm = Ollama(ollama_model, ollama_base_url, system_prompt)
+        llm = Ollama(ollama_model, ollama_base_url, system_prompt, cost_callback)
     else:
         raise ValueError(f"Invalid LLM argument: {llm_arg}\nValid options are: claude, gpt, ollama")
     return llm
+
+def get_model_name(llm_arg: str) -> str:
+    """Get the model name for the given LLM provider from environment."""
+    llm_arg = llm_arg.lower()
+    if llm_arg == 'claude':
+        return os.getenv("ANTHROPIC_MODEL", "claude-3-5-sonnet-latest")
+    elif llm_arg == 'gpt':
+        return os.getenv("OPENAI_MODEL", "chatgpt-4o-latest")
+    elif llm_arg == 'ollama':
+        return os.getenv("OLLAMA_MODEL", "llama3")
+    return "unknown"
 
 def print_readable(report: Response) -> None:
     for attr, value in vars(report).items():
@@ -323,12 +364,33 @@ def run():
     parser.add_argument('-a', '--analyze', type=str, help='Specific path or file within the project to analyze')
     parser.add_argument('-l', '--llm', type=str, choices=['claude', 'gpt', 'ollama'], default='claude', help='LLM client to use (default: claude)')
     parser.add_argument('-v', '--verbosity', action='count', default=0, help='Increase output verbosity (-v for INFO, -vv for DEBUG)')
+    
+    # Cost management arguments
+    parser.add_argument('--dry-run', action='store_true', help='Estimate costs without running analysis')
+    parser.add_argument('--budget', type=float, help='Maximum budget in USD (stops analysis when exceeded)')
+    parser.add_argument('--resume', type=str, nargs='?', const='.vulnhuntr_checkpoint', help='Resume from checkpoint (default: .vulnhuntr_checkpoint)')
+    parser.add_argument('--no-checkpoint', action='store_true', help='Disable checkpointing')
+    
     args = parser.parse_args()
+    
+    console = Console()
+    
+    # Load configuration from .vulnhuntr.yaml (if present)
+    config = load_config(start_dir=Path(args.root))
+    config = merge_config_with_args(config, args)
+    
+    # Apply config to args where config provides defaults
+    if config.budget and args.budget is None:
+        args.budget = config.budget
+    if config.provider and not args.llm:
+        args.llm = config.provider
+    if config.dry_run and not args.dry_run:
+        args.dry_run = config.dry_run
 
     repo = RepoOps(args.root)
-    code_extractor = (args.root)
+    code_extractor = SymbolExtractor(args.root)
     # Get repo files that don't include stuff like tests and documentation
-    files = repo.get_relevant_py_files()
+    files = list(repo.get_relevant_py_files())
 
     # User specified --analyze flag
     if args.analyze:
@@ -337,19 +399,81 @@ def run():
 
         # If the path is absolute, use it as is, otherwise join it with the root path so user can specify relative paths
         if analyze_path.is_absolute():
-            files_to_analyze = repo.get_files_to_analyze(analyze_path)
+            files_to_analyze = list(repo.get_files_to_analyze(analyze_path))
         else:
-            files_to_analyze = repo.get_files_to_analyze(Path(args.root) / analyze_path)
+            files_to_analyze = list(repo.get_files_to_analyze(Path(args.root) / analyze_path))
 
     # Analyze the entire project for network-related files
     else:
-        files_to_analyze = repo.get_network_related_files(files)
+        files_to_analyze = list(repo.get_network_related_files(files))
     
-    llm = initialize_llm(args.llm)
+    # Get model name for cost estimation
+    model_name = get_model_name(args.llm)
+    
+    # Handle --dry-run: Estimate costs and exit
+    if args.dry_run:
+        console.print("\n[bold cyan]Running cost estimation (dry-run mode)...[/bold cyan]")
+        estimate = estimate_analysis_cost(files_to_analyze, model_name)
+        print_dry_run_report(estimate)
+        return
+    
+    # Initialize cost tracker
+    cost_tracker = CostTracker()
+    
+    # Initialize budget enforcer if budget specified
+    budget_enforcer = BudgetEnforcer(
+        max_budget_usd=args.budget,
+        warning_threshold=0.8,
+    ) if args.budget else None
+    
+    # Create cost callback for LLM
+    def cost_callback(
+        input_tokens: int,
+        output_tokens: int,
+        model: str,
+        file_path: Optional[str],
+        call_type: str,
+    ) -> None:
+        cost_tracker.track_call(input_tokens, output_tokens, model, file_path, call_type)
+    
+    # Initialize checkpoint
+    checkpoint = AnalysisCheckpoint(
+        checkpoint_dir=Path(args.resume) if args.resume else Path(".vulnhuntr_checkpoint"),
+        save_frequency=5,
+        enabled=not args.no_checkpoint,
+    )
+    
+    # Handle --resume: Check for existing checkpoint
+    if args.resume:
+        if checkpoint.can_resume():
+            print_resume_info(checkpoint)
+            console.print("\n[bold green]Resuming from checkpoint...[/bold green]\n")
+            checkpoint_data = checkpoint.resume(cost_tracker)
+            
+            # Filter out already completed files
+            completed_set = set(checkpoint_data.completed_files)
+            files_to_analyze = [f for f in files_to_analyze if str(f) not in completed_set]
+            
+            console.print(f"[dim]Skipping {len(completed_set)} already completed files[/dim]")
+            console.print(f"[dim]Remaining files to analyze: {len(files_to_analyze)}[/dim]\n")
+        else:
+            console.print("[yellow]No checkpoint found to resume. Starting fresh analysis.[/yellow]\n")
+    
+    # Start checkpoint tracking (if not resuming)
+    if not args.resume or not checkpoint.can_resume():
+        checkpoint.start(
+            repo_path=Path(args.root),
+            files_to_analyze=files_to_analyze,
+            model=model_name,
+            cost_tracker=cost_tracker,
+        )
+    
+    llm = initialize_llm(args.llm, cost_callback=cost_callback)
 
     readme_content = repo.get_readme_content()
     if readme_content:
         log.info("Summarizing project README")
+        llm.set_context(file_path=None, call_type="readme")
         summary = llm.chat(
             (ReadmeContent(content=readme_content).to_xml() + b'\n' +
             Instructions(instructions=README_SUMMARY_PROMPT_TEMPLATE).to_xml()
@@ -366,11 +490,27 @@ def run():
                 ReadmeSummary(readme_summary=summary).to_xml()
                 ).decode()
     
-    llm = initialize_llm(args.llm, system_prompt)
+    llm = initialize_llm(args.llm, system_prompt, cost_callback)
+    
+    # Track analysis success for checkpoint finalization
+    analysis_success = True
 
     # files_to_analyze is either a list of all network-related files or a list containing a single file/dir to analyze
     for py_f in files_to_analyze:
+        # Check budget before starting file analysis
+        if budget_enforcer and not budget_enforcer.check(cost_tracker.total_cost):
+            console.print(f"\n[bold red]Budget limit reached (${args.budget:.2f}). Stopping analysis.[/bold red]")
+            console.print(f"[dim]Progress saved to checkpoint. Use --resume to continue with higher budget.[/dim]")
+            analysis_success = False
+            break
+        
+        # Set checkpoint current file
+        checkpoint.set_current_file(py_f)
+        
         log.info(f"Performing initial analysis", file=str(py_f))
+        
+        # Set LLM context for cost tracking
+        llm.set_context(file_path=str(py_f), call_type="initial")
 
         # This is the Initial analysis
         with py_f.open(encoding='utf-8') as f:
@@ -412,7 +552,18 @@ def run():
                     previous_context_amount = 0
 
                     for i in range(7):
+                        # Check budget during iterations
+                        if budget_enforcer and not budget_enforcer.check(
+                            cost_tracker.total_cost,
+                            cost_tracker.get_file_cost(str(py_f))
+                        ):
+                            console.print(f"\n[bold yellow]Budget limit reached during secondary analysis.[/bold yellow]")
+                            break
+                        
                         log.info(f"Performing vuln-specific analysis", iteration=i, vuln_type=vuln_type, file=py_f)
+                        
+                        # Set LLM context for secondary analysis
+                        llm.set_context(file_path=str(py_f), call_type="secondary")
 
                         # Only lookup context code and previous analysis on second pass and onwards
                         if i > 0:
@@ -484,6 +635,18 @@ def run():
                             same_context = True
                             log.debug("No new context functions or classes requested")
                     pass
+        
+        # Mark file as complete in checkpoint
+        checkpoint.mark_file_complete(py_f, initial_analysis_report.model_dump() if initial_analysis_report else None)
+    
+    # Finalize checkpoint
+    checkpoint.finalize(success=analysis_success and len(files_to_analyze) > 0)
+    
+    # Print cost summary
+    console.print(cost_tracker.get_detailed_report())
+    
+    # Log final cost summary
+    log.info("Analysis complete", cost_summary=cost_tracker.get_summary())
 
 if __name__ == '__main__':
     run()
