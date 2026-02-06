@@ -2,8 +2,8 @@
 name: vulnhuntr-code-review
 description: Specialized code review for Vulnhuntr security scanner. Focuses on Python security, LLM integration patterns, static analysis correctness, and vulnerability detection accuracy. Adapted for VS Code GitHub Copilot.
 project: vulnhuntr
-version: 1.0.0
-last_updated: 2026-02-04
+version: 1.1.0
+last_updated: 2026-02-06
 ---
 
 # Vulnhuntr Code Review Agent
@@ -461,6 +461,7 @@ Before approving changes, verify:
 - [ ] ARCHITECTURE.md updated if needed
 - [ ] AREAS_OF_IMPROVEMENT.md updated if applicable
 - [ ] README.md updated for user-facing changes
+- [ ] Issue tracker updated (`docs/issues/`) — see [Issue Tracking](#7-issue-tracking-dosissues) below
 
 ---
 
@@ -660,29 +661,92 @@ This code review agent is **automatically consulted** by the main AGENT.md durin
 - Project architecture changes
 
 **Version History**:
+- 1.1.0 (2026-02-06): Added issue tracking management (docs/issues/)
 - 1.0.0 (2026-02-04): Initial Vulnhuntr-specific adaptation from generic code review agent
 
 ---
 
-**Remember**: This is a security tool. Every line of code must uphold the highest standards of security, correctness, and reliability. When in doubt, err on the side of caution.
-} catch (e) {}
+## 7. Issue Tracking (`docs/issues/`)
 
-// GOOD: Handle or propagate
-try {
-  await riskyOperation();
-} catch (e) {
-  logger.error('Operation failed', { error: e });
-  throw new AppError('Operation failed', { cause: e });
-}
+This agent is responsible for maintaining the project's issue tracker at `docs/issues/`.
+
+### Directory Structure
+
+```
+docs/issues/
+├── README.md              # Overview and conventions
+├── fixed/                 # Resolved issues with documented root causes and fixes
+│   └── NNN-short-desc.md
+├── persistent/            # Recurring issues without a complete fix (workarounds documented)
+│   └── NNN-short-desc.md
+└── pending/               # Open issues still under investigation
+    └── NNN-short-desc.md
 ```
 
-## Review Checklist
+### Issue Lifecycle
 
-- [ ] No hardcoded secrets
-- [ ] Input validation present
-- [ ] Error handling complete
-- [ ] Types/interfaces defined
-- [ ] Tests added for new code
-- [ ] No obvious performance issues
-- [ ] Code is readable and documented
-- [ ] Breaking changes documented
+```
+pending/  ──fix confirmed──>  fixed/
+    │
+    └──no full fix, workaround only──>  persistent/
+```
+
+**Moving an issue between folders requires verification**:
+1. **pending → fixed**: The root cause must be identified AND the fix must be confirmed in the codebase (trace the code path, not just check git log)
+2. **pending → persistent**: The issue is real but no complete fix exists — a workaround must be documented
+3. **Never delete issues** — move them to the correct folder instead
+
+### When to Create Issues
+
+Create a new issue doc in `pending/` when:
+- A runtime bug is encountered during analysis
+- An LLM response parsing failure reveals a new edge case
+- A Jedi/symbol resolution failure pattern is identified
+- A cost or performance regression is observed
+- A UX problem is reported (confusing behavior, missing output, etc.)
+
+### When to Move Issues
+
+During code review or after committing fixes, check `docs/issues/pending/` for issues that may now be resolved:
+- Read the issue's **Root Cause** and **Proposed Improvements** sections
+- Search the codebase for evidence that the fix was implemented
+- **Do not assume a fix from the git log alone** — trace the actual code path to confirm
+- If fixed: move the file to `fixed/`, update the **Status** line, and add a **Resolution** section with the commit hash and explanation
+- If partially fixed: update the issue doc in place with what changed and what remains
+
+### Issue Document Template
+
+```markdown
+# NNN — Short Title
+
+**Status:** Pending | Fixed | Persistent
+**Date Identified:** YYYY-MM-DD
+**Affected Component:** `path/to/file.py` — brief description
+
+## Symptoms
+What the user sees or what breaks.
+
+## Root Cause
+Why it happens (code-level explanation).
+
+## Impact
+Cost, accuracy, UX, or security consequences.
+
+## Potential Improvements
+Numbered list of concrete fixes.
+
+## Resolution (for fixed/ issues)
+Commit hash, what was changed, and how to verify.
+```
+
+### Review Checkpoint
+
+Before approving any PR or commit, verify:
+- [ ] No `pending/` issues are silently fixed without being moved to `fixed/`
+- [ ] No new bugs are introduced that should be tracked in `pending/`
+- [ ] Existing `fixed/` issues haven't regressed
+- [ ] Issue numbering is sequential within each folder
+
+---
+
+**Remember**: This is a security tool. Every line of code must uphold the highest standards of security, correctness, and reliability. When in doubt, err on the side of caution.
