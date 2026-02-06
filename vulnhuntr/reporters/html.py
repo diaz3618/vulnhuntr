@@ -15,7 +15,7 @@ Features:
 """
 
 import html
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional
 import structlog
@@ -535,7 +535,7 @@ class HTMLReporter(ReporterBase):
         severity_counts = summary.get("by_severity", {})
 
         context = {
-            "generated_at": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC"),
+            "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
             "tool_version": self.metadata.get("tool_version", "1.0.0"),
             "total_findings": len(self.findings),
             "files_affected": summary.get("files_affected", 0),
@@ -610,7 +610,7 @@ class HTMLReporter(ReporterBase):
 </head>
 <body>
     <h1>🔍 Vulnhuntr Security Report</h1>
-    <p>Generated: {datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")}</p>
+    <p>Generated: {datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")}</p>
     <p>Total Findings: {len(self.findings)} | Files Affected: {summary.get("files_affected", 0)}</p>
     <hr>
     {findings_html if findings_html else "<p>No vulnerabilities found.</p>"}
