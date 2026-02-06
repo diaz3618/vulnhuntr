@@ -10,7 +10,7 @@ and context information.
 """
 
 from enum import Enum
-from typing import List
+from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -60,7 +60,10 @@ class Response(BaseModel):
     analysis: str = Field(
         description="Your final analysis. Output in plaintext with no line breaks."
     )
-    poc: str = Field(description="Proof-of-concept exploit, if applicable.")
+    poc: Optional[str] = Field(
+        default=None,
+        description="Proof-of-concept exploit, if applicable.",
+    )
     confidence_score: int = Field(
         description="0-10, where 0 is no confidence and 10 is absolute certainty "
         "because you have the entire user input to server output code path."
