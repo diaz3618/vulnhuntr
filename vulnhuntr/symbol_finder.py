@@ -113,6 +113,11 @@ class SymbolExtractor:
                             loc = name.goto()
                             if loc:
                                 match = self._create_match_obj(loc[0], symbol_name)
+                            else:
+                                # goto() returned nothing — this is just an import
+                                # statement, not the actual definition. Skip it so
+                                # project_search can find the real definition.
+                                continue
                         return match
 
         return
@@ -162,6 +167,11 @@ class SymbolExtractor:
                         loc = name.goto()
                         if loc:
                             match = self._create_match_obj(loc[0], symbol_name)
+                        else:
+                            # goto() returned nothing — this is just an import
+                            # statement, not the actual definition. Skip it so
+                            # all_names_search can find the real definition.
+                            continue
                     return match
 
         return
