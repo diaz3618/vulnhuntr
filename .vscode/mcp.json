@@ -4,7 +4,8 @@
       "command": "uvx",
       "args": [
         "mcp-server-analyzer"
-      ]
+      ],
+      "type": "stdio"
     },
     "memory-bank-mcp": {
       "type": "stdio",
@@ -15,6 +16,13 @@
         "code"
       ],
       "env": {}
+    },
+    "python-lsp-mcp": {
+      "command": "uvx",
+      "args": [
+        "python-lsp-mcp@latest"
+      ],
+      "type": "stdio"
     }
   }
 }

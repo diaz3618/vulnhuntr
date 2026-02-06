@@ -239,5 +239,24 @@ This Python agent is consulted by AGENT.md for:
 - Jedi/Parso integration patterns
 - Security-conscious Python patterns
 
+## MCP Server Tools for Python
+
+Use these MCP servers for Python development:
+
+1. **mcp-server-analyzer** - Use before commits
+   - `mcp_analyzer_ruff-check`: Lint code with ruff
+   - `mcp_analyzer_ruff-format`: Format code
+   - `mcp_analyzer_vulture-scan`: Find dead/unused code
+
+2. **python-lsp-mcp** - Use for type checking and advanced analysis
+   - `mcp_python-lsp-mc_diagnostics`: Get Pyright type errors for a file or directory
+   - `mcp_python-lsp-mc_search`: Regex search in files (uses ripgrep)
+   - `mcp_python-lsp-mc_set_backend`: Switch between rope/pyright backends
+   - `mcp_python-lsp-mc_set_python_path`: Set the Python interpreter
+
+3. **mcp-pylance-mcp-s** - Use for refactoring
+   - `mcp_pylance_mcp_s_pylanceInvokeRefactoring`: Apply automated refactorings
+
 **Version History**:
+- 1.1.0 (2026-02-06): Added MCP server tools section for Python development
 - 1.0.0 (2026-02-04): Adapted from Promptfoo to Vulnhuntr-specific guidelines
