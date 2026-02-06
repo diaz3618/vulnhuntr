@@ -209,8 +209,14 @@ class RepoOps:
             Path objects for each relevant Python file
         """
         for f in self.repo_path.rglob("*.py"):
-            # Convert path to string with forward slashes, lowercase
-            f_str = str(f).replace("\\", "/").lower()
+            # Convert RELATIVE path to string with forward slashes, lowercase
+            # This ensures exclusion patterns work regardless of the repo's location
+            try:
+                rel_path = f.relative_to(self.repo_path)
+                f_str = "/" + str(rel_path).replace("\\", "/").lower()
+            except ValueError:
+                # If relative_to fails, skip this file
+                continue
 
             # Check if any exclusion pattern matches
             if any(exclude in f_str for exclude in self.to_exclude):
