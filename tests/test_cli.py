@@ -244,6 +244,7 @@ class TestNormalizeArgs:
             markdown=None,
             export_all=None,
             resume=None,
+            reports_dir=None,
         )
         normalized = normalize_args(args)
         assert Path(normalized.root).is_absolute()
@@ -260,6 +261,7 @@ class TestNormalizeArgs:
             markdown=None,
             export_all=None,
             resume=None,
+            reports_dir=None,
         )
         normalized = normalize_args(args)
         assert "subdir" in normalized.analyze
@@ -276,6 +278,7 @@ class TestNormalizeArgs:
             markdown=None,
             export_all=None,
             resume=None,
+            reports_dir=None,
         )
         normalized = normalize_args(args)
         assert Path(normalized.sarif).is_absolute()
