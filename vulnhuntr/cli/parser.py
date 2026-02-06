@@ -33,6 +33,7 @@ def create_argument_parser() -> argparse.ArgumentParser:
         epilog="""
 Examples:
   vulnhuntr -r /path/to/project
+  vulnhuntr -r /path/to/project -a project -l gpt -v --html report.html
   vulnhuntr -r /path/to/project -l gpt --budget 5.00
   vulnhuntr -r /path/to/project --sarif report.sarif --html report.html
   vulnhuntr -r /path/to/project --dry-run

@@ -120,6 +120,7 @@ From a pipx install, analyze the entire repository using Claude:
 ```bash
 export ANTHROPIC_API_KEY="sk-1234"
 vulnhuntr -r /path/to/target/repo/
+vulnhuntr -r /path/to/project -a project -l claude -v --html report.html
 ```
 
 > [!TIP]
