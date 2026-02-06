@@ -132,7 +132,18 @@ Examples:
         "--export-all",
         type=str,
         metavar="DIR",
-        help="Export all report formats to specified directory",
+        nargs="?",
+        const="reports",
+        default=None,
+        help="Export all report formats to specified directory (default: 'reports/')",
+    )
+
+    report_group.add_argument(
+        "--reports-dir",
+        type=str,
+        default="reports",
+        metavar="DIR",
+        help="Default directory for all reports (default: 'reports/')",
     )
 
     # Integration arguments
@@ -238,15 +249,36 @@ def normalize_args(args: argparse.Namespace) -> argparse.Namespace:
         else:
             args.analyze = str(analyze_path.resolve())
 
-    # Convert report paths to absolute
+    # Get the reports directory (relative to root or absolute)
+    # Default to "reports" if not specified
+    if args.reports_dir is None:
+        args.reports_dir = "reports"
+    reports_dir = Path(args.reports_dir)
+    if not reports_dir.is_absolute():
+        reports_dir = Path(args.root) / reports_dir
+    reports_dir = reports_dir.resolve()
+
+    # Convert report paths to absolute, placing relative paths in reports_dir
     for report_arg in ["sarif", "html", "json", "csv", "markdown"]:
         report_path = getattr(args, report_arg, None)
         if report_path:
-            setattr(args, report_arg, str(Path(report_path).resolve()))
+            report_file = Path(report_path)
+            if not report_file.is_absolute():
+                # Place relative report paths in the reports directory
+                setattr(args, report_arg, str(reports_dir / report_path))
+            else:
+                setattr(args, report_arg, str(report_file.resolve()))
+
+    # Store resolved reports_dir
+    args.reports_dir = str(reports_dir)
 
     # Convert export-all to absolute
     if hasattr(args, "export_all") and args.export_all:
-        args.export_all = str(Path(args.export_all).resolve())
+        export_path = Path(args.export_all)
+        if not export_path.is_absolute():
+            args.export_all = str(reports_dir.parent / args.export_all if args.export_all != "reports" else reports_dir)
+        else:
+            args.export_all = str(export_path.resolve())
 
     # Convert resume path to absolute
     if args.resume:
