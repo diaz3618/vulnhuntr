@@ -241,7 +241,7 @@ def print_findings_summary(findings: List[Any], total_files: int) -> None:
     # Group by severity/type
     vuln_types: Dict[str, int] = {}
     for finding in findings:
-        vuln_type = getattr(finding, "vuln_type", "Unknown")
+        vuln_type = getattr(finding, "rule_id", "Unknown")
         if hasattr(vuln_type, "value"):
             vuln_type = vuln_type.value
         vuln_types[vuln_type] = vuln_types.get(vuln_type, 0) + 1
