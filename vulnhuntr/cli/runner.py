@@ -564,10 +564,17 @@ def _generate_reports(
 
     print_findings_summary(all_findings, len(files_to_analyze))
 
+    # Ensure reports directory exists if any reports are being generated
+    reports_dir = Path(args.reports_dir) if hasattr(args, "reports_dir") else None
+    if reports_dir and (args.sarif or args.html or args.json or args.csv or args.markdown):
+        reports_dir.mkdir(parents=True, exist_ok=True)
+
     # SARIF report
     if args.sarif:
         try:
-            reporter = SARIFReporter(output_path=Path(args.sarif))
+            sarif_path = Path(args.sarif)
+            sarif_path.parent.mkdir(parents=True, exist_ok=True)
+            reporter = SARIFReporter(output_path=sarif_path)
             reporter.add_findings(all_findings)
             reporter.write()
             print_report_status("SARIF", args.sarif, True)
@@ -578,7 +585,9 @@ def _generate_reports(
     # HTML report
     if args.html:
         try:
-            reporter = HTMLReporter(output_path=Path(args.html))
+            html_path = Path(args.html)
+            html_path.parent.mkdir(parents=True, exist_ok=True)
+            reporter = HTMLReporter(output_path=html_path)
             reporter.add_findings(all_findings)
             reporter.write()
             print_report_status("HTML", args.html, True)
@@ -589,7 +598,9 @@ def _generate_reports(
     # JSON report
     if args.json:
         try:
-            reporter = JSONReporter(output_path=Path(args.json))
+            json_path = Path(args.json)
+            json_path.parent.mkdir(parents=True, exist_ok=True)
+            reporter = JSONReporter(output_path=json_path)
             reporter.add_findings(all_findings)
             reporter.write()
             print_report_status("JSON", args.json, True)
@@ -600,9 +611,11 @@ def _generate_reports(
     # CSV report
     if args.csv:
         try:
+            csv_path = Path(args.csv)
+            csv_path.parent.mkdir(parents=True, exist_ok=True)
             reporter = CSVReporter(repo_root=Path(args.root))
             reporter.add_findings(all_findings)
-            reporter.write(Path(args.csv))
+            reporter.write(csv_path)
             print_report_status("CSV", args.csv, True)
         except Exception as e:
             print_report_status("CSV", args.csv, False, str(e))
@@ -611,6 +624,8 @@ def _generate_reports(
     # Markdown report
     if args.markdown:
         try:
+            md_path = Path(args.markdown)
+            md_path.parent.mkdir(parents=True, exist_ok=True)
             reporter = MarkdownReporter(
                 title=f"Vulnhuntr Security Report - {Path(args.root).name}",
                 repo_root=Path(args.root),
