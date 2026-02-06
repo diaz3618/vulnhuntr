@@ -97,6 +97,18 @@ This project uses **Model Context Protocol (MCP) servers** for enhanced capabili
      - `mcp_pylance_mcp_s_pylanceInvokeRefactoring`: Apply automated refactorings
    - **Usage**: For Python language server questions and automated refactorings
 
+5. **python-lsp-mcp** (Python LSP Analysis)
+   - **Purpose**: Advanced Python code analysis via LSP (diagnostics, search, symbols)
+   - **Tools**:
+     - `mcp_python-lsp-mc_diagnostics`: Get type errors and warnings for a file or directory (uses Pyright)
+     - `mcp_python-lsp-mc_search`: Regex search in files using ripgrep
+     - `mcp_python-lsp-mc_status`: Get MCP server status
+     - `mcp_python-lsp-mc_set_backend`: Switch between rope/pyright backends
+     - `mcp_python-lsp-mc_set_python_path`: Set Python interpreter path
+     - `mcp_python-lsp-mc_update_document`: Update file content for incremental analysis
+     - `mcp_python-lsp-mc_reload_modules`: Reload modules during development
+   - **Usage**: For type checking, finding type errors, advanced code search, and Python analysis
+
 ### MCP Server Configuration
 
 Configuration is in `.vscode/mcp.json`:
@@ -117,6 +129,12 @@ Configuration is in `.vscode/mcp.json`:
         "--path", "/home/diaz/workspace/CS5374/vulnhuntr",
         "--folder", "memory-bank"
       ]
+    },
+    "python-lsp-mcp": {
+      "command": "uvx",
+      "args": [
+        "python-lsp-mcp@latest"
+      ]
     }
   }
 }
@@ -134,8 +152,9 @@ Configuration is in `.vscode/mcp.json`:
 ### When to Use Each MCP Server
 
 - **memory-bank-mcp**: After commits, architectural changes, major milestones
-- **mcp-server-analyzer**: Before commits, during code review
+- **mcp-server-analyzer**: Before commits, during code review (ruff linting, dead code)
 - **mcp-pylance-mcp-s**: When refactoring Python code, searching language features
+- **python-lsp-mcp**: For type checking (Pyright), advanced diagnostics, ripgrep search
 - **mcp-github**: For repository operations (less common in this workflow)
 
 ---
