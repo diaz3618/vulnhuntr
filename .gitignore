@@ -170,10 +170,12 @@ cython_debug/
 # repos
 repos/
 .vscode/launch.json
+.vscode/mcp.json
 docs/archive
 scripts
 internal
 # Test files
+tests/test_results
 #test_*.py
 #test_results.*
 integration_test.log
@@ -181,9 +183,14 @@ docs/development_path
 docs/design_notes
 repos/
 .vulnhuntr_checkpoint
+archive
+docs/agents
+AGENT.md
 
-# Analysis exports
-reports/
-*.html
-*.csv
+# Analysis exports - ignore contents but keep folder
+reports/*
+!reports/.gitkeep
 *.sarif
+
+tests/test_results/*
+!tests/test_results/.gitkeep
