@@ -79,6 +79,10 @@ This tool is designed to analyze a GitHub repository for potential remotely expl
 
 ```
 usage: vulnhuntr [-h] -r ROOT [-a ANALYZE] [-l {claude,gpt,ollama}] [-v]
+                 [--dry-run] [--budget BUDGET] [--resume [RESUME]] [--no-checkpoint]
+                 [--sarif PATH] [--html PATH] [--json PATH] [--csv PATH] [--markdown PATH]
+                 [--export-all DIR] [--create-issues] [--webhook URL]
+                 [--webhook-format {json,slack,discord,teams}] [--webhook-secret SECRET]
 
 Analyze a GitHub project for vulnerabilities. Export your ANTHROPIC_API_KEY/OPENAI_API_KEY before running.
 
@@ -90,6 +94,25 @@ options:
   -l {claude,gpt,ollama}, --llm {claude,gpt,ollama}
                         LLM client to use (default: claude)
   -v, --verbosity       Increase output verbosity (-v for INFO, -vv for DEBUG)
+
+Cost Management:
+  --dry-run             Estimate costs without running analysis
+  --budget BUDGET       Maximum budget in USD (stops analysis when exceeded)
+  --resume [RESUME]     Resume from checkpoint (default: .vulnhuntr_checkpoint)
+  --no-checkpoint       Disable checkpointing
+
+Report Generation:
+  --sarif PATH          Output SARIF 2.1.0 report to specified file
+  --html PATH           Output HTML report to specified file
+  --json PATH           Output JSON report to specified file
+  --csv PATH            Output CSV report to specified file
+  --markdown PATH       Output Markdown report to specified file
+  --export-all DIR      Export all report formats to specified directory
+
+Integrations:
+  --create-issues       Create GitHub issues for findings
+  --webhook URL         Send findings to webhook URL
+  --webhook-format      Webhook payload format (json, slack, discord, teams)
 ```
 ### Examples
 From a pipx install, analyze the entire repository using Claude:
@@ -139,15 +162,29 @@ vulnhuntr -r /path/to/target/repo/ -a server.py -l ollama
 
 ## Output
 
-The tool generates a detailed report of the vulnerabilities found in the analyzed files. The report includes:
+The tool generates detailed reports in multiple formats:
 
-- Initial assessment results for each file.
-- Secondary assessment results with context functions and class references.
-- Confidence scores for vulnerabilities found.
-- Logs of the analysis process.
-- PoC exploit
+- **SARIF 2.1.0**: For integration with GitHub Security, IDE security extensions, and CI/CD pipelines
+- **HTML**: Interactive web-based reports with vulnerability details
+- **JSON**: Machine-readable format for custom integrations
+- **CSV**: Spreadsheet-compatible for tracking and analysis
+- **Markdown**: Documentation-friendly format
 
-Below is an example of a Vulnhuntr report describing a 0-day remote code execution vulnerability in [Ragflow](https://github.com/infiniflow/ragflow) (now fixed):
+### Example: Generate Multiple Report Formats
+
+```bash
+vulnhuntr -r /path/to/repo --sarif report.sarif --html report.html --json report.json
+```
+
+### Example: Export All Formats at Once
+
+```bash
+vulnhuntr -r /path/to/repo --export-all ./reports/
+```
+
+### Console Output
+
+The tool also outputs detailed findings to the console. Below is an example of a Vulnhuntr report describing a 0-day remote code execution vulnerability in [Ragflow](https://github.com/infiniflow/ragflow) (now fixed):
 
 ```
 scratchpad:
