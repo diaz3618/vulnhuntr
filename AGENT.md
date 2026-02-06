@@ -635,8 +635,12 @@ See `docs/MCP_SERVERS.md` for potential Model Context Protocol server integratio
 ```bash
 # Essential files to refresh
 - AGENT.md (this file)
-- ARCHITECTURE.md
-- vulnhuntr/__main__.py (orchestration)
+- docs/ARCHITECTURE_REFACTOR.md
+- docs/TECHNICAL_DOCUMENTATION.md
+- vulnhuntr/__main__.py (entry point)
+- vulnhuntr/cli/runner.py (main orchestration)
+- vulnhuntr/core/analysis.py (analysis engine)
+- vulnhuntr/core/models.py (data models)
 - vulnhuntr/LLMs.py (LLM abstraction)
 - vulnhuntr/symbol_finder.py (Jedi integration)
 - vulnhuntr/prompts.py (vulnerability prompts)
@@ -955,6 +959,8 @@ This agent system **evolves with the project**. When you discover:
 **Essential Commands**:
 ```bash
 python -m vulnhuntr -r /repo -a file.py -v -l claude  # Analyze file
+python -m vulnhuntr -r /repo --dry-run                 # Cost estimate
+python -m vulnhuntr -r /repo --help                    # All options
 cat vulnhuntr.log | jq '.'                             # View logs
 ruff check --fix vulnhuntr/                            # Lint
 ruff format vulnhuntr/                                 # Format
@@ -962,17 +968,50 @@ git checkout -b feature/name                           # New branch
 gh pr create --draft --title "type(scope): desc"       # Create PR
 ```
 
-**Key Files**:
-- `vulnhuntr/__main__.py` - Main orchestration
-- `vulnhuntr/LLMs.py` - LLM abstraction
-- `vulnhuntr/symbol_finder.py` - Jedi integration
-- `vulnhuntr/prompts.py` - Vulnerability prompts
-- `ARCHITECTURE.md` - Technical documentation
-- `docs/AREAS_OF_IMPROVEMENT.md` - Future roadmap
+**Project Structure** (Modular Architecture):
+```
+vulnhuntr/
+├── __main__.py          # Entry point (minimal ~90 lines)
+├── __init__.py          # Package exports
+├── core/                # Core domain logic
+│   ├── __init__.py      # Core exports
+│   ├── models.py        # VulnType, Response, ContextCode
+│   ├── xml_models.py    # Pydantic-XML models for prompts
+│   ├── repo.py          # RepoOps - repository scanning
+│   └── analysis.py      # VulnerabilityAnalyzer class
+├── cli/                 # Command-line interface
+│   ├── __init__.py      # CLI exports
+│   ├── parser.py        # Argument parsing and validation
+│   ├── output.py        # Console output with Rich
+│   └── runner.py        # Main execution orchestration
+├── LLMs.py              # LLM client implementations
+├── prompts.py           # Vulnerability detection prompts
+├── symbol_finder.py     # Jedi-based code extraction
+├── cost_tracker.py      # Cost tracking and budgets
+├── checkpoint.py        # Checkpoint/resume support
+├── config.py            # Configuration loading
+├── reporters/           # Report generation
+│   ├── base.py          # Finding model, base classes
+│   ├── sarif.py         # SARIF 2.1.0 format
+│   ├── html.py          # Interactive HTML reports
+│   ├── json_reporter.py # JSON format
+│   ├── csv_reporter.py  # CSV format
+│   └── markdown_reporter.py # Markdown format
+└── integrations/        # External service integrations
+    ├── github_issues.py # GitHub issue creation
+    └── webhook.py       # Webhook notifications
+```
+
+**Key Module Responsibilities**:
+- `core/`: Domain models and business logic (no I/O)
+- `cli/`: User interface and execution flow
+- `reporters/`: Output format generation
+- `integrations/`: Third-party service connections
 
 **Get Help**:
 - Read sub-agent docs in `docs/agents/`
-- Check ARCHITECTURE.md for technical details
+- Check docs/TECHNICAL_DOCUMENTATION.md for details
+- Check docs/ARCHITECTURE_REFACTOR.md for new structure
 - Review existing code for patterns
 - Consult official documentation
 - Test incrementally
@@ -980,5 +1019,5 @@ gh pr create --draft --title "type(scope): desc"       # Create PR
 ---
 
 **Last Updated**: February 4, 2026  
-**Version**: 1.0.0  
+**Version**: 1.1.0  
 **Maintainer**: GitHub Copilot Agent System

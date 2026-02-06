@@ -24,7 +24,7 @@ Modules:
 Usage:
     # CLI
     python -m vulnhuntr -r /path/to/project
-    
+
     # Programmatic
     from vulnhuntr.core import RepoOps, VulnerabilityAnalyzer
     from vulnhuntr.cli import initialize_llm

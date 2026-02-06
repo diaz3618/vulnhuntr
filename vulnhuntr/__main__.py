@@ -38,7 +38,7 @@ structlog.configure(
         structlog.processors.StackInfoRenderer(),
         structlog.processors.format_exc_info,
         structlog.processors.UnicodeDecoder(),
-        structlog.processors.JSONRenderer()
+        structlog.processors.JSONRenderer(),
     ],
     context_class=dict,
     logger_factory=structlog.stdlib.LoggerFactory(),
@@ -49,26 +49,30 @@ structlog.configure(
 
 def main() -> int:
     """Main entry point for Vulnhuntr CLI.
-    
+
     Returns:
         Exit code (0 for success, non-zero for errors)
     """
-    from vulnhuntr.cli.parser import create_argument_parser, validate_args, normalize_args
+    from vulnhuntr.cli.parser import (
+        create_argument_parser,
+        validate_args,
+        normalize_args,
+    )
     from vulnhuntr.cli.runner import run_analysis
-    
+
     # Parse command line arguments
     parser = create_argument_parser()
     args = parser.parse_args()
-    
+
     # Validate arguments
     error = validate_args(args)
     if error:
         parser.error(error)
         return 1
-    
+
     # Normalize paths
     args = normalize_args(args)
-    
+
     # Run the analysis
     try:
         return run_analysis(args)
@@ -87,5 +91,5 @@ def run():
     sys.exit(main())
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main())
