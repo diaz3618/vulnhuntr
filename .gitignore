@@ -178,3 +178,11 @@ test_results.*
 integration_test.log
 docs/development_path
 docs/design_notes
+repos/
+.vulnhuntr_checkpoint
+
+# Analysis exports
+reports/
+*.html
+*.csv
+*.sarif
