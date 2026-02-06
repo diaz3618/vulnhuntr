@@ -1,0 +1,51 @@
+{
+  "servers": {
+    "analyzer": {
+      "command": "uvx",
+      "args": [
+        "mcp-server-analyzer"
+      ]
+    },
+    "python-lsp-mcp": {
+      "command": "uvx",
+      "args": [
+        "python-lsp-mcp@latest"
+      ]
+    },
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "${workspaceFolder}"
+      ],
+      "type": "stdio",
+      "env": {
+        "READ_ONLY": "true"
+      }
+    }
+  },
+  "inputs": [],
+  "filesystem_rules": {
+    "_comment": "IMPORTANT: Read-only rules for test agent system. Agents MUST NOT modify source files.",
+    "read_only": true,
+    "allowed_read_paths": [
+      "vulnhuntr/**/*.py",
+      "tests/**/*.py",
+      "tests/agent/**/*",
+      "pyproject.toml",
+      "requirements.txt",
+      "README.md",
+      "docs/**/*"
+    ],
+    "denied_paths": [
+      ".env*",
+      "**/*.key",
+      "**/*secret*",
+      ".git/**",
+      "repos/**",
+      "archive/**",
+      "docs/archive/**"
+    ]
+  }
+}

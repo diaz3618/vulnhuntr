@@ -7,7 +7,7 @@ Provides the base classes and data models for all reporter implementations.
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -82,7 +82,7 @@ class Finding:
     metadata: Dict[str, Any] = field(default_factory=dict)
 
     # Timestamps
-    discovered_at: datetime = field(default_factory=datetime.utcnow)
+    discovered_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     def __post_init__(self):
         """Set severity from confidence score if not explicitly set."""
@@ -228,7 +228,7 @@ class ReporterBase(ABC):
         self.metadata: Dict[str, Any] = {
             "tool_name": "Vulnhuntr",
             "tool_version": "1.0.0",
-            "generated_at": datetime.utcnow().isoformat() + "Z",
+            "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         }
 
     def add_finding(self, finding: Finding) -> None:
