@@ -6,7 +6,7 @@ Generates machine-readable JSON reports for programmatic processing.
 """
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional
 import structlog
@@ -102,7 +102,7 @@ class JSONReporter(ReporterBase):
                 "tool": self.metadata.get("tool_name", "Vulnhuntr"),
                 "version": self.metadata.get("tool_version", "1.0.0"),
                 "generated_at": self.metadata.get(
-                    "generated_at", datetime.utcnow().isoformat() + "Z"
+                    "generated_at", datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
                 ),
                 "total_findings": len(self.findings),
             }

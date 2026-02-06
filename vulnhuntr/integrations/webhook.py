@@ -18,7 +18,7 @@ import json
 import time
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional
 import structlog
@@ -158,7 +158,7 @@ class WebhookNotifier:
         """Format payload as generic JSON."""
         return {
             "event": event_type,
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             "source": "vulnhuntr",
             "version": "1.0.0",
             "findings_count": len(findings),
@@ -490,7 +490,7 @@ class WebhookNotifier:
         delivery_id = str(uuid.uuid4())
         payload = {
             "event": "ping",
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             "source": "vulnhuntr",
             "message": "Connection test from Vulnhuntr",
         }
