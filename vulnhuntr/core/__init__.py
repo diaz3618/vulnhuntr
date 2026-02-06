@@ -39,7 +39,7 @@ from vulnhuntr.core.analysis import (
 __all__ = [
     # Models
     "VulnType",
-    "ContextCode", 
+    "ContextCode",
     "Response",
     # XML Models
     "ReadmeContent",

