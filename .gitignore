@@ -176,3 +176,5 @@ internal
 test_*.py
 test_results.*
 integration_test.log
+docs/development_path
+docs/design_notes
