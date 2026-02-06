@@ -1,5 +1,6 @@
 import logging
 import re
+import time
 from dataclasses import dataclass
 from typing import Callable, Dict, Any, List, Optional, Union
 
@@ -117,9 +118,39 @@ class LLM:
             if match:
                 response_text = match.group(0)
 
+            # Fix common JSON issues from LLM responses
+            # 1. Replace Python None with JSON null
+            response_text = re.sub(r'\b(None)\b', 'null', response_text)
+            
+            # 2. Replace Python True/False with JSON true/false (if needed)
+            response_text = re.sub(r'\b(True)\b', 'true', response_text)
+            response_text = re.sub(r'\b(False)\b', 'false', response_text)
+
             return response_model.model_validate_json(response_text)
         except ValidationError as e:
             log.warning("[-] Response validation failed\n", exc_info=e)
+            
+            # Save failed response for debugging
+            import tempfile
+            import os
+            debug_file = os.path.join(tempfile.gettempdir(), f"vulnhuntr_failed_response_{int(time.time())}.json")
+            try:
+                with open(debug_file, 'w') as f:
+                    f.write(response_text)
+                log.error(f"Failed response saved to: {debug_file}")
+            except Exception:
+                pass  # Don't let debug logging break the error flow
+            
+            # Try to provide helpful error message
+            error_msg = str(e)
+            if "invalid escape" in error_msg.lower():
+                log.error("JSON contains invalid escape sequences (likely from code snippets)")
+                log.error("This is a known issue when LLMs include code with backslashes")
+                log.error("Try re-running the analysis - LLM responses can vary")
+            elif "None" in response_text or "True" in response_text or "False" in response_text:
+                log.error("JSON contains Python syntax (None/True/False instead of null/true/false)")
+                log.error("Applied automatic fixes but still failed - check saved response")
+            
             raise LLMError("Validation failed") from e
 
     def _add_to_history(self, role: str, content: str) -> None:
