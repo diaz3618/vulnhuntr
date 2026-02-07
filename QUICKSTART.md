@@ -92,6 +92,20 @@ OPENAI_MODEL=chatgpt-4o-latest
 OPENAI_API_KEY=sk-proj-YOUR_KEY_HERE
 ```
 
+### For OpenRouter (FREE MODELS AVAILABLE)
+
+OpenRouter provides access to many models, including **free tiers**. Perfect for testing and development.
+
+Add to `.env`:
+
+```dotenv
+OPENROUTER_API_KEY=sk-or-v1-YOUR_KEY_HERE
+OPENROUTER_MODEL=qwen/qwen3-coder:free
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+```
+
+See [docs/openrouter-free-models.md](docs/openrouter-free-models.md) for a complete list of free models.
+
 ### For Custom Endpoints
 
 You can use custom OpenAI-compatible endpoints:
@@ -153,6 +167,12 @@ vulnhuntr -r /path/to/target/repository
 
 ```bash
 vulnhuntr -r /path/to/target/repository -v
+```
+
+### Scan with OpenRouter (Free)
+
+```bash
+vulnhuntr -r /path/to/target/repository -l openrouter
 ```
 
 ### Scan with OpenAI/GPT

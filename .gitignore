@@ -167,25 +167,32 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 .idea/
 
-# repos
+# Local development directories (not in version control)
 repos/
+internal/
+archive/
+scripts/
+AGENT.md
+
+# VSCode workspace settings (local only)
 .vscode/launch.json
 .vscode/mcp.json
-docs/archive
-scripts
-internal
-# Test files
-tests/test_results
-#test_*.py
-#test_results.*
+
+# Documentation directories (local only)
+docs/archive/
+docs/design_notes/
+docs/development_path/
+docs/agents/
+
+# Test files (local only)
+tests/
+#tests/test_results
+test_*.py
+test_results.*
 integration_test.log
-docs/development_path
-docs/design_notes
-repos/
+
+# Checkpoint data (runtime state)
 .vulnhuntr_checkpoint
-archive
-docs/agents
-AGENT.md
 
 # Analysis exports - ignore contents but keep folder
 reports/*

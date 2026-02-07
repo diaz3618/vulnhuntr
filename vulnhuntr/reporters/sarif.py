@@ -368,7 +368,8 @@ class SARIFReporter(ReporterBase):
             {
                 "executionSuccessful": True,
                 "startTimeUtc": self.metadata.get(
-                    "generated_at", datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+                    "generated_at",
+                    datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
                 ),
             }
         ]
