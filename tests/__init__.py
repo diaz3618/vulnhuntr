@@ -1,1 +1,0 @@
-# Vulnhuntr test package
