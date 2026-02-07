@@ -535,7 +535,9 @@ class HTMLReporter(ReporterBase):
         severity_counts = summary.get("by_severity", {})
 
         context = {
-            "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
+            "generated_at": datetime.now(timezone.utc).strftime(
+                "%Y-%m-%d %H:%M:%S UTC"
+            ),
             "tool_version": self.metadata.get("tool_version", "1.0.0"),
             "total_findings": len(self.findings),
             "files_affected": summary.get("files_affected", 0),

@@ -73,12 +73,12 @@ This tool is designed to analyze a GitHub repository for potential remotely expl
 > Always set spending limits or closely monitor costs with the LLM provider you use. This tool has the potential to rack up hefty bills as it tries to fit as much code in the LLMs context window as possible. 
 
 > [!TIP]
-> We recommend using Claude for the LLM. Through testing we have had better results with it over GPT.
+> We recommend using Claude for the LLM. Through testing we have had better results with it over GPT. For **free** testing, try OpenRouter with free models like `qwen/qwen3-coder:free`.
 
 ### Command Line Interface
 
 ```
-usage: vulnhuntr [-h] -r ROOT [-a ANALYZE] [-l {claude,gpt,ollama}] [-v]
+usage: vulnhuntr [-h] -r ROOT [-a ANALYZE] [-l {claude,gpt,ollama,openrouter}] [-v]
                  [--dry-run] [--budget BUDGET] [--resume [RESUME]] [--no-checkpoint]
                  [--sarif PATH] [--html PATH] [--json PATH] [--csv PATH] [--markdown PATH]
                  [--export-all DIR] [--create-issues] [--webhook URL]
@@ -91,8 +91,8 @@ options:
   -r ROOT, --root ROOT  Path to the root directory of the project
   -a ANALYZE, --analyze ANALYZE
                         Specific path or file within the project to analyze
-  -l {claude,gpt,ollama}, --llm {claude,gpt,ollama}
-                        LLM client to use (default: claude)
+  -l {claude,gpt,ollama,openrouter}, --llm {claude,gpt,ollama,openrouter}
+                        LLM client to use (default: claude). OpenRouter provides access to free models.
   -v, --verbosity       Increase output verbosity (-v for INFO, -vv for DEBUG)
 
 Cost Management:

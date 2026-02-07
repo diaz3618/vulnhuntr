@@ -48,6 +48,14 @@ PRICING_TABLE: dict[str, dict[str, float]] = {
     "llama3": {"input": 0.0, "output": 0.0},
     "codellama": {"input": 0.0, "output": 0.0},
     "mistral": {"input": 0.0, "output": 0.0},
+    # OpenRouter free models (see docs/openrouter-free-models.md)
+    "qwen/qwen3-coder:free": {"input": 0.0, "output": 0.0},
+    "meta-llama/llama-3.3-70b-instruct:free": {"input": 0.0, "output": 0.0},
+    "google/gemma-3-27b-it:free": {"input": 0.0, "output": 0.0},
+    "deepseek/deepseek-r1-0528:free": {"input": 0.0, "output": 0.0},
+    "microsoft/phi-4:free": {"input": 0.0, "output": 0.0},
+    "mistralai/mistral-small-3.1-24b-instruct:free": {"input": 0.0, "output": 0.0},
+    "nvidia/llama-3.1-nemotron-70b-instruct:free": {"input": 0.0, "output": 0.0},
 }
 
 # Default pricing for unknown models (conservative estimate)
