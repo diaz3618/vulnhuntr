@@ -8,7 +8,22 @@ This directory contains comprehensive documentation for the Vulnhuntr project, i
 
 ### Main Documentation
 
-#### [TECHNICAL_DOCUMENTATION.md](TECHNICAL_DOCUMENTATION.md)
+#### [openrouter-free-models.md](openrouter-free-models.md)
+Guide to using free LLM models via OpenRouter:
+- **31 Free Models**: Complete list with specifications
+- **Setup Instructions**: API configuration
+- **Provider Support**: Claude, GPT, Gemini, Mistral, and more
+- **Cost Savings**: Zero-cost testing and development
+
+**Audience**: Users, developers, budget-conscious testers
+
+---
+
+### Project Documentation (Academic Context)
+
+Located in `project/` subdirectory:
+
+#### [project/TECHNICAL_DOCUMENTATION.md](project/TECHNICAL_DOCUMENTATION.md)
 Complete technical guide to understanding Vulnhuntr:
 - **How It Works**: Architecture and workflow explanation
 - **Component Details**: Deep dive into each module
@@ -23,7 +38,7 @@ Complete technical guide to understanding Vulnhuntr:
 
 ---
 
-#### [ARCHITECTURE.md](ARCHITECTURE.md)
+#### [project/ARCHITECTURE_REFACTOR.md](project/ARCHITECTURE_REFACTOR.md)
 Detailed architecture and design documentation:
 - **System Architecture**: High-level component overview
 - **Data Flow**: Analysis pipeline and iterative context expansion
@@ -35,7 +50,7 @@ Detailed architecture and design documentation:
 
 ---
 
-#### [AREAS_OF_IMPROVEMENT.md](AREAS_OF_IMPROVEMENT.md)
+#### [project/AREAS_OF_IMPROVEMENT.md](project/AREAS_OF_IMPROVEMENT.md)
 Comprehensive analysis of potential enhancements:
 - **15 Major Improvement Areas** covering:
   - Language support
@@ -60,14 +75,13 @@ Comprehensive analysis of potential enhancements:
 
 ---
 
-#### [openrouter-free-models.md](openrouter-free-models.md)
-Guide to using free LLM models via OpenRouter:
-- **31 Free Models**: Complete list with specifications
-- **Setup Instructions**: API configuration
-- **Provider Support**: Claude, GPT, Gemini, Mistral, and more
-- **Cost Savings**: Zero-cost testing and development
+#### [project/MCP_SERVERS.md](project/MCP_SERVERS.md)
+Guide to Model Context Protocol server integrations:
+- **Available MCP Servers**: Documentation, analysis, Python LSP
+- **Integration Strategies**: How to extend Vulnhuntr with MCP
+- **Use Cases**: Practical applications for each server
 
-**Audience**: Users, developers, budget-conscious testers
+**Audience**: Developers, contributors interested in extensions
 
 ---
 
