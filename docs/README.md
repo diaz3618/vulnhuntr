@@ -23,6 +23,18 @@ Complete technical guide to understanding Vulnhuntr:
 
 ---
 
+#### [ARCHITECTURE.md](ARCHITECTURE.md)
+Detailed architecture and design documentation:
+- **System Architecture**: High-level component overview
+- **Data Flow**: Analysis pipeline and iterative context expansion
+- **LLM Integration**: Provider-specific implementations
+- **Symbol Resolution**: Jedi-based code extraction
+- **Process Flow Diagrams**: Visual workflow representations
+
+**Audience**: Developers, contributors, system architects
+
+---
+
 #### [AREAS_OF_IMPROVEMENT.md](AREAS_OF_IMPROVEMENT.md)
 Comprehensive analysis of potential enhancements:
 - **15 Major Improvement Areas** covering:
@@ -45,6 +57,45 @@ Comprehensive analysis of potential enhancements:
 **Priority Rankings**: High/Medium/Long-term
 
 **Audience**: Contributors, project maintainers, researchers
+
+---
+
+#### [openrouter-free-models.md](openrouter-free-models.md)
+Guide to using free LLM models via OpenRouter:
+- **31 Free Models**: Complete list with specifications
+- **Setup Instructions**: API configuration
+- **Provider Support**: Claude, GPT, Gemini, Mistral, and more
+- **Cost Savings**: Zero-cost testing and development
+
+**Audience**: Users, developers, budget-conscious testers
+
+---
+
+### Issue Tracking
+
+Located in `issues/` subdirectory:
+
+#### Fixed Issues (`issues/fixed/`)
+Resolved bugs and problems with documented solutions:
+- Root cause analysis
+- Fix implementation details
+- Verification steps
+- Related PRs and commits
+
+#### Pending Issues (`issues/pending/`)
+Active issues under investigation:
+- Current symptoms
+- Reproduction steps
+- Potential solutions
+- Priority classification
+
+#### Persistent Issues (`issues/persistent/`)
+Known limitations without complete fixes:
+- Workarounds and mitigation strategies
+- Impact assessment
+- Long-term improvement plans
+
+**See**: `issues/README.md` for conventions and templates
 
 ---
 

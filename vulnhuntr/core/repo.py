@@ -15,6 +15,10 @@ import re
 from pathlib import Path
 from typing import Generator, List, Optional
 
+import structlog
+
+log = structlog.get_logger()
+
 
 class RepoOps:
     """Repository operations for vulnerability scanning.
@@ -189,7 +193,8 @@ class RepoOps:
                 try:
                     with readme.open(encoding="utf-8") as f:
                         return f.read()
-                except (OSError, UnicodeDecodeError):
+                except (OSError, UnicodeDecodeError) as e:
+                    log.debug(f"Failed to read README {readme}: {e}")
                     continue
 
         # If no README.md or README.rst is found, try other extensions
@@ -197,7 +202,8 @@ class RepoOps:
             try:
                 with readme.open(encoding="utf-8") as f:
                     return f.read()
-            except (OSError, UnicodeDecodeError):
+            except (OSError, UnicodeDecodeError) as e:
+                log.debug(f"Failed to read README {readme}: {e}")
                 continue
 
         return None

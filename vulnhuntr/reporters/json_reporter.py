@@ -102,7 +102,8 @@ class JSONReporter(ReporterBase):
                 "tool": self.metadata.get("tool_name", "Vulnhuntr"),
                 "version": self.metadata.get("tool_version", "1.0.0"),
                 "generated_at": self.metadata.get(
-                    "generated_at", datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+                    "generated_at",
+                    datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
                 ),
                 "total_findings": len(self.findings),
             }

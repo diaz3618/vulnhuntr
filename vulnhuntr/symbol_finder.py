@@ -284,6 +284,11 @@ class SymbolExtractor:
                 return s
 
             definition = lines[start[0] - 1 : end[0]]
+            
+            # Guard against empty definition (prevents IndexError)
+            if not definition:
+                return "None"
+            
             end_len_diff = len(definition[-1]) - end[1]
 
             s = (

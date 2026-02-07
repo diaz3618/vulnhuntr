@@ -228,7 +228,9 @@ class ReporterBase(ABC):
         self.metadata: Dict[str, Any] = {
             "tool_name": "Vulnhuntr",
             "tool_version": "1.0.0",
-            "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "generated_at": datetime.now(timezone.utc)
+            .isoformat()
+            .replace("+00:00", "Z"),
         }
 
     def add_finding(self, finding: Finding) -> None:

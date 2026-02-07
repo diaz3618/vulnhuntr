@@ -66,7 +66,7 @@ def initialize_llm(
     Raises:
         ValueError: If invalid LLM argument provided
     """
-    from vulnhuntr.LLMs import ChatGPT, Claude, Ollama
+    from vulnhuntr.LLMs import ChatGPT, Claude, Ollama, OpenRouter
 
     llm_arg = llm_arg.lower()
 
@@ -80,6 +80,11 @@ def initialize_llm(
         base_url = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
         return ChatGPT(model, base_url, system_prompt, cost_callback)
 
+    elif llm_arg == "openrouter":
+        model = os.getenv("OPENROUTER_MODEL", "qwen/qwen3-coder:free")
+        base_url = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
+        return OpenRouter(model, base_url, system_prompt, cost_callback)
+
     elif llm_arg == "ollama":
         model = os.getenv("OLLAMA_MODEL", "llama3")
         base_url = os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434/api/generate")
@@ -87,7 +92,7 @@ def initialize_llm(
 
     else:
         raise ValueError(
-            f"Invalid LLM argument: {llm_arg}\nValid options are: claude, gpt, ollama"
+            f"Invalid LLM argument: {llm_arg}\nValid options are: claude, gpt, ollama, openrouter"
         )
 
 
@@ -105,6 +110,8 @@ def get_model_name(llm_arg: str) -> str:
         return os.getenv("ANTHROPIC_MODEL", "claude-3-5-sonnet-latest")
     elif llm_arg == "gpt":
         return os.getenv("OPENAI_MODEL", "chatgpt-4o-latest")
+    elif llm_arg == "openrouter":
+        return os.getenv("OPENROUTER_MODEL", "qwen/qwen3-coder:free")
     elif llm_arg == "ollama":
         return os.getenv("OLLAMA_MODEL", "llama3")
     return "unknown"
@@ -566,7 +573,9 @@ def _generate_reports(
 
     # Ensure reports directory exists if any reports are being generated
     reports_dir = Path(args.reports_dir) if hasattr(args, "reports_dir") else None
-    if reports_dir and (args.sarif or args.html or args.json or args.csv or args.markdown):
+    if reports_dir and (
+        args.sarif or args.html or args.json or args.csv or args.markdown
+    ):
         reports_dir.mkdir(parents=True, exist_ok=True)
 
     # SARIF report
