@@ -147,8 +147,9 @@ class LLM:
                 with open(debug_file, "w") as f:
                     f.write(response_text)
                 log.error(f"Failed response saved to: {debug_file}")
-            except Exception:
-                pass  # Don't let debug logging break the error flow
+            except (IOError, OSError) as debug_err:
+                # Don't let debug logging break the error flow
+                log.debug(f"Failed to save debug file: {debug_err}")
 
             # Try to provide helpful error message
             error_msg = str(e)
@@ -354,6 +355,125 @@ class ChatGPT(LLM):
 
     def _extract_usage(self, response: Any) -> LLMUsage:
         """Extract token usage from ChatGPT response."""
+        return LLMUsage(
+            input_tokens=response.usage.prompt_tokens,
+            output_tokens=response.usage.completion_tokens,
+            model=self.model,
+        )
+
+
+# =============================================================================
+# OpenRouter (Multi-provider)
+# =============================================================================
+
+
+class OpenRouter(LLM):
+    """OpenRouter client - access multiple LLM providers via single API.
+
+    OpenRouter provides access to Claude, GPT, Llama, Mistral, and many other
+    models through a unified OpenAI-compatible API. Includes free model tiers.
+
+    Environment variables:
+        OPENROUTER_API_KEY: Your OpenRouter API key
+        OPENROUTER_MODEL: Model to use (default: qwen/qwen3-coder:free)
+        OPENROUTER_BASE_URL: API base URL (default: https://openrouter.ai/api/v1)
+
+    Example free models:
+        - qwen/qwen3-coder:free
+        - meta-llama/llama-3.3-70b-instruct:free
+        - google/gemma-3-27b-it:free
+        - deepseek/deepseek-r1-0528:free
+    """
+
+    def __init__(
+        self,
+        model: str,
+        base_url: str,
+        system_prompt: str = "",
+        cost_callback: Optional[CostCallback] = None,
+    ) -> None:
+        super().__init__(system_prompt, cost_callback)
+        import os
+
+        api_key = os.getenv("OPENROUTER_API_KEY")
+        if not api_key:
+            raise LLMError(
+                "OPENROUTER_API_KEY environment variable is required for OpenRouter"
+            )
+
+        self.client = openai.OpenAI(
+            api_key=api_key,
+            base_url=base_url,
+            default_headers={
+                "HTTP-Referer": "https://github.com/protectai/vulnhuntr",
+                "X-Title": "Vulnhuntr Security Scanner",
+            },
+        )
+        self.model = model
+
+    def create_messages(self, user_prompt: str) -> List[Dict[str, str]]:
+        messages = [
+            {"role": "system", "content": self.system_prompt},
+            {"role": "user", "content": user_prompt},
+        ]
+        return messages
+
+    def send_message(
+        self, messages: List[Dict[str, str]], max_tokens: int, response_model=None
+    ) -> Dict[str, Any]:
+        try:
+            params = {
+                "model": self.model,
+                "messages": messages,
+                "max_tokens": max_tokens,
+            }
+
+            # Add response format configuration if a model is provided
+            # Note: Not all OpenRouter models support json_object mode
+            if response_model:
+                # Check if model likely supports structured output
+                model_lower = self.model.lower()
+                supports_json = any(
+                    x in model_lower
+                    for x in ["gpt", "claude", "mistral", "qwen", "gemma"]
+                )
+                if supports_json:
+                    params["response_format"] = {"type": "json_object"}
+
+            return self.client.chat.completions.create(**params)
+        except openai.APIConnectionError as e:
+            raise APIConnectionError(
+                f"OpenRouter server could not be reached: {e}"
+            ) from e
+        except openai.RateLimitError as e:
+            raise RateLimitError(
+                "OpenRouter request was rate-limited; consider backing off"
+            ) from e
+        except openai.APIStatusError as e:
+            # Provide more helpful error messages for common issues
+            if e.status_code == 401:
+                raise LLMError(
+                    "OpenRouter authentication failed. Check your OPENROUTER_API_KEY."
+                ) from e
+            elif e.status_code == 402:
+                raise LLMError(
+                    "OpenRouter credits exhausted. Add credits or use a free model "
+                    "(e.g., qwen/qwen3-coder:free)"
+                ) from e
+            elif e.status_code == 404:
+                raise LLMError(
+                    f"OpenRouter model not found: {self.model}. "
+                    "Check model name at https://openrouter.ai/models"
+                ) from e
+            raise APIStatusError(e.status_code, e.response) from e
+        except Exception as e:
+            raise LLMError(f"OpenRouter unexpected error: {str(e)}") from e
+
+    def get_response(self, response: Any) -> str:
+        return response.choices[0].message.content
+
+    def _extract_usage(self, response: Any) -> LLMUsage:
+        """Extract token usage from OpenRouter response."""
         return LLMUsage(
             input_tokens=response.usage.prompt_tokens,
             output_tokens=response.usage.completion_tokens,

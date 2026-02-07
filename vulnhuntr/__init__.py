@@ -6,7 +6,7 @@ Vulnhuntr uses Large Language Models to identify potential security
 vulnerabilities in Python source code repositories.
 
 Key Features:
-- Multi-LLM support (Claude, GPT-4, Ollama)
+- Multi-LLM support (Claude, GPT-4, Ollama, OpenRouter)
 - Iterative analysis with context expansion
 - Support for common web frameworks
 - Multiple output formats (SARIF, HTML, JSON, CSV, Markdown)

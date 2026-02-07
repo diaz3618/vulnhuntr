@@ -61,9 +61,9 @@ Examples:
         "-l",
         "--llm",
         type=str,
-        choices=["claude", "gpt", "ollama"],
+        choices=["claude", "gpt", "ollama", "openrouter"],
         default="claude",
-        help="LLM client to use (default: claude)",
+        help="LLM client to use (default: claude). OpenRouter provides access to free models.",
     )
 
     parser.add_argument(
@@ -276,7 +276,11 @@ def normalize_args(args: argparse.Namespace) -> argparse.Namespace:
     if hasattr(args, "export_all") and args.export_all:
         export_path = Path(args.export_all)
         if not export_path.is_absolute():
-            args.export_all = str(reports_dir.parent / args.export_all if args.export_all != "reports" else reports_dir)
+            args.export_all = str(
+                reports_dir.parent / args.export_all
+                if args.export_all != "reports"
+                else reports_dir
+            )
         else:
             args.export_all = str(export_path.resolve())
 
