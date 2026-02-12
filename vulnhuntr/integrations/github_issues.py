@@ -14,11 +14,12 @@ References:
 
 import os
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import Any
+
 import structlog
 
 try:
-    import requests
+    import requests  # type: ignore[import-untyped]
 
     REQUESTS_AVAILABLE = True
 except ImportError:
@@ -55,9 +56,9 @@ class IssueResult:
     """Result of creating a GitHub issue."""
 
     success: bool
-    issue_number: Optional[int] = None
-    issue_url: Optional[str] = None
-    error: Optional[str] = None
+    issue_number: int | None = None
+    issue_url: str | None = None
+    error: str | None = None
 
 
 @dataclass
@@ -67,9 +68,9 @@ class GitHubConfig:
     token: str
     owner: str
     repo: str
-    labels: List[str] = field(default_factory=lambda: ["security", "vulnhuntr"])
-    assignees: List[str] = field(default_factory=list)
-    milestone: Optional[int] = None
+    labels: list[str] = field(default_factory=lambda: ["security", "vulnhuntr"])
+    assignees: list[str] = field(default_factory=list)
+    milestone: int | None = None
     dry_run: bool = False
 
 
@@ -117,7 +118,7 @@ class GitHubIssueCreator:
         )
 
         # Track created issues to avoid duplicates
-        self._created_issues: Dict[str, int] = {}
+        self._created_issues: dict[str, int] = {}
 
     def _get_issue_fingerprint(self, finding: Finding) -> str:
         """Generate a unique fingerprint for deduplication."""
@@ -183,7 +184,7 @@ class GitHubIssueCreator:
 
         return "\n".join(lines)
 
-    def _get_labels_for_finding(self, finding: Finding) -> List[str]:
+    def _get_labels_for_finding(self, finding: Finding) -> list[str]:
         """Get labels for a finding."""
         labels = list(self.config.labels)
 
@@ -200,7 +201,7 @@ class GitHubIssueCreator:
 
         return labels
 
-    def check_duplicate(self, finding: Finding) -> Optional[int]:
+    def check_duplicate(self, finding: Finding) -> int | None:
         """Check if an issue already exists for this finding.
 
         Searches open issues with matching title pattern.
@@ -269,7 +270,7 @@ class GitHubIssueCreator:
                 )
 
         # Prepare issue data
-        issue_data = {
+        issue_data: dict[str, Any] = {
             "title": self._format_issue_title(finding),
             "body": self._format_issue_body(finding),
             "labels": self._get_labels_for_finding(finding),
@@ -349,10 +350,10 @@ class GitHubIssueCreator:
 
     def create_issues_for_findings(
         self,
-        findings: List[Finding],
+        findings: list[Finding],
         skip_duplicates: bool = True,
-        max_issues: Optional[int] = None,
-    ) -> List[IssueResult]:
+        max_issues: int | None = None,
+    ) -> list[IssueResult]:
         """Create issues for multiple findings.
 
         Args:
@@ -393,9 +394,7 @@ class GitHubIssueCreator:
             True if access is verified, False otherwise
         """
         try:
-            response = self.session.get(
-                f"{GITHUB_API_BASE}/repos/{self.config.owner}/{self.config.repo}"
-            )
+            response = self.session.get(f"{GITHUB_API_BASE}/repos/{self.config.owner}/{self.config.repo}")
             response.raise_for_status()
 
             repo_data = response.json()
@@ -415,7 +414,7 @@ class GitHubIssueCreator:
 def create_github_config_from_env(
     owner: str,
     repo: str,
-    labels: Optional[List[str]] = None,
+    labels: list[str] | None = None,
     dry_run: bool = False,
 ) -> GitHubConfig:
     """Create GitHubConfig from environment variables.

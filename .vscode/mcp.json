@@ -8,14 +8,13 @@
       "type": "stdio"
     },
     "memory-bank-mcp": {
-      "type": "stdio",
-      "command": "node",
+      "command": "npx",
       "args": [
-        "/home/diaz/mygit/memory-bank-mcp/build/index.js",
-        "--mode",
-        "code"
+        "-y",
+        "@diazstg/memory-bank-mcp",
+        "--mode code"
       ],
-      "env": {}
+      "type": "stdio"
     },
     "python-lsp-mcp": {
       "command": "uvx",

@@ -8,15 +8,15 @@ Uses Rich library for styled console output.
 """
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any
 
 from rich.console import Console
-from rich.table import Table
 from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.table import Table
 
 if TYPE_CHECKING:
-    from ..core.models import Response
     from ..checkpoint import AnalysisCheckpoint
+    from ..core.models import Response
 
 
 # Module-level console instance
@@ -59,20 +59,12 @@ def print_dry_run_report(estimate: dict) -> None:
     Args:
         estimate: Cost estimation data (dict from estimate_analysis_cost)
     """
-    console.print(
-        "\n[bold cyan]═══════════════════════════════════════════════════════════════[/bold cyan]"
-    )
-    console.print(
-        "[bold cyan]              VULNHUNTR COST ESTIMATION (DRY RUN)               [/bold cyan]"
-    )
-    console.print(
-        "[bold cyan]═══════════════════════════════════════════════════════════════[/bold cyan]\n"
-    )
+    console.print("\n[bold cyan]═══════════════════════════════════════════════════════════════[/bold cyan]")
+    console.print("[bold cyan]              VULNHUNTR COST ESTIMATION (DRY RUN)               [/bold cyan]")
+    console.print("[bold cyan]═══════════════════════════════════════════════════════════════[/bold cyan]\n")
 
     # File summary
-    table = Table(
-        title="Analysis Summary", show_header=True, header_style="bold magenta"
-    )
+    table = Table(title="Analysis Summary", show_header=True, header_style="bold magenta")
     table.add_column("Metric", style="dim")
     table.add_column("Value", justify="right")
 
@@ -86,9 +78,7 @@ def print_dry_run_report(estimate: dict) -> None:
     console.print()
 
     # Cost breakdown
-    cost_table = Table(
-        title="Cost Estimate", show_header=True, header_style="bold green"
-    )
+    cost_table = Table(title="Cost Estimate", show_header=True, header_style="bold green")
     cost_table.add_column("Category", style="dim")
     cost_table.add_column("Amount", justify="right")
 
@@ -99,9 +89,7 @@ def print_dry_run_report(estimate: dict) -> None:
 
     cost_table.add_row("Input Cost", f"${input_cost:.4f}")
     cost_table.add_row("Output Cost", f"${output_cost:.4f}")
-    cost_table.add_row(
-        "[bold]Total Estimated Cost[/bold]", f"[bold]${estimated_cost:.4f}[/bold]"
-    )
+    cost_table.add_row("[bold]Total Estimated Cost[/bold]", f"[bold]${estimated_cost:.4f}[/bold]")
 
     # Cost range
     cost_range = estimate.get("estimated_cost_range", {})
@@ -115,13 +103,9 @@ def print_dry_run_report(estimate: dict) -> None:
 
     # Warnings
     if estimated_cost > 1.0:
-        console.print(
-            "[yellow]⚠ Estimated cost exceeds $1.00. Consider using --budget flag.[/yellow]"
-        )
+        console.print("[yellow]⚠ Estimated cost exceeds $1.00. Consider using --budget flag.[/yellow]")
 
-    console.print(
-        "\n[dim]Note: This is an estimate. Actual costs may vary based on LLM responses.[/dim]"
-    )
+    console.print("\n[dim]Note: This is an estimate. Actual costs may vary based on LLM responses.[/dim]")
     console.print("[dim]Run without --dry-run to perform analysis.[/dim]\n")
 
 
@@ -138,15 +122,9 @@ def print_resume_info(checkpoint: "AnalysisCheckpoint") -> None:
     if not data:
         return
 
-    console.print(
-        "\n[bold cyan]═══════════════════════════════════════════════════════════════[/bold cyan]"
-    )
-    console.print(
-        "[bold cyan]                  RESUMING FROM CHECKPOINT                     [/bold cyan]"
-    )
-    console.print(
-        "[bold cyan]═══════════════════════════════════════════════════════════════[/bold cyan]\n"
-    )
+    console.print("\n[bold cyan]═══════════════════════════════════════════════════════════════[/bold cyan]")
+    console.print("[bold cyan]                  RESUMING FROM CHECKPOINT                     [/bold cyan]")
+    console.print("[bold cyan]═══════════════════════════════════════════════════════════════[/bold cyan]\n")
 
     table = Table(show_header=True, header_style="bold magenta")
     table.add_column("Property", style="dim")
@@ -168,7 +146,7 @@ def print_analysis_progress(
     file_index: int,
     total_files: int,
     current_cost: float,
-    budget: Optional[float] = None,
+    budget: float | None = None,
 ) -> None:
     """Print progress information during analysis.
 
@@ -193,21 +171,15 @@ def print_analysis_progress(
     console.print("-" * 40)
 
 
-def print_cost_summary(cost_summary: Dict[str, Any]) -> None:
+def print_cost_summary(cost_summary: dict[str, Any]) -> None:
     """Print a summary of analysis costs.
 
     Args:
         cost_summary: Cost summary dictionary from CostTracker
     """
-    console.print(
-        "\n[bold cyan]═══════════════════════════════════════════════════════════════[/bold cyan]"
-    )
-    console.print(
-        "[bold cyan]                      COST SUMMARY                             [/bold cyan]"
-    )
-    console.print(
-        "[bold cyan]═══════════════════════════════════════════════════════════════[/bold cyan]\n"
-    )
+    console.print("\n[bold cyan]═══════════════════════════════════════════════════════════════[/bold cyan]")
+    console.print("[bold cyan]                      COST SUMMARY                             [/bold cyan]")
+    console.print("[bold cyan]═══════════════════════════════════════════════════════════════[/bold cyan]\n")
 
     table = Table(show_header=True, header_style="bold green")
     table.add_column("Metric", style="dim")
@@ -223,7 +195,7 @@ def print_cost_summary(cost_summary: Dict[str, Any]) -> None:
     console.print()
 
 
-def print_findings_summary(findings: List[Any], total_files: int) -> None:
+def print_findings_summary(findings: list[Any], total_files: int) -> None:
     """Print a summary of vulnerability findings.
 
     Args:
@@ -234,12 +206,10 @@ def print_findings_summary(findings: List[Any], total_files: int) -> None:
         console.print("\n[dim]No vulnerabilities found with confidence >= 5[/dim]\n")
         return
 
-    console.print(
-        f"\n[bold green]Found {len(findings)} potential vulnerabilities[/bold green]\n"
-    )
+    console.print(f"\n[bold green]Found {len(findings)} potential vulnerabilities[/bold green]\n")
 
     # Group by severity/type
-    vuln_types: Dict[str, int] = {}
+    vuln_types: dict[str, int] = {}
     for finding in findings:
         vuln_type = getattr(finding, "rule_id", "Unknown")
         if hasattr(vuln_type, "value"):
@@ -261,7 +231,7 @@ def print_report_status(
     report_type: str,
     path: str,
     success: bool,
-    error: Optional[str] = None,
+    error: str | None = None,
 ) -> None:
     """Print status of report generation.
 

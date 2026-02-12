@@ -51,13 +51,13 @@ jobs:
 
     steps:
       - name: Retrieve release distributions
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v4.1.8
         with:
           name: release-dists
           path: dist/
 
       - name: Publish release distributions to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
+        uses: pypa/gh-action-pypi-publish@v1.12.4
         with:
           skip-existing: true
 
@@ -75,13 +75,13 @@ jobs:
 
     steps:
       - name: Retrieve release distributions
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v4.1.8
         with:
           name: release-dists
           path: dist/
 
       - name: Publish release distributions to TestPyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
+        uses: pypa/gh-action-pypi-publish@v1.12.4
         with:
           repository-url: https://test.pypi.org/legacy/
           skip-existing: true

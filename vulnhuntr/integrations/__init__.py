@@ -10,13 +10,14 @@ Integrations:
 - Webhooks: Send findings to custom endpoints
 """
 
-from .github_issues import GitHubIssueCreator, GitHubConfig, IssueResult
-from .webhook import WebhookNotifier, PayloadFormat
+from .github_issues import GitHubConfig, GitHubIssueCreator, IssueResult
+from .webhook import PayloadFormat, WebhookConfig, WebhookNotifier
 
 __all__ = [
     "GitHubIssueCreator",
     "GitHubConfig",
     "IssueResult",
+    "WebhookConfig",
     "WebhookNotifier",
     "PayloadFormat",
 ]

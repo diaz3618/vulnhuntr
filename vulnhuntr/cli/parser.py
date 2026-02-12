@@ -12,7 +12,6 @@ This module provides:
 
 import argparse
 from pathlib import Path
-from typing import Optional
 
 
 def create_argument_parser() -> argparse.ArgumentParser:
@@ -77,9 +76,7 @@ Examples:
     # Cost management arguments
     cost_group = parser.add_argument_group("Cost Management")
 
-    cost_group.add_argument(
-        "--dry-run", action="store_true", help="Estimate costs without running analysis"
-    )
+    cost_group.add_argument("--dry-run", action="store_true", help="Estimate costs without running analysis")
 
     cost_group.add_argument(
         "--budget",
@@ -95,9 +92,7 @@ Examples:
         help="Resume from checkpoint (default: .vulnhuntr_checkpoint)",
     )
 
-    cost_group.add_argument(
-        "--no-checkpoint", action="store_true", help="Disable checkpointing"
-    )
+    cost_group.add_argument("--no-checkpoint", action="store_true", help="Disable checkpointing")
 
     # Reporting arguments
     report_group = parser.add_argument_group("Report Generation")
@@ -109,17 +104,11 @@ Examples:
         help="Output SARIF 2.1.0 report to specified file",
     )
 
-    report_group.add_argument(
-        "--html", type=str, metavar="PATH", help="Output HTML report to specified file"
-    )
+    report_group.add_argument("--html", type=str, metavar="PATH", help="Output HTML report to specified file")
 
-    report_group.add_argument(
-        "--json", type=str, metavar="PATH", help="Output JSON report to specified file"
-    )
+    report_group.add_argument("--json", type=str, metavar="PATH", help="Output JSON report to specified file")
 
-    report_group.add_argument(
-        "--csv", type=str, metavar="PATH", help="Output CSV report to specified file"
-    )
+    report_group.add_argument("--csv", type=str, metavar="PATH", help="Output CSV report to specified file")
 
     report_group.add_argument(
         "--markdown",
@@ -152,13 +141,10 @@ Examples:
     integration_group.add_argument(
         "--create-issues",
         action="store_true",
-        help="Create GitHub issues for findings "
-        "(requires GITHUB_TOKEN, GITHUB_OWNER, GITHUB_REPO env vars)",
+        help="Create GitHub issues for findings (requires GITHUB_TOKEN, GITHUB_OWNER, GITHUB_REPO env vars)",
     )
 
-    integration_group.add_argument(
-        "--webhook", type=str, metavar="URL", help="Send findings to webhook URL"
-    )
+    integration_group.add_argument("--webhook", type=str, metavar="URL", help="Send findings to webhook URL")
 
     integration_group.add_argument(
         "--webhook-format",
@@ -177,7 +163,7 @@ Examples:
     return parser
 
 
-def validate_args(args: argparse.Namespace) -> Optional[str]:
+def validate_args(args: argparse.Namespace) -> str | None:
     """Validate parsed arguments.
 
     Args:
@@ -276,11 +262,7 @@ def normalize_args(args: argparse.Namespace) -> argparse.Namespace:
     if hasattr(args, "export_all") and args.export_all:
         export_path = Path(args.export_all)
         if not export_path.is_absolute():
-            args.export_all = str(
-                reports_dir.parent / args.export_all
-                if args.export_all != "reports"
-                else reports_dir
-            )
+            args.export_all = str(reports_dir.parent / args.export_all if args.export_all != "reports" else reports_dir)
         else:
             args.export_all = str(export_path.resolve())
 

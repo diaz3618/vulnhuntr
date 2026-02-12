@@ -18,15 +18,16 @@ import hashlib
 import json
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
+
 import structlog
 
 from .base import (
-    ReporterBase,
-    Finding,
-    FindingSeverity,
     CWE_MAPPINGS,
     SEVERITY_SCORES,
+    Finding,
+    FindingSeverity,
+    ReporterBase,
 )
 
 log = structlog.get_logger("vulnhuntr.reporters.sarif")
@@ -80,11 +81,11 @@ class SARIFReporter(ReporterBase):
 
     def __init__(
         self,
-        output_path: Optional[Path] = None,
+        output_path: Path | None = None,
         include_scratchpad: bool = False,
         include_context: bool = True,
-        repository_uri: Optional[str] = None,
-        repository_branch: Optional[str] = None,
+        repository_uri: str | None = None,
+        repository_branch: str | None = None,
     ):
         """Initialize SARIF reporter.
 
@@ -100,7 +101,7 @@ class SARIFReporter(ReporterBase):
         self.repository_branch = repository_branch
 
         # Track unique rules encountered
-        self._rules: Dict[str, Dict[str, Any]] = {}
+        self._rules: dict[str, dict[str, Any]] = {}
 
     def _compute_fingerprint(self, finding: Finding) -> str:
         """Compute a stable fingerprint for result deduplication.
@@ -128,7 +129,7 @@ class SARIFReporter(ReporterBase):
 
         return hash_value
 
-    def _get_rule(self, vuln_type: str) -> Dict[str, Any]:
+    def _get_rule(self, vuln_type: str) -> dict[str, Any]:
         """Get or create a SARIF rule (reportingDescriptor) for a vulnerability type.
 
         Returns a rule definition suitable for the tool.driver.rules array.
@@ -165,7 +166,7 @@ class SARIFReporter(ReporterBase):
         self._rules[vuln_type] = rule
         return rule
 
-    def _get_full_description(self, vuln_type: str, cwe: Dict[str, str]) -> str:
+    def _get_full_description(self, vuln_type: str, cwe: dict[str, str]) -> str:
         """Get full description for a vulnerability type."""
         descriptions = {
             "LFI": "Local File Inclusion allows attackers to read arbitrary files from the server filesystem, potentially exposing sensitive configuration files, credentials, or source code.",
@@ -176,11 +177,9 @@ class SARIFReporter(ReporterBase):
             "SSRF": "Server-Side Request Forgery allows attackers to make the server send requests to internal services, potentially accessing sensitive internal resources or cloud metadata.",
             "IDOR": "Insecure Direct Object Reference allows attackers to access resources belonging to other users by manipulating identifiers, bypassing authorization controls.",
         }
-        return descriptions.get(
-            vuln_type, f"Potential {cwe.get('name', vuln_type)} vulnerability detected."
-        )
+        return descriptions.get(vuln_type, f"Potential {cwe.get('name', vuln_type)} vulnerability detected.")
 
-    def _get_help_text(self, vuln_type: str, cwe: Dict[str, str]) -> str:
+    def _get_help_text(self, vuln_type: str, cwe: dict[str, str]) -> str:
         """Get help/remediation text for a vulnerability type."""
         help_texts = {
             "LFI": "**Remediation**: Validate and sanitize all file path inputs. Use allowlists for permitted files. Avoid user-controlled file paths. Use chroot or containerization to limit filesystem access.",
@@ -196,7 +195,7 @@ class SARIFReporter(ReporterBase):
             f"Review and remediate this {cwe.get('name', vuln_type)} vulnerability.",
         )
 
-    def _get_rule_tags(self, vuln_type: str, cwe: Dict[str, str]) -> List[str]:
+    def _get_rule_tags(self, vuln_type: str, cwe: dict[str, str]) -> list[str]:
         """Get tags for a rule."""
         tags = ["security"]
 
@@ -217,13 +216,13 @@ class SARIFReporter(ReporterBase):
 
         return tags
 
-    def _finding_to_result(self, finding: Finding, index: int) -> Dict[str, Any]:
+    def _finding_to_result(self, finding: Finding, index: int) -> dict[str, Any]:
         """Convert a Finding to a SARIF result object."""
         # Ensure rule exists
         self._get_rule(finding.rule_id)
 
         # Build location
-        physical_location: Dict[str, Any] = {
+        physical_location: dict[str, Any] = {
             "artifactLocation": {
                 "uri": Path(finding.file_path).as_posix(),
                 "uriBaseId": "%SRCROOT%",
@@ -232,7 +231,7 @@ class SARIFReporter(ReporterBase):
 
         # Add region if line numbers available
         if finding.start_line is not None:
-            region: Dict[str, Any] = {
+            region: dict[str, Any] = {
                 "startLine": finding.start_line,
             }
             if finding.end_line is not None:
@@ -250,14 +249,12 @@ class SARIFReporter(ReporterBase):
             message_parts.append(f"\n\n**Proof of Concept:**\n```\n{finding.poc}\n```")
 
         if self.include_scratchpad and finding.scratchpad:
-            message_parts.append(
-                f"\n\n**Analysis Details:**\n{finding.scratchpad[:500]}"
-            )
+            message_parts.append(f"\n\n**Analysis Details:**\n{finding.scratchpad[:500]}")
 
         message_text = "\n".join(message_parts)
 
         # Build result
-        result: Dict[str, Any] = {
+        result: dict[str, Any] = {
             "ruleId": f"vulnhuntr/{finding.rule_id.lower()}",
             "ruleIndex": list(self._rules.keys()).index(finding.rule_id),
             "level": SEVERITY_TO_SARIF_LEVEL.get(finding.severity, "warning"),
@@ -265,9 +262,7 @@ class SARIFReporter(ReporterBase):
             "message": {"text": message_text},
             "locations": [{"physicalLocation": physical_location}],
             # partialFingerprints required for GitHub deduplication
-            "partialFingerprints": {
-                "primaryLocationLineHash": self._compute_fingerprint(finding)
-            },
+            "partialFingerprints": {"primaryLocationLineHash": self._compute_fingerprint(finding)},
             "properties": {
                 "confidence": finding.confidence_score,
                 "security-severity": finding.metadata.get("security_severity", 5.0),
@@ -293,24 +288,13 @@ class SARIFReporter(ReporterBase):
             for ctx in finding.context_code:
                 if ctx.get("name"):
                     code_flows.append(
-                        {
-                            "message": {
-                                "text": f"Data flow through {ctx.get('name')}: {ctx.get('reason', '')}"
-                            }
-                        }
+                        {"message": {"text": f"Data flow through {ctx.get('name')}: {ctx.get('reason', '')}"}}
                     )
             if code_flows:
                 result["codeFlows"] = [
                     {
                         "message": {"text": "Data flow analysis"},
-                        "threadFlows": [
-                            {
-                                "locations": [
-                                    {"location": {"message": cf["message"]}}
-                                    for cf in code_flows
-                                ]
-                            }
-                        ],
+                        "threadFlows": [{"locations": [{"location": {"message": cf["message"]}} for cf in code_flows]}],
                     }
                 ]
 
@@ -347,7 +331,7 @@ class SARIFReporter(ReporterBase):
         ]
 
         # Build run
-        run: Dict[str, Any] = {
+        run: dict[str, Any] = {
             "tool": tool,
             "results": results,
             "taxonomies": [
