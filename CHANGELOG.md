@@ -15,7 +15,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Changed
 - Migrated from Poetry to PEP 621 pyproject.toml format
 
-## [1.1.1] - 2026-02-11
+## [1.1.2] - 2026-02-11
 
 ### Added
 - Maintainer attribution in README with original Protect AI authors credited
@@ -25,6 +25,11 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Corrected license metadata from MIT to AGPL-3.0-or-later (matching LICENSE file)
 - Removed deprecated license classifier per PEP 639
 - Fixed package publishing configuration
+
+## [1.1.1] - 2026-02-11
+
+### Fixed
+- License metadata corrections (superseded by 1.1.2)
 
 ## [1.1.0] - 2026-02-11
 
