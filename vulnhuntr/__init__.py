@@ -30,7 +30,7 @@ Usage:
     from vulnhuntr.cli import initialize_llm
 """
 
-__version__ = "1.1.1"
+__version__ = "1.1.2"
 __author__ = "Protect AI"
 
 # Re-export key classes for convenience
