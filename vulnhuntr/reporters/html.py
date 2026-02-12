@@ -17,17 +17,18 @@ Features:
 import html
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
+
 import structlog
 
 try:
-    from jinja2 import Environment, BaseLoader, select_autoescape
+    from jinja2 import BaseLoader, Environment, select_autoescape
 
     JINJA2_AVAILABLE = True
 except ImportError:
     JINJA2_AVAILABLE = False
 
-from .base import ReporterBase, Finding
+from .base import Finding, ReporterBase
 
 log = structlog.get_logger("vulnhuntr.reporters.html")
 
@@ -54,7 +55,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             --code-bg: #2d2d2d;
             --code-text: #f8f8f2;
         }
-        
+
         @media (prefers-color-scheme: dark) {
             :root {
                 --bg-primary: #1a1a2e;
@@ -65,13 +66,13 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 --border-color: #3a3a5e;
             }
         }
-        
+
         * {
             box-sizing: border-box;
             margin: 0;
             padding: 0;
         }
-        
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
             background-color: var(--bg-primary);
@@ -79,36 +80,36 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             line-height: 1.6;
             padding: 2rem;
         }
-        
+
         .container {
             max-width: 1200px;
             margin: 0 auto;
         }
-        
+
         header {
             text-align: center;
             margin-bottom: 2rem;
             padding-bottom: 1rem;
             border-bottom: 2px solid var(--border-color);
         }
-        
+
         header h1 {
             font-size: 2.5rem;
             margin-bottom: 0.5rem;
         }
-        
+
         header .subtitle {
             color: var(--text-secondary);
             font-size: 1.1rem;
         }
-        
+
         .summary {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 1rem;
             margin-bottom: 2rem;
         }
-        
+
         .summary-card {
             background: var(--bg-secondary);
             border-radius: 8px;
@@ -116,19 +117,19 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             text-align: center;
             border: 1px solid var(--border-color);
         }
-        
+
         .summary-card .number {
             font-size: 2.5rem;
             font-weight: bold;
         }
-        
+
         .summary-card .label {
             color: var(--text-secondary);
             font-size: 0.9rem;
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
-        
+
         .severity-breakdown {
             display: flex;
             gap: 0.5rem;
@@ -136,26 +137,26 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             flex-wrap: wrap;
             margin-bottom: 2rem;
         }
-        
+
         .severity-badge {
             padding: 0.5rem 1rem;
             border-radius: 20px;
             font-weight: 600;
             font-size: 0.85rem;
         }
-        
+
         .severity-critical { background: var(--critical-color); color: white; }
         .severity-high { background: var(--high-color); color: white; }
         .severity-medium { background: var(--medium-color); color: black; }
         .severity-low { background: var(--low-color); color: white; }
         .severity-info { background: var(--info-color); color: white; }
-        
+
         .findings-section h2 {
             margin-bottom: 1rem;
             padding-bottom: 0.5rem;
             border-bottom: 1px solid var(--border-color);
         }
-        
+
         .finding {
             background: var(--bg-secondary);
             border-radius: 8px;
@@ -163,7 +164,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             border: 1px solid var(--border-color);
             overflow: hidden;
         }
-        
+
         .finding-header {
             display: flex;
             justify-content: space-between;
@@ -173,46 +174,46 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             background: var(--bg-tertiary);
             transition: background 0.2s;
         }
-        
+
         .finding-header:hover {
             background: var(--border-color);
         }
-        
+
         .finding-title {
             font-weight: 600;
             font-size: 1.1rem;
         }
-        
+
         .finding-meta {
             display: flex;
             gap: 1rem;
             align-items: center;
         }
-        
+
         .confidence-score {
             font-size: 0.85rem;
             padding: 0.25rem 0.75rem;
             background: var(--bg-primary);
             border-radius: 4px;
         }
-        
+
         .finding-body {
             padding: 1.5rem;
             display: none;
         }
-        
+
         .finding.expanded .finding-body {
             display: block;
         }
-        
+
         .finding-row {
             margin-bottom: 1rem;
         }
-        
+
         .finding-row:last-child {
             margin-bottom: 0;
         }
-        
+
         .finding-label {
             font-weight: 600;
             color: var(--text-secondary);
@@ -221,7 +222,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             letter-spacing: 0.5px;
             margin-bottom: 0.25rem;
         }
-        
+
         .code-block {
             background: var(--code-bg);
             color: var(--code-text);
@@ -233,7 +234,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             white-space: pre-wrap;
             word-wrap: break-word;
         }
-        
+
         .cwe-tag {
             display: inline-block;
             background: var(--bg-tertiary);
@@ -242,7 +243,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             font-size: 0.85rem;
             margin-right: 0.5rem;
         }
-        
+
         .file-path {
             font-family: monospace;
             background: var(--bg-tertiary);
@@ -250,25 +251,25 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             border-radius: 4px;
             font-size: 0.9rem;
         }
-        
+
         .context-item {
             background: var(--bg-tertiary);
             padding: 0.75rem;
             border-radius: 4px;
             margin-bottom: 0.5rem;
         }
-        
+
         .context-name {
             font-weight: 600;
             font-family: monospace;
         }
-        
+
         .context-reason {
             color: var(--text-secondary);
             font-size: 0.9rem;
             margin-top: 0.25rem;
         }
-        
+
         footer {
             text-align: center;
             margin-top: 2rem;
@@ -277,15 +278,15 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             color: var(--text-secondary);
             font-size: 0.85rem;
         }
-        
+
         .expand-icon {
             transition: transform 0.2s;
         }
-        
+
         .finding.expanded .expand-icon {
             transform: rotate(90deg);
         }
-        
+
         @media print {
             body {
                 padding: 0;
@@ -300,7 +301,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 display: none;
             }
         }
-        
+
         @media (max-width: 768px) {
             body {
                 padding: 1rem;
@@ -326,7 +327,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             <h1>🔍 Vulnhuntr Security Report</h1>
             <p class="subtitle">Generated on {{ generated_at }}</p>
         </header>
-        
+
         <section class="summary">
             <div class="summary-card">
                 <div class="number">{{ total_findings }}</div>
@@ -341,7 +342,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 <div class="label">Vulnerability Types</div>
             </div>
         </section>
-        
+
         <div class="severity-breakdown">
             {% if severity_counts.critical %}
             <span class="severity-badge severity-critical">{{ severity_counts.critical }} Critical</span>
@@ -359,10 +360,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             <span class="severity-badge severity-info">{{ severity_counts.info }} Info</span>
             {% endif %}
         </div>
-        
+
         <section class="findings-section">
             <h2>Findings</h2>
-            
+
             {% for finding in findings %}
             <div class="finding" id="finding-{{ loop.index }}">
                 <div class="finding-header" onclick="toggleFinding({{ loop.index }})">
@@ -383,7 +384,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                         <span> (Line {{ finding.start_line }}{% if finding.end_line and finding.end_line != finding.start_line %}-{{ finding.end_line }}{% endif %})</span>
                         {% endif %}
                     </div>
-                    
+
                     {% if finding.cwe_id %}
                     <div class="finding-row">
                         <div class="finding-label">CWE Classification</div>
@@ -391,26 +392,26 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                         <span>{{ finding.cwe_name }}</span>
                     </div>
                     {% endif %}
-                    
+
                     <div class="finding-row">
                         <div class="finding-label">Analysis</div>
                         <p>{{ finding.analysis }}</p>
                     </div>
-                    
+
                     {% if finding.poc %}
                     <div class="finding-row">
                         <div class="finding-label">Proof of Concept</div>
                         <div class="code-block">{{ finding.poc }}</div>
                     </div>
                     {% endif %}
-                    
+
                     {% if include_scratchpad and finding.scratchpad %}
                     <div class="finding-row">
                         <div class="finding-label">Analysis Details</div>
                         <p>{{ finding.scratchpad }}</p>
                     </div>
                     {% endif %}
-                    
+
                     {% if include_context and finding.context_code %}
                     <div class="finding-row">
                         <div class="finding-label">Analyzed Context ({{ finding.context_code|length }} items)</div>
@@ -430,19 +431,19 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             <p>No vulnerabilities found.</p>
             {% endfor %}
         </section>
-        
+
         <footer>
             <p>Report generated by <strong>Vulnhuntr</strong> v{{ tool_version }}</p>
             <p>LLM-Powered Vulnerability Scanner | <a href="https://github.com/protectai/vulnhuntr">GitHub</a></p>
         </footer>
     </div>
-    
+
     <script>
         function toggleFinding(index) {
             const finding = document.getElementById('finding-' + index);
             finding.classList.toggle('expanded');
         }
-        
+
         // Expand all findings on page load for accessibility
         document.addEventListener('DOMContentLoaded', function() {
             // Expand first finding by default
@@ -476,10 +477,10 @@ class HTMLReporter(ReporterBase):
 
     def __init__(
         self,
-        output_path: Optional[Path] = None,
+        output_path: Path | None = None,
         include_scratchpad: bool = False,
         include_context: bool = True,
-        custom_template: Optional[str] = None,
+        custom_template: str | None = None,
     ):
         """Initialize HTML reporter.
 
@@ -499,7 +500,7 @@ class HTMLReporter(ReporterBase):
         """HTML escape a string (fallback when Jinja2 not available)."""
         return html.escape(str(text)) if text else ""
 
-    def _format_finding_for_template(self, finding: Finding) -> Dict[str, Any]:
+    def _format_finding_for_template(self, finding: Finding) -> dict[str, Any]:
         """Format a finding for template rendering."""
         return {
             "title": finding.title,
@@ -535,9 +536,7 @@ class HTMLReporter(ReporterBase):
         severity_counts = summary.get("by_severity", {})
 
         context = {
-            "generated_at": datetime.now(timezone.utc).strftime(
-                "%Y-%m-%d %H:%M:%S UTC"
-            ),
+            "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
             "tool_version": self.metadata.get("tool_version", "1.0.0"),
             "total_findings": len(self.findings),
             "files_affected": summary.get("files_affected", 0),

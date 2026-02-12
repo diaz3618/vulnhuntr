@@ -330,7 +330,7 @@ GUIDELINES_TEMPLATE = """Reporting Guidelines:
    - Always include at least one vulnerability_type field when requesting context.
    - Provide a confidence score (0-10) and detailed justification for each vulnerability.
      - If your proof of concept (PoC) exploit does not start with remote user input via remote networking calls such as remote HTTP, API, or RPC calls, set the confidence score to 6 or below.
-   
+
 4. Proof of Concept:
    - Include a PoC exploit or detailed exploitation steps for each vulnerability.
    - Ensure PoCs are specific to the analyzed code, not generic examples.

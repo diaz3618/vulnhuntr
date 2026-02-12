@@ -34,26 +34,24 @@ __version__ = "1.1.2"
 __author__ = "Protect AI"
 
 # Re-export key classes for convenience
+from vulnhuntr.cli import get_model_name, initialize_llm, run_analysis
 from vulnhuntr.core import (
-    VulnType,
-    Response,
-    ContextCode,
-    RepoOps,
-    VulnerabilityAnalyzer,
     AnalysisConfig,
     AnalysisResult,
+    ContextCode,
+    RepoOps,
+    Response,
+    VulnerabilityAnalyzer,
+    VulnType,
 )
-
-from vulnhuntr.cli import run_analysis, initialize_llm, get_model_name
-
 from vulnhuntr.reporters import (
+    CSVReporter,
     Finding,
     FindingSeverity,
-    SARIFReporter,
     HTMLReporter,
     JSONReporter,
-    CSVReporter,
     MarkdownReporter,
+    SARIFReporter,
     response_to_finding,
 )
 

@@ -7,10 +7,10 @@ Generates Markdown reports for documentation and README files.
 
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+
 import structlog
 
-from .base import ReporterBase, Finding, FindingSeverity
+from .base import Finding, FindingSeverity, ReporterBase
 
 log = structlog.get_logger("vulnhuntr.reporters.markdown")
 
@@ -40,7 +40,7 @@ class MarkdownReporter(ReporterBase):
 
     def __init__(
         self,
-        output_path: Optional[Path] = None,
+        output_path: Path | None = None,
         include_scratchpad: bool = False,
         include_context: bool = True,
         include_toc: bool = True,
@@ -85,9 +85,7 @@ class MarkdownReporter(ReporterBase):
             for severity in ["critical", "high", "medium", "low", "info"]:
                 if severity in severity_counts:
                     emoji = SEVERITY_EMOJI.get(FindingSeverity(severity), "")
-                    lines.append(
-                        f"| {emoji} {severity.title()} | {severity_counts[severity]} |"
-                    )
+                    lines.append(f"| {emoji} {severity.title()} | {severity_counts[severity]} |")
             lines.append("")
 
         # Vulnerability type breakdown
@@ -109,8 +107,7 @@ class MarkdownReporter(ReporterBase):
         lines = [
             f"### {index}. {finding.title}",
             "",
-            f"**Severity:** {emoji} {finding.severity.value.upper()} | "
-            f"**Confidence:** {finding.confidence_score}/10",
+            f"**Severity:** {emoji} {finding.severity.value.upper()} | **Confidence:** {finding.confidence_score}/10",
             "",
             f"**File:** `{finding.file_path}`",
         ]
@@ -156,9 +153,7 @@ class MarkdownReporter(ReporterBase):
         # Context code
         if self.include_context and finding.context_code:
             lines.append("<details>")
-            lines.append(
-                f"<summary>Analyzed Context ({len(finding.context_code)} items)</summary>"
-            )
+            lines.append(f"<summary>Analyzed Context ({len(finding.context_code)} items)</summary>")
             lines.append("")
             for ctx in finding.context_code:
                 name = ctx.get("name", "Unknown")

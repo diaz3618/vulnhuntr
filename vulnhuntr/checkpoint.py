@@ -19,7 +19,7 @@ import sys
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any
 
 import structlog
 
@@ -40,20 +40,33 @@ class CheckpointData:
     # Analysis progress
     completed_files: list[str] = field(default_factory=list)
     pending_files: list[str] = field(default_factory=list)
-    current_file: Optional[str] = None
+    current_file: str | None = None
 
     # Results
     results: list[dict] = field(default_factory=list)
 
     # Cost tracking
-    cost_tracker_data: Optional[dict] = None
+    cost_tracker_data: dict | None = None
 
     # Metadata
-    repo_path: Optional[str] = None
-    model: Optional[str] = None
-    started_at: Optional[str] = None
-    last_updated: Optional[str] = None
+    repo_path: str | None = None
+    model: str | None = None
+    started_at: str | None = None
+    last_updated: str | None = None
     vulnhuntr_version: str = "0.1.0"
+
+    @property
+    def total_files(self) -> int:
+        """Total number of files (completed + pending)."""
+        return len(self.completed_files) + len(self.pending_files)
+
+    @property
+    def total_cost(self) -> float:
+        """Total cost from cost tracker data."""
+        if self.cost_tracker_data and "total_cost" in self.cost_tracker_data:
+            cost = self.cost_tracker_data["total_cost"]
+            return float(cost) if cost is not None else 0.0
+        return 0.0
 
     def to_dict(self) -> dict:
         """Convert to dictionary for JSON serialization."""
@@ -135,10 +148,10 @@ class AnalysisCheckpoint:
         self.checkpoint_dir = Path(checkpoint_dir)
         self.save_frequency = save_frequency
         self.enabled = enabled
-        self._data: Optional[CheckpointData] = None
+        self._data: CheckpointData | None = None
         self._files_since_save = 0
-        self._cost_tracker: Optional[CostTracker] = None
-        self._original_sigint_handler: Optional[Callable] = None
+        self._cost_tracker: CostTracker | None = None
+        self._original_sigint_handler: Any = None
 
     @property
     def checkpoint_file(self) -> Path:
@@ -155,7 +168,7 @@ class AnalysisCheckpoint:
         repo_path: Path,
         files_to_analyze: list[Path],
         model: str,
-        cost_tracker: Optional[CostTracker] = None,
+        cost_tracker: CostTracker | None = None,
     ) -> None:
         """Start a new analysis session.
 
@@ -207,7 +220,7 @@ class AnalysisCheckpoint:
     def mark_file_complete(
         self,
         file_path: Path,
-        result: Optional[dict] = None,
+        result: dict | None = None,
     ) -> None:
         """Mark a file as completed and optionally store its result.
 
@@ -315,7 +328,7 @@ class AnalysisCheckpoint:
 
         return CheckpointData.from_dict(data)
 
-    def resume(self, cost_tracker: Optional[CostTracker] = None) -> CheckpointData:
+    def resume(self, cost_tracker: CostTracker | None = None) -> CheckpointData:
         """Resume from a saved checkpoint.
 
         Args:

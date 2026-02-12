@@ -20,11 +20,12 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any
+
 import structlog
 
 try:
-    import requests
+    import requests  # type: ignore[import-untyped]
 
     REQUESTS_AVAILABLE = True
 except ImportError:
@@ -49,10 +50,10 @@ class WebhookResult:
     """Result of sending a webhook."""
 
     success: bool
-    status_code: Optional[int] = None
-    response_body: Optional[str] = None
-    error: Optional[str] = None
-    delivery_id: Optional[str] = None
+    status_code: int | None = None
+    response_body: str | None = None
+    error: str | None = None
+    delivery_id: str | None = None
     attempts: int = 1
 
 
@@ -61,12 +62,12 @@ class WebhookConfig:
     """Configuration for webhook notifications."""
 
     url: str
-    secret: Optional[str] = None  # For HMAC signing
+    secret: str | None = None  # For HMAC signing
     format: PayloadFormat = PayloadFormat.JSON
     timeout: int = 30
     max_retries: int = 3
     retry_delay: float = 1.0  # Base delay, doubles each retry
-    custom_headers: Dict[str, str] = field(default_factory=dict)
+    custom_headers: dict[str, str] = field(default_factory=dict)
     verify_ssl: bool = True
 
 
@@ -126,13 +127,11 @@ class WebhookNotifier:
         if not self.config.secret:
             return ""
 
-        signature = hmac.new(
-            self.config.secret.encode("utf-8"), payload, hashlib.sha256
-        ).hexdigest()
+        signature = hmac.new(self.config.secret.encode("utf-8"), payload, hashlib.sha256).hexdigest()
 
         return f"sha256={signature}"
 
-    def _finding_to_dict(self, finding: Finding) -> Dict[str, Any]:
+    def _finding_to_dict(self, finding: Finding) -> dict[str, Any]:
         """Convert finding to dictionary."""
         return {
             "rule_id": finding.rule_id,
@@ -152,9 +151,9 @@ class WebhookNotifier:
 
     def _format_json_payload(
         self,
-        findings: List[Finding],
+        findings: list[Finding],
         event_type: str = "vulnerability_detected",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Format payload as generic JSON."""
         return {
             "event": event_type,
@@ -172,8 +171,8 @@ class WebhookNotifier:
 
     def _format_slack_payload(
         self,
-        findings: List[Finding],
-    ) -> Dict[str, Any]:
+        findings: list[Finding],
+    ) -> dict[str, Any]:
         """Format payload for Slack webhooks."""
         severity_emoji = {
             FindingSeverity.CRITICAL: ":red_circle:",
@@ -234,8 +233,8 @@ class WebhookNotifier:
 
     def _format_discord_payload(
         self,
-        findings: List[Finding],
-    ) -> Dict[str, Any]:
+        findings: list[Finding],
+    ) -> dict[str, Any]:
         """Format payload for Discord webhooks."""
         color_map = {
             FindingSeverity.CRITICAL: 0xDC3545,  # Red
@@ -281,8 +280,8 @@ class WebhookNotifier:
 
     def _format_teams_payload(
         self,
-        findings: List[Finding],
-    ) -> Dict[str, Any]:
+        findings: list[Finding],
+    ) -> dict[str, Any]:
         """Format payload for Microsoft Teams webhooks."""
         facts = []
         for finding in findings[:10]:
@@ -297,9 +296,7 @@ class WebhookNotifier:
             "@type": "MessageCard",
             "@context": "https://schema.org/extensions",
             "summary": f"Vulnhuntr: {len(findings)} vulnerabilities found",
-            "themeColor": "DC3545"
-            if any(f.severity == FindingSeverity.CRITICAL for f in findings)
-            else "FFC107",
+            "themeColor": "DC3545" if any(f.severity == FindingSeverity.CRITICAL for f in findings) else "FFC107",
             "title": "🔍 Vulnhuntr Security Scan Results",
             "sections": [
                 {
@@ -310,26 +307,26 @@ class WebhookNotifier:
             ],
         }
 
-    def _count_by_severity(self, findings: List[Finding]) -> Dict[str, int]:
+    def _count_by_severity(self, findings: list[Finding]) -> dict[str, int]:
         """Count findings by severity."""
-        counts: Dict[str, int] = {}
+        counts: dict[str, int] = {}
         for finding in findings:
             sev = finding.severity.value
             counts[sev] = counts.get(sev, 0) + 1
         return counts
 
-    def _count_by_type(self, findings: List[Finding]) -> Dict[str, int]:
+    def _count_by_type(self, findings: list[Finding]) -> dict[str, int]:
         """Count findings by vulnerability type."""
-        counts: Dict[str, int] = {}
+        counts: dict[str, int] = {}
         for finding in findings:
             counts[finding.rule_id] = counts.get(finding.rule_id, 0) + 1
         return counts
 
     def _format_payload(
         self,
-        findings: List[Finding],
+        findings: list[Finding],
         event_type: str = "vulnerability_detected",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Format payload according to configured format."""
         if self.config.format == PayloadFormat.SLACK:
             return self._format_slack_payload(findings)
@@ -342,7 +339,7 @@ class WebhookNotifier:
 
     def _send_with_retry(
         self,
-        payload: Dict[str, Any],
+        payload: dict[str, Any],
         delivery_id: str,
     ) -> WebhookResult:
         """Send payload with retry logic."""
@@ -356,9 +353,7 @@ class WebhookNotifier:
 
         # Add signature if secret configured
         if self.config.secret:
-            headers["X-Vulnhuntr-Signature-256"] = self._generate_signature(
-                payload_bytes
-            )
+            headers["X-Vulnhuntr-Signature-256"] = self._generate_signature(payload_bytes)
 
         last_error = None
         for attempt in range(1, self.config.max_retries + 1):
@@ -434,7 +429,7 @@ class WebhookNotifier:
 
     def send_batch(
         self,
-        findings: List[Finding],
+        findings: list[Finding],
         event_type: str = "scan_complete",
     ) -> WebhookResult:
         """Send multiple findings in a single webhook call.

@@ -45,29 +45,74 @@ Vulnhuntr leverages the power of LLMs to automatically create and analyze entire
 ## Installation
 
 > [!IMPORTANT]
-> Vulnhuntr strictly requires Python 3.10 because of a number of bugs in Jedi which it uses to parse Python code. It will not work reliably if installed with any other versions of Python.
+> Vulnhuntr requires Python 3.10-3.13 due to dependencies on Jedi for Python code parsing. It will not work reliably with Python 3.9 or earlier, or Python 3.14+.
 
-We recommend using [pipx](https://github.com/pypa/pipx) or Docker to easily install and run Vulnhuntr.
+### Recommended: Virtual Environment with pip/uv
 
-Using Docker:
+We recommend installing in a virtual environment to isolate dependencies:
+
+**Using venv and pip:**
 ```bash
-docker build -t vulnhuntr https://github.com/protectai/vulnhuntr.git#main
+python3.10 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+pip install vulnhuntr
 ```
 
-Using pipx:
+**Using uv (faster):**
 ```bash
-pipx install git+https://github.com/protectai/vulnhuntr.git --python python3.10
+uv venv --python 3.10
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+uv pip install vulnhuntr
 ```
 
-Alternatively you can install directly from source using poetry:
+### Alternative: pipx or Docker
+
+**Using pipx:**
 ```bash
-git clone https://github.com/protectai/vulnhuntr
-cd vulnhuntr && poetry install
+pipx install vulnhuntr --python python3.10
+```
+
+**Using Docker:**
+```bash
+docker build -t vulnhuntr https://github.com/diaz3618/vulnhuntr.git#main
+```
+
+### Development Installation
+
+Clone and install from source:
+```bash
+git clone https://github.com/diaz3618/vulnhuntr
+cd vulnhuntr
+python3.10 -m venv venv
+source venv/bin/activate
+pip install -e ".[dev]"
 ```
 
 ## Usage
 
-This tool is designed to analyze a GitHub repository for potential remotely exploitable vulnerabilities. The tool requires an API key and the local path to a GitHub repository. You may also optionally specify a custom endpoint for the LLM service.
+This tool analyzes GitHub repositories for potential remotely exploitable vulnerabilities using LLMs and static code analysis.
+
+### API Key Configuration
+
+You can provide API keys in two ways:
+
+**Option 1: Environment variables**
+```bash
+export ANTHROPIC_API_KEY="sk-ant-..."
+export OPENAI_API_KEY="sk-..."
+```
+
+**Option 2: .env file (recommended for development)**
+
+Create a `.env` file in your project directory or working directory:
+```bash
+# .env
+ANTHROPIC_API_KEY=sk-ant-...
+OPENAI_API_KEY=sk-...
+OPENROUTER_API_KEY=sk-or-...
+```
+
+Vulnhuntr will automatically load environment variables from `.env` files.
 
 > [!CAUTION]
 > Always set spending limits or closely monitor costs with the LLM provider you use. This tool has the potential to rack up hefty bills as it tries to fit as much code in the LLMs context window as possible. 
@@ -84,7 +129,7 @@ usage: vulnhuntr [-h] -r ROOT [-a ANALYZE] [-l {claude,gpt,ollama,openrouter}] [
                  [--export-all DIR] [--create-issues] [--webhook URL]
                  [--webhook-format {json,slack,discord,teams}] [--webhook-secret SECRET]
 
-Analyze a GitHub project for vulnerabilities. Export your ANTHROPIC_API_KEY/OPENAI_API_KEY before running.
+Analyze a GitHub project for vulnerabilities. Set API keys via environment variables or .env file.
 
 options:
   -h, --help            show this help message and exit
@@ -114,29 +159,87 @@ Integrations:
   --webhook URL         Send findings to webhook URL
   --webhook-format      Webhook payload format (json, slack, discord, teams)
 ```
-### Examples
-From a pipx install, analyze the entire repository using Claude:
 
+### Cost Management Features
+
+Vulnhuntr includes built-in cost tracking and budget controls:
+
+**Estimate costs before analysis:**
 ```bash
-export ANTHROPIC_API_KEY="sk-1234"
+vulnhuntr -r /path/to/repo --dry-run
+```
+
+**Set a maximum budget:**
+```bash
+vulnhuntr -r /path/to/repo --budget 5.0  # Stop at $5.00
+```
+
+**Resume interrupted analysis:**
+```bash
+# Analysis automatically checkpoints progress
+vulnhuntr -r /path/to/repo --resume
+
+# Continue with higher budget if needed
+vulnhuntr -r /path/to/repo --resume --budget 10.0
+```
+### Examples
+
+**Basic analysis with .env file:**
+
+Create `.env` file:
+```bash
+# .env
+ANTHROPIC_API_KEY=sk-ant-...
+```
+
+Run analysis:
+```bash
 vulnhuntr -r /path/to/target/repo/
-vulnhuntr -r /path/to/project -a project -l claude -v --html report.html
 ```
 
 > [!TIP]
-> We recommend giving Vulnhuntr specific files that handle remote user input and scan them individually.
+> We recommend analyzing specific files that handle remote user input rather than entire repositories for better results and lower costs.
 
-From a pipx install, analyze the `/path/to/target/repo/server.py` file using GPT-4o. Can also specify a subdirectory instead of a file:
+**Analyze a specific file with budget control:**
 
 ```bash
-export OPENAI_API_KEY="sk-1234"
+vulnhuntr -r /path/to/repo -a server.py --budget 3.0 -v
+```
+
+**Generate HTML report with cost estimation:**
+
+```bash
+# First estimate costs
+vulnhuntr -r /path/to/repo -a api/ --dry-run
+
+# Then run with budget and generate report
+vulnhuntr -r /path/to/repo -a api/ --budget 5.0 --html report.html -v
+```
+
+**Using environment variables (alternative to .env):**
+
+```bash
+export OPENAI_API_KEY="sk-..."
 vulnhuntr -r /path/to/target/repo/ -a server.py -l gpt 
 ```
 
-From a docker installation, run using Claude and a custom endpoint to analyze /local/path/to/target/repo/repo-subfolder/target-file.py:
+**Docker installation with volume mount:**
 
 ```bash
-docker run --rm -e ANTHROPIC_API_KEY=sk-1234 -e ANTHROPIC_BASE_URL=https://localhost:1234/api -v /local/path/to/target/repo:/repo vulnhuntr:latest -r /repo -a repo-subfolder/target-file.py
+docker run --rm \
+  -e ANTHROPIC_API_KEY=sk-ant-... \
+  -v /path/to/target/repo:/repo \
+  vulnhuntr:latest -r /repo -a server.py
+```
+
+**Free testing with OpenRouter:**
+
+```bash
+# .env
+OPENROUTER_API_KEY=sk-or-...
+
+# Run with free model
+vulnhuntr -r /path/to/repo -a api.py -l openrouter --budget 0.50
 ```
 
 *Experimental*

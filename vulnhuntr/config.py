@@ -15,7 +15,7 @@ Configuration Options:
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import structlog
 
@@ -23,14 +23,12 @@ log = structlog.get_logger(__name__)
 
 # Try to import yaml, provide fallback if not available
 try:
-    import yaml
+    import yaml  # type: ignore[import-untyped]
 
     YAML_AVAILABLE = True
 except ImportError:
     YAML_AVAILABLE = False
-    log.warning(
-        "PyYAML not installed. Config file support disabled. Install with: pip install pyyaml"
-    )
+    log.warning("PyYAML not installed. Config file support disabled. Install with: pip install pyyaml")
 
 
 @dataclass
@@ -53,29 +51,29 @@ class VulnhuntrConfig:
     """
 
     # Cost management
-    budget: Optional[float] = None
+    budget: float | None = None
     checkpoint: bool = True
     checkpoint_interval: int = 300
 
     # LLM settings
-    provider: Optional[str] = None
-    model: Optional[str] = None
+    provider: str | None = None
+    model: str | None = None
 
     # Output settings
     verbosity: int = 0
     dry_run: bool = False
 
     # Analysis settings
-    vuln_types: List[str] = field(default_factory=list)
-    exclude_paths: List[str] = field(default_factory=list)
-    include_paths: List[str] = field(default_factory=list)
+    vuln_types: list[str] = field(default_factory=list)
+    exclude_paths: list[str] = field(default_factory=list)
+    include_paths: list[str] = field(default_factory=list)
 
     # Tuning
     max_iterations: int = 7
     confidence_threshold: int = 1
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "VulnhuntrConfig":
+    def from_dict(cls, data: dict[str, Any]) -> "VulnhuntrConfig":
         """Create config from dictionary.
 
         Handles nested 'cost', 'llm', 'analysis' sections from YAML.
@@ -90,9 +88,7 @@ class VulnhuntrConfig:
 
         # Handle flat keys (simple format)
         if "budget" in data:
-            config.budget = (
-                float(data["budget"]) if data["budget"] is not None else None
-            )
+            config.budget = float(data["budget"]) if data["budget"] is not None else None
         if "checkpoint" in data:
             config.checkpoint = bool(data["checkpoint"])
         if "checkpoint_interval" in data:
@@ -120,9 +116,7 @@ class VulnhuntrConfig:
         if "cost" in data and isinstance(data["cost"], dict):
             cost = data["cost"]
             if "budget" in cost:
-                config.budget = (
-                    float(cost["budget"]) if cost["budget"] is not None else None
-                )
+                config.budget = float(cost["budget"]) if cost["budget"] is not None else None
             if "checkpoint" in cost:
                 config.checkpoint = bool(cost["checkpoint"])
             if "checkpoint_interval" in cost:
@@ -150,7 +144,7 @@ class VulnhuntrConfig:
 
         return config
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert config to dictionary for serialization."""
         return {
             "budget": self.budget,
@@ -168,7 +162,7 @@ class VulnhuntrConfig:
         }
 
 
-def find_config_file(start_dir: Optional[Path] = None) -> Optional[Path]:
+def find_config_file(start_dir: Path | None = None) -> Path | None:
     """Find .vulnhuntr.yaml config file.
 
     Search order:
@@ -217,9 +211,7 @@ def find_config_file(start_dir: Optional[Path] = None) -> Optional[Path]:
     return None
 
 
-def load_config(
-    config_path: Optional[Path] = None, start_dir: Optional[Path] = None
-) -> VulnhuntrConfig:
+def load_config(config_path: Path | None = None, start_dir: Path | None = None) -> VulnhuntrConfig:
     """Load configuration from YAML file.
 
     If config_path is not provided, searches for .vulnhuntr.yaml
@@ -237,6 +229,7 @@ def load_config(
         return VulnhuntrConfig()
 
     # Find config file
+    path: Path | None
     if config_path:
         path = config_path
     else:
@@ -250,7 +243,7 @@ def load_config(
     log.info("Loading config", path=str(path))
 
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             data = yaml.safe_load(f)
 
         if data is None:
@@ -309,7 +302,7 @@ def merge_config_with_args(config: VulnhuntrConfig, args: Any) -> VulnhuntrConfi
     return config
 
 
-def create_example_config(output_path: Optional[Path] = None) -> str:
+def create_example_config(output_path: Path | None = None) -> str:
     """Generate example config file content.
 
     Args:
@@ -325,10 +318,10 @@ def create_example_config(output_path: Optional[Path] = None) -> str:
 cost:
   # Maximum USD budget (analysis stops when exceeded)
   budget: 10.0
-  
+
   # Enable checkpointing for resume after interruption
   checkpoint: true
-  
+
   # Checkpoint save interval in seconds
   checkpoint_interval: 300
 
@@ -336,7 +329,7 @@ cost:
 llm:
   # Provider: claude, gpt, or ollama
   provider: claude
-  
+
   # Model override (uses environment variable if not set)
   # model: claude-sonnet-4-5
 
@@ -349,7 +342,7 @@ analysis:
   #   - xss
   #   - ssrf
   #   - rce
-  
+
   # Paths to exclude from analysis
   exclude_paths:
     - tests/
@@ -358,10 +351,10 @@ analysis:
     - venv/
     - .venv/
     - node_modules/
-  
+
   # Maximum secondary analysis iterations per vulnerability
   max_iterations: 7
-  
+
   # Minimum confidence threshold to report (1-10)
   confidence_threshold: 1
 

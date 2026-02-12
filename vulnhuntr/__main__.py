@@ -55,8 +55,8 @@ def main() -> int:
     """
     from vulnhuntr.cli.parser import (
         create_argument_parser,
-        validate_args,
         normalize_args,
+        validate_args,
     )
     from vulnhuntr.cli.runner import run_analysis
 
