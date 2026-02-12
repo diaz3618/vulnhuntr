@@ -242,5 +242,15 @@ The tool logs the analysis process and results in a file named `vulhuntr.log`. T
 
 ## Authors
 
+**Original Authors** ([Protect AI](https://protectai.com)):
 - Dan McInerney: dan@protectai.com, [@DanHMcinerney](https://x.com/DanHMcInerney)
 - Marcello Salvati: marcello@protectai.com, [@byt3bl33d3r](https://x.com/byt3bl33d3r)
+
+**Current Developer for this Fork**:
+- Daniel Diaz Santiago: daniel.diaz.stg@gmail.com
+
+## License
+
+This project is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**.
+
+See the [LICENSE](LICENSE) file for full details. Original project by [Protect AI](https://protectai.com).

@@ -7,7 +7,7 @@ authors = [
     { name = "Daniel Diaz Santiago", email = "daniel.diaz.stg@gmail.com" }
 ]
 requires-python = ">=3.10,<3.14"
-license = "AGPL-3.0-or-later"
+license = "AGPL-3.0"
 keywords = ["vulnerability", "security", "pentesting", "python", "ai", "llm", "code-analysis", "static-analysis"]
 classifiers = [
     "Development Status :: 3 - Alpha",
