@@ -1,0 +1,42 @@
+name: Semgrep Security Scan
+
+on:
+  # Scan changed files in PRs (diff-aware scanning)
+  pull_request:
+    branches: [main, develop]
+  # Scan on-demand through GitHub Actions interface
+  workflow_dispatch: {}
+  # Scan mainline branches and report all findings
+  push:
+    branches: [main, develop]
+  # Schedule daily scans
+  schedule:
+    # Run at 3:00 AM UTC every day
+    - cron: '0 3 * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  semgrep:
+    name: Semgrep Scan
+    runs-on: ubuntu-latest
+
+    # Skip any PR created by dependabot to avoid permission issues
+    if: (github.actor != 'dependabot[bot]')
+
+    container:
+      # Use Semgrep Docker image
+      image: semgrep/semgrep
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Semgrep scan
+        run: semgrep ci
+        env:
+          # Connect to Semgrep AppSec Platform through SEMGREP_APP_TOKEN
+          # Generate token from Semgrep AppSec Platform > Settings
+          # Add it to GitHub secrets
+          SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
