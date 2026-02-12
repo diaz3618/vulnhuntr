@@ -17,8 +17,12 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [1.1.1] - 2026-02-11
 
+### Added
+- Maintainer attribution in README with original Protect AI authors credited
+- License section in README explaining AGPL-3.0 requirements
+
 ### Fixed
-- Corrected license metadata from MIT to AGPL-3.0
+- Corrected license metadata from MIT to AGPL-3.0-or-later (matching LICENSE file)
 - Removed deprecated license classifier per PEP 639
 - Fixed package publishing configuration
 
