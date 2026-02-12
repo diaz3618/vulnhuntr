@@ -8,9 +8,19 @@ These models serialize to XML format which helps structure the
 prompts in a way that LLMs can parse more reliably than plain text.
 """
 
-from typing import List
-
 from pydantic_xml import BaseXmlModel, element
+
+
+def to_xml_bytes(model: BaseXmlModel) -> bytes:
+    """Convert a pydantic-xml model to XML bytes.
+
+    Wrapper around BaseXmlModel.to_xml() that ensures the return type
+    is always bytes for type-checker compatibility.
+    """
+    result = model.to_xml()
+    if isinstance(result, str):
+        return result.encode()
+    return result
 
 
 class ReadmeContent(BaseXmlModel, tag="readme_content"):
@@ -98,4 +108,4 @@ class CodeDefinitions(BaseXmlModel, tag="context_code"):
     Used to wrap all fetched context code during iterative analysis.
     """
 
-    definitions: List[CodeDefinition] = []
+    definitions: list[CodeDefinition] = []

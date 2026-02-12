@@ -1,8 +1,9 @@
 import logging
 import re
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable, Dict, Any, List, Optional, Union
+from typing import Any
 
 import anthropic
 import dotenv
@@ -35,7 +36,7 @@ class LLMUsage:
 
 
 # Type alias for cost tracking callback
-CostCallback = Callable[[int, int, str, Optional[str], str], None]
+CostCallback = Callable[[int, int, str, str | None, str], None]
 
 
 class LLMError(Exception):
@@ -53,7 +54,7 @@ class APIConnectionError(LLMError):
 
 
 class APIStatusError(LLMError):
-    def __init__(self, status_code: int, response: Dict[str, Any]):
+    def __init__(self, status_code: int, response: Any):
         self.status_code = status_code
         self.response = response
         super().__init__(f"Received non-200 status code: {status_code}")
@@ -69,7 +70,7 @@ class LLM:
     def __init__(
         self,
         system_prompt: str = "",
-        cost_callback: Optional[CostCallback] = None,
+        cost_callback: CostCallback | None = None,
     ) -> None:
         """Initialize LLM.
 
@@ -79,19 +80,17 @@ class LLM:
                            Called with (input_tokens, output_tokens, model, file_path, call_type)
         """
         self.system_prompt = system_prompt
-        self.history: List[Dict[str, str]] = []
-        self.prev_prompt: Union[str, None] = None
-        self.prev_response: Union[str, None] = None
-        self.prefill: Optional[str] = None
+        self.history: list[dict[str, str]] = []
+        self.prev_prompt: str | None = None
+        self.prev_response: str | None = None
+        self.prefill: str | None = None
         self.model: str = ""
         self._cost_callback = cost_callback
-        self._current_file: Optional[str] = None
+        self._current_file: str | None = None
         self._current_call_type: str = "analysis"
-        self._last_usage: Optional[LLMUsage] = None
+        self._last_usage: LLMUsage | None = None
 
-    def set_context(
-        self, file_path: Optional[str] = None, call_type: str = "analysis"
-    ) -> None:
+    def set_context(self, file_path: str | None = None, call_type: str = "analysis") -> None:
         """Set context for cost tracking.
 
         Args:
@@ -102,13 +101,11 @@ class LLM:
         self._current_call_type = call_type
 
     @property
-    def last_usage(self) -> Optional[LLMUsage]:
+    def last_usage(self) -> LLMUsage | None:
         """Get token usage from the last API call."""
         return self._last_usage
 
-    def _validate_response(
-        self, response_text: str, response_model: BaseModel
-    ) -> BaseModel:
+    def _validate_response(self, response_text: str, response_model: type[BaseModel]) -> BaseModel:
         try:
             if self.prefill:
                 response_text = self.prefill + response_text
@@ -136,8 +133,8 @@ class LLM:
             log.warning("[-] Response validation failed\n", exc_info=e)
 
             # Save failed response for debugging
-            import tempfile
             import os
+            import tempfile
 
             debug_file = os.path.join(
                 tempfile.gettempdir(),
@@ -147,31 +144,19 @@ class LLM:
                 with open(debug_file, "w") as f:
                     f.write(response_text)
                 log.error(f"Failed response saved to: {debug_file}")
-            except (IOError, OSError) as debug_err:
+            except OSError as debug_err:
                 # Don't let debug logging break the error flow
                 log.debug(f"Failed to save debug file: {debug_err}")
 
             # Try to provide helpful error message
             error_msg = str(e)
             if "invalid escape" in error_msg.lower():
-                log.error(
-                    "JSON contains invalid escape sequences (likely from code snippets)"
-                )
-                log.error(
-                    "This is a known issue when LLMs include code with backslashes"
-                )
+                log.error("JSON contains invalid escape sequences (likely from code snippets)")
+                log.error("This is a known issue when LLMs include code with backslashes")
                 log.error("Try re-running the analysis - LLM responses can vary")
-            elif (
-                "None" in response_text
-                or "True" in response_text
-                or "False" in response_text
-            ):
-                log.error(
-                    "JSON contains Python syntax (None/True/False instead of null/true/false)"
-                )
-                log.error(
-                    "Applied automatic fixes but still failed - check saved response"
-                )
+            elif "None" in response_text or "True" in response_text or "False" in response_text:
+                log.error("JSON contains Python syntax (None/True/False instead of null/true/false)")
+                log.error("Applied automatic fixes but still failed - check saved response")
 
             raise LLMError("Validation failed") from e
 
@@ -215,8 +200,8 @@ class LLM:
             )
 
     def chat(
-        self, user_prompt: str, response_model: BaseModel = None, max_tokens: int = 4096
-    ) -> Union[BaseModel, str]:
+        self, user_prompt: str, response_model: type[BaseModel] | None = None, max_tokens: int = 4096
+    ) -> BaseModel | str:
         self._add_to_history("user", user_prompt)
         messages = self.create_messages(user_prompt)
         response = self.send_message(messages, max_tokens, response_model)
@@ -227,6 +212,18 @@ class LLM:
             response_text = self._validate_response(response_text, response_model)
         self._add_to_history("assistant", str(response_text))
         return response_text
+
+    def create_messages(self, user_prompt: str) -> Any:
+        """Create messages for the LLM API. Override in subclasses."""
+        raise NotImplementedError
+
+    def send_message(self, messages: Any, max_tokens: int, response_model: Any = None) -> Any:
+        """Send messages to the LLM API. Override in subclasses."""
+        raise NotImplementedError
+
+    def get_response(self, response: Any) -> str:
+        """Extract response text from API response. Override in subclasses."""
+        raise NotImplementedError
 
 
 # =============================================================================
@@ -240,7 +237,7 @@ class Claude(LLM):
         model: str,
         base_url: str,
         system_prompt: str = "",
-        cost_callback: Optional[CostCallback] = None,
+        cost_callback: CostCallback | None = None,
     ) -> None:
         super().__init__(system_prompt, cost_callback)
         import os
@@ -248,14 +245,12 @@ class Claude(LLM):
         api_key = os.getenv("ANTHROPIC_API_KEY")
         # Initialize client without base_url initially to avoid httpx issues
         if base_url and base_url != "https://api.anthropic.com":
-            self.client = anthropic.Anthropic(
-                api_key=api_key, max_retries=3, base_url=base_url
-            )
+            self.client = anthropic.Anthropic(api_key=api_key, max_retries=3, base_url=base_url)
         else:
             self.client = anthropic.Anthropic(api_key=api_key, max_retries=3)
         self.model = model
 
-    def create_messages(self, user_prompt: str) -> List[Dict[str, str]]:
+    def create_messages(self, user_prompt: str) -> list[dict[str, str]]:
         if "Provide a very concise summary of the README.md content" in user_prompt:
             messages = [{"role": "user", "content": user_prompt}]
         else:
@@ -267,8 +262,8 @@ class Claude(LLM):
         return messages
 
     def send_message(
-        self, messages: List[Dict[str, str]], max_tokens: int, response_model: BaseModel
-    ) -> Dict[str, Any]:
+        self, messages: list[dict[str, str]], max_tokens: int, response_model: BaseModel
+    ) -> dict[str, Any]:
         try:
             # response_model is not used here, only in ChatGPT
             return self.client.messages.create(
@@ -307,26 +302,22 @@ class ChatGPT(LLM):
         model: str,
         base_url: str,
         system_prompt: str = "",
-        cost_callback: Optional[CostCallback] = None,
+        cost_callback: CostCallback | None = None,
     ) -> None:
         super().__init__(system_prompt, cost_callback)
         import os
 
-        self.client = openai.OpenAI(
-            api_key=os.getenv("OPENAI_API_KEY"), base_url=base_url
-        )
+        self.client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"), base_url=base_url)
         self.model = model
 
-    def create_messages(self, user_prompt: str) -> List[Dict[str, str]]:
+    def create_messages(self, user_prompt: str) -> list[dict[str, str]]:
         messages = [
             {"role": "system", "content": self.system_prompt},
             {"role": "user", "content": user_prompt},
         ]
         return messages
 
-    def send_message(
-        self, messages: List[Dict[str, str]], max_tokens: int, response_model=None
-    ) -> Dict[str, Any]:
+    def send_message(self, messages: list[dict[str, str]], max_tokens: int, response_model=None) -> dict[str, Any]:
         try:
             params = {
                 "model": self.model,
@@ -338,13 +329,11 @@ class ChatGPT(LLM):
             if response_model:
                 params["response_format"] = {"type": "json_object"}
 
-            return self.client.chat.completions.create(**params)
+            return self.client.chat.completions.create(**params)  # type: ignore[call-overload]
         except openai.APIConnectionError as e:
             raise APIConnectionError("The server could not be reached") from e
         except openai.RateLimitError as e:
-            raise RateLimitError(
-                "Request was rate-limited; consider backing off"
-            ) from e
+            raise RateLimitError("Request was rate-limited; consider backing off") from e
         except openai.APIStatusError as e:
             raise APIStatusError(e.status_code, e.response) from e
         except Exception as e:
@@ -390,16 +379,14 @@ class OpenRouter(LLM):
         model: str,
         base_url: str,
         system_prompt: str = "",
-        cost_callback: Optional[CostCallback] = None,
+        cost_callback: CostCallback | None = None,
     ) -> None:
         super().__init__(system_prompt, cost_callback)
         import os
 
         api_key = os.getenv("OPENROUTER_API_KEY")
         if not api_key:
-            raise LLMError(
-                "OPENROUTER_API_KEY environment variable is required for OpenRouter"
-            )
+            raise LLMError("OPENROUTER_API_KEY environment variable is required for OpenRouter")
 
         self.client = openai.OpenAI(
             api_key=api_key,
@@ -411,16 +398,14 @@ class OpenRouter(LLM):
         )
         self.model = model
 
-    def create_messages(self, user_prompt: str) -> List[Dict[str, str]]:
+    def create_messages(self, user_prompt: str) -> list[dict[str, str]]:
         messages = [
             {"role": "system", "content": self.system_prompt},
             {"role": "user", "content": user_prompt},
         ]
         return messages
 
-    def send_message(
-        self, messages: List[Dict[str, str]], max_tokens: int, response_model=None
-    ) -> Dict[str, Any]:
+    def send_message(self, messages: list[dict[str, str]], max_tokens: int, response_model=None) -> dict[str, Any]:
         try:
             params = {
                 "model": self.model,
@@ -433,37 +418,26 @@ class OpenRouter(LLM):
             if response_model:
                 # Check if model likely supports structured output
                 model_lower = self.model.lower()
-                supports_json = any(
-                    x in model_lower
-                    for x in ["gpt", "claude", "mistral", "qwen", "gemma"]
-                )
+                supports_json = any(x in model_lower for x in ["gpt", "claude", "mistral", "qwen", "gemma"])
                 if supports_json:
                     params["response_format"] = {"type": "json_object"}
 
-            return self.client.chat.completions.create(**params)
+            return self.client.chat.completions.create(**params)  # type: ignore[call-overload]
         except openai.APIConnectionError as e:
-            raise APIConnectionError(
-                f"OpenRouter server could not be reached: {e}"
-            ) from e
+            raise APIConnectionError(f"OpenRouter server could not be reached: {e}") from e
         except openai.RateLimitError as e:
-            raise RateLimitError(
-                "OpenRouter request was rate-limited; consider backing off"
-            ) from e
+            raise RateLimitError("OpenRouter request was rate-limited; consider backing off") from e
         except openai.APIStatusError as e:
             # Provide more helpful error messages for common issues
             if e.status_code == 401:
-                raise LLMError(
-                    "OpenRouter authentication failed. Check your OPENROUTER_API_KEY."
-                ) from e
+                raise LLMError("OpenRouter authentication failed. Check your OPENROUTER_API_KEY.") from e
             elif e.status_code == 402:
                 raise LLMError(
-                    "OpenRouter credits exhausted. Add credits or use a free model "
-                    "(e.g., qwen/qwen3-coder:free)"
+                    "OpenRouter credits exhausted. Add credits or use a free model (e.g., qwen/qwen3-coder:free)"
                 ) from e
             elif e.status_code == 404:
                 raise LLMError(
-                    f"OpenRouter model not found: {self.model}. "
-                    "Check model name at https://openrouter.ai/models"
+                    f"OpenRouter model not found: {self.model}. Check model name at https://openrouter.ai/models"
                 ) from e
             raise APIStatusError(e.status_code, e.response) from e
         except Exception as e:
@@ -492,7 +466,7 @@ class Ollama(LLM):
         model: str,
         base_url: str,
         system_prompt: str = "",
-        cost_callback: Optional[CostCallback] = None,
+        cost_callback: CostCallback | None = None,
     ) -> None:
         super().__init__(system_prompt, cost_callback)
         self.api_url = base_url
@@ -501,9 +475,7 @@ class Ollama(LLM):
     def create_messages(self, user_prompt: str) -> str:
         return user_prompt
 
-    def send_message(
-        self, user_prompt: str, max_tokens: int, response_model: BaseModel
-    ) -> Any:
+    def send_message(self, user_prompt: str, max_tokens: int, response_model: BaseModel) -> Any:
         payload = {
             "model": self.model,
             "prompt": user_prompt,
@@ -515,7 +487,7 @@ class Ollama(LLM):
         }
 
         try:
-            response = requests.post(self.api_url, json=payload)
+            response = requests.post(self.api_url, json=payload, timeout=120)
             return response
         except requests.exceptions.RequestException as e:
             if hasattr(e, "response") and e.response is not None:
@@ -524,9 +496,7 @@ class Ollama(LLM):
                 elif e.response.status_code >= 500:
                     raise APIConnectionError("Server could not be reached") from e
                 else:
-                    raise APIStatusError(
-                        e.response.status_code, e.response.json()
-                    ) from e
+                    raise APIStatusError(e.response.status_code, e.response.json()) from e
             raise APIConnectionError(f"Request failed: {str(e)}") from e
 
     def get_response(self, response: Any) -> str:

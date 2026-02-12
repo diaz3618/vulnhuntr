@@ -15,9 +15,10 @@ This module ties together all components:
 from __future__ import annotations
 
 import os
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, List, Optional
+from typing import TYPE_CHECKING, cast
 
 import structlog
 
@@ -51,7 +52,7 @@ log = structlog.get_logger()
 def initialize_llm(
     llm_arg: str,
     system_prompt: str = "",
-    cost_callback: Optional[callable] = None,
+    cost_callback: Callable | None = None,
 ):
     """Initialize LLM client with optional cost tracking callback.
 
@@ -66,7 +67,7 @@ def initialize_llm(
     Raises:
         ValueError: If invalid LLM argument provided
     """
-    from vulnhuntr.LLMs import ChatGPT, Claude, Ollama, OpenRouter
+    from vulnhuntr.llms import ChatGPT, Claude, Ollama, OpenRouter
 
     llm_arg = llm_arg.lower()
 
@@ -91,9 +92,7 @@ def initialize_llm(
         return Ollama(model, base_url, system_prompt, cost_callback)
 
     else:
-        raise ValueError(
-            f"Invalid LLM argument: {llm_arg}\nValid options are: claude, gpt, ollama, openrouter"
-        )
+        raise ValueError(f"Invalid LLM argument: {llm_arg}\nValid options are: claude, gpt, ollama, openrouter")
 
 
 def get_model_name(llm_arg: str) -> str:
@@ -117,7 +116,7 @@ def get_model_name(llm_arg: str) -> str:
     return "unknown"
 
 
-def run_analysis(args: "argparse.Namespace") -> int:
+def run_analysis(args: argparse.Namespace) -> int:
     """Run the vulnerability analysis.
 
     Main entry point for CLI execution. Orchestrates:
@@ -134,6 +133,9 @@ def run_analysis(args: "argparse.Namespace") -> int:
     Returns:
         Exit code (0 for success, non-zero for errors)
     """
+    import json
+    import re
+
     from vulnhuntr.core.xml_models import (
         AnalysisApproach,
         CodeDefinitions,
@@ -145,6 +147,7 @@ def run_analysis(args: "argparse.Namespace") -> int:
         ReadmeContent,
         ReadmeSummary,
         ResponseFormat,
+        to_xml_bytes,
     )
     from vulnhuntr.prompts import (
         ANALYSIS_APPROACH_TEMPLATE,
@@ -154,8 +157,6 @@ def run_analysis(args: "argparse.Namespace") -> int:
         SYS_PROMPT_TEMPLATE,
         VULN_SPECIFIC_BYPASSES_AND_PROMPTS,
     )
-    import json
-    import re
 
     # Load configuration from .vulnhuntr.yaml (if present)
     config = load_config(start_dir=Path(args.root))
@@ -182,9 +183,7 @@ def run_analysis(args: "argparse.Namespace") -> int:
         if analyze_path.is_absolute():
             files_to_analyze = list(repo.get_files_to_analyze(analyze_path))
         else:
-            files_to_analyze = list(
-                repo.get_files_to_analyze(Path(args.root) / analyze_path)
-            )
+            files_to_analyze = list(repo.get_files_to_analyze(Path(args.root) / analyze_path))
     else:
         files_to_analyze = list(repo.get_network_related_files(files))
 
@@ -193,9 +192,7 @@ def run_analysis(args: "argparse.Namespace") -> int:
 
     # Handle --dry-run: Estimate costs and exit
     if args.dry_run:
-        console.print(
-            "\n[bold cyan]Running cost estimation (dry-run mode)...[/bold cyan]"
-        )
+        console.print("\n[bold cyan]Running cost estimation (dry-run mode)...[/bold cyan]")
         estimate = estimate_analysis_cost(files_to_analyze, model_name)
         print_dry_run_report(estimate)
         return 0
@@ -218,18 +215,14 @@ def run_analysis(args: "argparse.Namespace") -> int:
         input_tokens: int,
         output_tokens: int,
         model: str,
-        file_path: Optional[str],
+        file_path: str | None,
         call_type: str,
     ) -> None:
-        cost_tracker.track_call(
-            input_tokens, output_tokens, model, file_path, call_type
-        )
+        cost_tracker.track_call(input_tokens, output_tokens, model, file_path, call_type)
 
     # Initialize checkpoint
     checkpoint = AnalysisCheckpoint(
-        checkpoint_dir=Path(args.resume)
-        if args.resume
-        else Path(".vulnhuntr_checkpoint"),
+        checkpoint_dir=Path(args.resume) if args.resume else Path(".vulnhuntr_checkpoint"),
         save_frequency=5,
         enabled=not args.no_checkpoint,
     )
@@ -243,20 +236,12 @@ def run_analysis(args: "argparse.Namespace") -> int:
 
             # Filter out already completed files
             completed_set = set(checkpoint_data.completed_files)
-            files_to_analyze = [
-                f for f in files_to_analyze if str(f) not in completed_set
-            ]
+            files_to_analyze = [f for f in files_to_analyze if str(f) not in completed_set]
 
-            console.print(
-                f"[dim]Skipping {len(completed_set)} already completed files[/dim]"
-            )
-            console.print(
-                f"[dim]Remaining files to analyze: {len(files_to_analyze)}[/dim]\n"
-            )
+            console.print(f"[dim]Skipping {len(completed_set)} already completed files[/dim]")
+            console.print(f"[dim]Remaining files to analyze: {len(files_to_analyze)}[/dim]\n")
         else:
-            console.print(
-                "[yellow]No checkpoint found to resume. Starting fresh analysis.[/yellow]\n"
-            )
+            console.print("[yellow]No checkpoint found to resume. Starting fresh analysis.[/yellow]\n")
 
     # Start checkpoint tracking (if not resuming)
     if not args.resume or not checkpoint.can_resume():
@@ -275,14 +260,15 @@ def run_analysis(args: "argparse.Namespace") -> int:
     if readme_content:
         log.info("Summarizing project README")
         llm.set_context(file_path=None, call_type="readme")
-        summary = llm.chat(
+        summary_response = llm.chat(
             (
-                ReadmeContent(content=readme_content).to_xml()
+                to_xml_bytes(ReadmeContent(content=readme_content))
                 + b"\n"
-                + Instructions(instructions=README_SUMMARY_PROMPT_TEMPLATE).to_xml()
+                + to_xml_bytes(Instructions(instructions=README_SUMMARY_PROMPT_TEMPLATE))
             ).decode()
         )
-        summary_match = re.findall(r"<summary>(.+?)</summary>", summary, re.DOTALL)
+        summary_text = str(summary_response)
+        summary_match = re.findall(r"<summary>(.+?)</summary>", summary_text, re.DOTALL)
         summary = summary_match[0] if summary_match else ""
         log.info("README summary complete", summary=summary)
     else:
@@ -291,9 +277,9 @@ def run_analysis(args: "argparse.Namespace") -> int:
 
     # Reinitialize LLM with system prompt
     system_prompt = (
-        Instructions(instructions=SYS_PROMPT_TEMPLATE).to_xml()
+        to_xml_bytes(Instructions(instructions=SYS_PROMPT_TEMPLATE))
         + b"\n"
-        + ReadmeSummary(readme_summary=summary).to_xml()
+        + to_xml_bytes(ReadmeSummary(readme_summary=summary))
     ).decode()
 
     llm = initialize_llm(args.llm, system_prompt, cost_callback)
@@ -302,18 +288,14 @@ def run_analysis(args: "argparse.Namespace") -> int:
     analysis_success = True
 
     # Collect findings for reporting
-    all_findings: List[Finding] = []
+    all_findings: list[Finding] = []
 
     # Main analysis loop
     for py_f in files_to_analyze:
         # Check budget before starting file analysis
         if budget_enforcer and not budget_enforcer.check(cost_tracker.total_cost):
-            console.print(
-                f"\n[bold red]Budget limit reached (${args.budget:.2f}). Stopping analysis.[/bold red]"
-            )
-            console.print(
-                "[dim]Progress saved to checkpoint. Use --resume to continue with higher budget.[/dim]"
-            )
+            console.print(f"\n[bold red]Budget limit reached (${args.budget:.2f}). Stopping analysis.[/bold red]")
+            console.print("[dim]Progress saved to checkpoint. Use --resume to continue with higher budget.[/dim]")
             analysis_success = False
             break
 
@@ -339,51 +321,40 @@ def run_analysis(args: "argparse.Namespace") -> int:
 
         # Initial analysis
         user_prompt = (
-            FileCode(file_path=str(py_f), file_source=content).to_xml()
+            to_xml_bytes(FileCode(file_path=str(py_f), file_source=content))
             + b"\n"
-            + Instructions(instructions=INITIAL_ANALYSIS_PROMPT_TEMPLATE).to_xml()
+            + to_xml_bytes(Instructions(instructions=INITIAL_ANALYSIS_PROMPT_TEMPLATE))
             + b"\n"
-            + AnalysisApproach(analysis_approach=ANALYSIS_APPROACH_TEMPLATE).to_xml()
+            + to_xml_bytes(AnalysisApproach(analysis_approach=ANALYSIS_APPROACH_TEMPLATE))
             + b"\n"
-            + PreviousAnalysis(previous_analysis="").to_xml()
+            + to_xml_bytes(PreviousAnalysis(previous_analysis=""))
             + b"\n"
-            + Guidelines(guidelines=GUIDELINES_TEMPLATE).to_xml()
+            + to_xml_bytes(Guidelines(guidelines=GUIDELINES_TEMPLATE))
             + b"\n"
-            + ResponseFormat(
-                response_format=json.dumps(Response.model_json_schema(), indent=4)
-            ).to_xml()
+            + to_xml_bytes(ResponseFormat(response_format=json.dumps(Response.model_json_schema(), indent=4)))
         ).decode()
 
-        initial_analysis_report: Response = llm.chat(
-            user_prompt, response_model=Response, max_tokens=8192
-        )
-        log.info(
-            "Initial analysis complete", report=initial_analysis_report.model_dump()
-        )
+        initial_analysis_report = cast(Response, llm.chat(user_prompt, response_model=Response, max_tokens=8192))
+        log.info("Initial analysis complete", report=initial_analysis_report.model_dump())
 
         print_readable(initial_analysis_report)
 
         # Secondary analysis for each vulnerability type
-        if (
-            initial_analysis_report.confidence_score > 0
-            and initial_analysis_report.vulnerability_types
-        ):
+        if initial_analysis_report.confidence_score > 0 and initial_analysis_report.vulnerability_types:
             for vuln_type in initial_analysis_report.vulnerability_types:
                 stored_code_definitions = {}
                 definitions = CodeDefinitions(definitions=[])
                 same_context = False
                 previous_analysis = ""
                 previous_context_amount = 0
-                secondary_analysis_report: Optional[Response] = None
+                secondary_analysis_report: Response | None = None
 
                 for i in range(7):
                     # Check budget during iterations
                     if budget_enforcer and not budget_enforcer.check(
                         cost_tracker.total_cost, cost_tracker.get_file_cost(str(py_f))
                     ):
-                        console.print(
-                            "\n[bold yellow]Budget limit reached during secondary analysis.[/bold yellow]"
-                        )
+                        console.print("\n[bold yellow]Budget limit reached during secondary analysis.[/bold yellow]")
                         break
 
                     cost_before_iteration = cost_tracker.total_cost
@@ -403,9 +374,7 @@ def run_analysis(args: "argparse.Namespace") -> int:
 
                         for context_item in secondary_analysis_report.context_code:
                             if context_item.name not in stored_code_definitions:
-                                match = code_extractor.extract(
-                                    context_item.name, context_item.code_line, files
-                                )
+                                match = code_extractor.extract(context_item.name, context_item.code_line, files)
                                 if match:
                                     stored_code_definitions[context_item.name] = match
 
@@ -416,52 +385,41 @@ def run_analysis(args: "argparse.Namespace") -> int:
                         if args.verbosity > 1:
                             for definition in definitions.definitions:
                                 snippet = definition.source.split("\n")[:2]
-                                snippet = (
-                                    "\n".join(snippet)
-                                    if len(snippet) > 1
-                                    else definition.source[:75]
-                                )
+                                snippet = "\n".join(snippet) if len(snippet) > 1 else definition.source[:75]
                                 print(f"Name: {definition.name}")
-                                print(
-                                    f"Context search: {definition.context_name_requested}"
-                                )
+                                print(f"Context search: {definition.context_name_requested}")
                                 print(f"File Path: {definition.file_path}")
                                 print(f"First two lines from source: {snippet}\n")
 
-                    vuln_data = VULN_SPECIFIC_BYPASSES_AND_PROMPTS.get(
-                        vuln_type, {"bypasses": [], "prompt": ""}
-                    )
+                    vuln_data = VULN_SPECIFIC_BYPASSES_AND_PROMPTS.get(vuln_type, {"bypasses": [], "prompt": ""})
 
                     vuln_specific_user_prompt = (
-                        FileCode(file_path=str(py_f), file_source=content).to_xml()
+                        to_xml_bytes(FileCode(file_path=str(py_f), file_source=content))
                         + b"\n"
-                        + definitions.to_xml()
+                        + to_xml_bytes(definitions)
                         + b"\n"
-                        + ExampleBypasses(
-                            example_bypasses="\n".join(vuln_data["bypasses"])
-                        ).to_xml()
+                        + to_xml_bytes(ExampleBypasses(example_bypasses="\n".join(vuln_data["bypasses"])))
                         + b"\n"
-                        + Instructions(instructions=vuln_data["prompt"]).to_xml()
+                        + to_xml_bytes(Instructions(instructions=vuln_data["prompt"]))
                         + b"\n"
-                        + AnalysisApproach(
-                            analysis_approach=ANALYSIS_APPROACH_TEMPLATE
-                        ).to_xml()
+                        + to_xml_bytes(AnalysisApproach(analysis_approach=ANALYSIS_APPROACH_TEMPLATE))
                         + b"\n"
-                        + PreviousAnalysis(previous_analysis=previous_analysis).to_xml()
+                        + to_xml_bytes(PreviousAnalysis(previous_analysis=previous_analysis))
                         + b"\n"
-                        + Guidelines(guidelines=GUIDELINES_TEMPLATE).to_xml()
+                        + to_xml_bytes(Guidelines(guidelines=GUIDELINES_TEMPLATE))
                         + b"\n"
-                        + ResponseFormat(
-                            response_format=json.dumps(
-                                Response.model_json_schema(), indent=4
-                            )
-                        ).to_xml()
+                        + to_xml_bytes(
+                            ResponseFormat(response_format=json.dumps(Response.model_json_schema(), indent=4))
+                        )
                     ).decode()
 
-                    secondary_analysis_report: Response = llm.chat(
-                        vuln_specific_user_prompt,
-                        response_model=Response,
-                        max_tokens=8192,
+                    secondary_analysis_report = cast(
+                        Response,
+                        llm.chat(
+                            vuln_specific_user_prompt,
+                            response_model=Response,
+                            max_tokens=8192,
+                        ),
                     )
                     log.info(
                         "Secondary analysis complete",
@@ -479,9 +437,7 @@ def run_analysis(args: "argparse.Namespace") -> int:
                         ):
                             if args.verbosity == 0:
                                 print_readable(secondary_analysis_report)
-                            console.print(
-                                "\n[bold yellow]Stopping iterations - cost escalating.[/bold yellow]"
-                            )
+                            console.print("\n[bold yellow]Stopping iterations - cost escalating.[/bold yellow]")
                             break
 
                     if args.verbosity > 0:
@@ -493,10 +449,7 @@ def run_analysis(args: "argparse.Namespace") -> int:
                             print_readable(secondary_analysis_report)
                         break
 
-                    if (
-                        previous_context_amount >= len(stored_code_definitions)
-                        and i > 0
-                    ):
+                    if previous_context_amount >= len(stored_code_definitions) and i > 0:
                         if same_context:
                             log.debug("No new context functions or classes requested")
                             if args.verbosity == 0:
@@ -506,13 +459,10 @@ def run_analysis(args: "argparse.Namespace") -> int:
                         log.debug("No new context functions or classes requested")
 
                 # Collect finding if vulnerability confirmed
-                if (
-                    "secondary_analysis_report" in dir()
-                    and secondary_analysis_report.confidence_score >= 5
-                ):
+                if "secondary_analysis_report" in dir() and secondary_analysis_report.confidence_score >= 5:
                     finding = response_to_finding(
                         response=secondary_analysis_report,
-                        file_path=py_f,
+                        file_path=str(py_f),
                         vuln_type=vuln_type,
                         context_code=stored_code_definitions,
                     )
@@ -544,10 +494,10 @@ def run_analysis(args: "argparse.Namespace") -> int:
 
 
 def _generate_reports(
-    args: "argparse.Namespace",
-    all_findings: List[Finding],
+    args: argparse.Namespace,
+    all_findings: list[Finding],
     cost_tracker: CostTracker,
-    files_to_analyze: List[Path],
+    files_to_analyze: list[Path],
 ) -> None:
     """Generate all requested reports.
 
@@ -558,11 +508,11 @@ def _generate_reports(
         files_to_analyze: List of files that were analyzed
     """
     from vulnhuntr.reporters import (
-        SARIFReporter,
+        CSVReporter,
         HTMLReporter,
         JSONReporter,
-        CSVReporter,
         MarkdownReporter,
+        SARIFReporter,
     )
 
     if not all_findings:
@@ -573,9 +523,7 @@ def _generate_reports(
 
     # Ensure reports directory exists if any reports are being generated
     reports_dir = Path(args.reports_dir) if hasattr(args, "reports_dir") else None
-    if reports_dir and (
-        args.sarif or args.html or args.json or args.csv or args.markdown
-    ):
+    if reports_dir and (args.sarif or args.html or args.json or args.csv or args.markdown):
         reports_dir.mkdir(parents=True, exist_ok=True)
 
     # SARIF report
@@ -622,9 +570,9 @@ def _generate_reports(
         try:
             csv_path = Path(args.csv)
             csv_path.parent.mkdir(parents=True, exist_ok=True)
-            reporter = CSVReporter(repo_root=Path(args.root))
+            reporter = CSVReporter(output_path=csv_path)
             reporter.add_findings(all_findings)
-            reporter.write(csv_path)
+            reporter.write()
             print_report_status("CSV", args.csv, True)
         except Exception as e:
             print_report_status("CSV", args.csv, False, str(e))
@@ -636,11 +584,11 @@ def _generate_reports(
             md_path = Path(args.markdown)
             md_path.parent.mkdir(parents=True, exist_ok=True)
             reporter = MarkdownReporter(
+                output_path=md_path,
                 title=f"Vulnhuntr Security Report - {Path(args.root).name}",
-                repo_root=Path(args.root),
             )
             reporter.add_findings(all_findings)
-            reporter.write(Path(args.markdown))
+            reporter.write()
             print_report_status("Markdown", args.markdown, True)
         except Exception as e:
             print_report_status("Markdown", args.markdown, False, str(e))
@@ -659,14 +607,14 @@ def _generate_reports(
         _send_webhook(args, all_findings, cost_tracker, files_to_analyze)
 
 
-def _export_all_reports(args: "argparse.Namespace", findings: List[Finding]) -> None:
+def _export_all_reports(args: argparse.Namespace, findings: list[Finding]) -> None:
     """Export all report formats to a directory."""
     from vulnhuntr.reporters import (
-        SARIFReporter,
+        CSVReporter,
         HTMLReporter,
         JSONReporter,
-        CSVReporter,
         MarkdownReporter,
+        SARIFReporter,
     )
 
     try:
@@ -697,7 +645,7 @@ def _export_all_reports(args: "argparse.Namespace", findings: List[Finding]) -> 
         log.error("Export all failed", error=str(e))
 
 
-def _create_github_issues(findings: List[Finding]) -> None:
+def _create_github_issues(findings: list[Finding]) -> None:
     """Create GitHub issues for findings."""
     from vulnhuntr.integrations import GitHubConfig, GitHubIssueCreator
 
@@ -707,10 +655,14 @@ def _create_github_issues(findings: List[Finding]) -> None:
 
     if not all([github_token, github_owner, github_repo]):
         console.print(
-            "[red]✗ GitHub integration requires GITHUB_TOKEN, GITHUB_OWNER, "
-            "and GITHUB_REPO environment variables[/red]"
+            "[red]✗ GitHub integration requires GITHUB_TOKEN, GITHUB_OWNER, and GITHUB_REPO environment variables[/red]"
         )
         return
+
+    # Narrowed by the check above
+    assert github_token is not None
+    assert github_owner is not None
+    assert github_repo is not None
 
     try:
         github_config = GitHubConfig(
@@ -722,13 +674,12 @@ def _create_github_issues(findings: List[Finding]) -> None:
         issue_creator = GitHubIssueCreator(github_config)
         results = issue_creator.create_issues_for_findings(findings)
 
-        created = sum(1 for r in results if r.created)
-        skipped = sum(1 for r in results if r.duplicate)
-        failed = sum(1 for r in results if r.error)
+        created = sum(1 for r in results if r.success and r.error != "Issue already exists")
+        skipped = sum(1 for r in results if r.success and r.error == "Issue already exists")
+        failed = sum(1 for r in results if not r.success)
 
         console.print(
-            f"[green]✓ GitHub issues: {created} created, "
-            f"{skipped} skipped (duplicates), {failed} failed[/green]"
+            f"[green]✓ GitHub issues: {created} created, {skipped} skipped (duplicates), {failed} failed[/green]"
         )
     except Exception as e:
         console.print(f"[red]✗ Failed to create GitHub issues: {e}[/red]")
@@ -736,13 +687,13 @@ def _create_github_issues(findings: List[Finding]) -> None:
 
 
 def _send_webhook(
-    args: "argparse.Namespace",
-    findings: List[Finding],
+    args: argparse.Namespace,
+    findings: list[Finding],
     cost_tracker: CostTracker,
-    files_to_analyze: List[Path],
+    files_to_analyze: list[Path],
 ) -> None:
     """Send findings to webhook."""
-    from vulnhuntr.integrations import PayloadFormat, WebhookNotifier
+    from vulnhuntr.integrations import PayloadFormat, WebhookConfig, WebhookNotifier
 
     try:
         format_map = {
@@ -754,21 +705,16 @@ def _send_webhook(
         webhook_format = format_map.get(args.webhook_format, PayloadFormat.JSON)
         webhook_secret = args.webhook_secret or os.getenv("WEBHOOK_SECRET")
 
-        notifier = WebhookNotifier(
-            webhook_url=args.webhook,
-            payload_format=webhook_format,
+        config = WebhookConfig(
+            url=args.webhook,
+            format=webhook_format,
             secret=webhook_secret,
         )
-        success = notifier.send_findings(
+        notifier = WebhookNotifier(config=config)
+        result = notifier.send_batch(
             findings=findings,
-            scan_summary={
-                "repo_path": str(args.root),
-                "files_analyzed": len(files_to_analyze),
-                "total_findings": len(findings),
-                "total_cost_usd": cost_tracker.total_cost,
-            },
         )
-        if success:
+        if result.success:
             console.print(f"[green]✓ Findings sent to webhook: {args.webhook}[/green]")
         else:
             console.print("[red]✗ Failed to send findings to webhook[/red]")

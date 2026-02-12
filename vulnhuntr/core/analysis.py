@@ -14,8 +14,9 @@ The VulnerabilityAnalyzer class orchestrates:
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, cast
 
 import structlog
 
@@ -30,14 +31,15 @@ from .xml_models import (
     PreviousAnalysis,
     ReadmeContent,
     ResponseFormat,
+    to_xml_bytes,
 )
 
 if TYPE_CHECKING:
-    from ..LLMs import Claude, ChatGPT, Ollama
+    from ..llms import ChatGPT, Claude, Ollama
     from ..symbol_finder import SymbolExtractor
 
     # Type alias for any LLM client
-    LLMClient = Union[Claude, ChatGPT, Ollama]
+    LLMClient = Claude | ChatGPT | Ollama
 
 log = structlog.get_logger()
 
@@ -76,8 +78,8 @@ class AnalysisResult:
         self,
         file_path: Path,
         initial_report: Response,
-        findings: Optional[Dict[VulnType, Response]] = None,
-        context_code: Optional[Dict[str, str]] = None,
+        findings: dict[VulnType, Response] | None = None,
+        context_code: dict[str, str] | None = None,
     ) -> None:
         self.file_path = file_path
         self.initial_report = initial_report
@@ -114,11 +116,11 @@ class VulnerabilityAnalyzer:
 
     def __init__(
         self,
-        llm: "LLMClient",
-        code_extractor: "SymbolExtractor",
-        config: Optional[AnalysisConfig] = None,
-        prompt_templates: Optional[Dict[str, str]] = None,
-        vuln_specific_data: Optional[Dict[VulnType, Dict]] = None,
+        llm: LLMClient,
+        code_extractor: SymbolExtractor,
+        config: AnalysisConfig | None = None,
+        prompt_templates: dict[str, str] | None = None,
+        vuln_specific_data: dict[VulnType, dict] | None = None,
     ) -> None:
         """Initialize the analyzer.
 
@@ -136,8 +138,8 @@ class VulnerabilityAnalyzer:
         self.vuln_specific_data = vuln_specific_data or {}
 
         # Callbacks
-        self._on_iteration: Optional[Callable] = None
-        self._should_continue: Optional[Callable] = None
+        self._on_iteration: Callable | None = None
+        self._should_continue: Callable | None = None
 
     def set_iteration_callback(self, callback: Callable) -> None:
         """Set callback for each analysis iteration."""
@@ -162,13 +164,13 @@ class VulnerabilityAnalyzer:
         self.llm.set_context(file_path=None, call_type="readme")
 
         prompt = (
-            ReadmeContent(content=readme_content).to_xml()
+            to_xml_bytes(ReadmeContent(content=readme_content))
             + b"\n"
-            + Instructions(instructions=README_SUMMARY_PROMPT_TEMPLATE).to_xml()
+            + to_xml_bytes(Instructions(instructions=README_SUMMARY_PROMPT_TEMPLATE))
         ).decode()
 
         response = self.llm.chat(prompt)
-        summary = self._extract_between_tags("summary", response)
+        summary = self._extract_between_tags("summary", str(response))
 
         if summary:
             summary = summary[0]
@@ -182,7 +184,7 @@ class VulnerabilityAnalyzer:
     def analyze_file(
         self,
         file_path: Path,
-        all_files: List[Path],
+        all_files: list[Path],
     ) -> AnalysisResult:
         """Perform full vulnerability analysis on a file.
 
@@ -224,9 +226,7 @@ class VulnerabilityAnalyzer:
             GUIDELINES_TEMPLATE,
         )
 
-        initial_report: Response = self.llm.chat(
-            initial_prompt, response_model=Response, max_tokens=8192
-        )
+        initial_report = cast(Response, self.llm.chat(initial_prompt, response_model=Response, max_tokens=8192))
         log.info("Initial analysis complete", report=initial_report.model_dump())
 
         result = AnalysisResult(file_path=file_path, initial_report=initial_report)
@@ -249,10 +249,7 @@ class VulnerabilityAnalyzer:
                 )
 
                 # Store findings that meet confidence threshold
-                if (
-                    final_report.confidence_score
-                    >= self.config.min_confidence_for_finding
-                ):
+                if final_report.confidence_score >= self.config.min_confidence_for_finding:
                     result.findings[vuln_type] = final_report
                     result.context_code.update(context_code)
 
@@ -263,11 +260,11 @@ class VulnerabilityAnalyzer:
         file_path: Path,
         content: str,
         vuln_type: VulnType,
-        all_files: List[Path],
-        vuln_data: Dict,
+        all_files: list[Path],
+        vuln_data: dict,
         analysis_approach: str,
         guidelines: str,
-    ) -> tuple[Response, Dict[str, str]]:
+    ) -> tuple[Response, dict[str, str]]:
         """Perform secondary vulnerability-specific analysis.
 
         Iteratively refines analysis by expanding context based on
@@ -285,7 +282,7 @@ class VulnerabilityAnalyzer:
         Returns:
             Tuple of (final Response, dict of context code)
         """
-        stored_code_definitions: Dict[str, str] = {}
+        stored_code_definitions: dict[str, str] = {}
         definitions = CodeDefinitions(definitions=[])
         previous_analysis = ""
         previous_context_amount = 0
@@ -327,9 +324,7 @@ class VulnerabilityAnalyzer:
                         if match:
                             stored_code_definitions[context_item.name] = match
 
-                definitions = CodeDefinitions(
-                    definitions=list(stored_code_definitions.values())
-                )
+                definitions = CodeDefinitions(definitions=list(stored_code_definitions.values()))
 
             # Build and send prompt
             secondary_prompt = self._build_secondary_prompt(
@@ -343,10 +338,13 @@ class VulnerabilityAnalyzer:
                 guidelines=guidelines,
             )
 
-            report = self.llm.chat(
-                secondary_prompt,
-                response_model=Response,
-                max_tokens=8192,
+            report = cast(
+                Response,
+                self.llm.chat(
+                    secondary_prompt,
+                    response_model=Response,
+                    max_tokens=8192,
+                ),
             )
             log.info(
                 "Secondary analysis iteration complete",
@@ -364,9 +362,7 @@ class VulnerabilityAnalyzer:
                 break
 
             # Check for repeated context requests
-            if iteration > 0 and previous_context_amount >= len(
-                stored_code_definitions
-            ):
+            if iteration > 0 and previous_context_amount >= len(stored_code_definitions):
                 same_context_count += 1
                 if same_context_count >= 2:
                     log.debug("Same context requested twice, stopping iterations")
@@ -386,19 +382,17 @@ class VulnerabilityAnalyzer:
     ) -> str:
         """Build the initial analysis prompt."""
         return (
-            FileCode(file_path=str(file_path), file_source=content).to_xml()
+            to_xml_bytes(FileCode(file_path=str(file_path), file_source=content))
             + b"\n"
-            + Instructions(instructions=initial_prompt_template).to_xml()
+            + to_xml_bytes(Instructions(instructions=initial_prompt_template))
             + b"\n"
-            + AnalysisApproach(analysis_approach=analysis_approach).to_xml()
+            + to_xml_bytes(AnalysisApproach(analysis_approach=analysis_approach))
             + b"\n"
-            + PreviousAnalysis(previous_analysis="").to_xml()
+            + to_xml_bytes(PreviousAnalysis(previous_analysis=""))
             + b"\n"
-            + Guidelines(guidelines=guidelines).to_xml()
+            + to_xml_bytes(Guidelines(guidelines=guidelines))
             + b"\n"
-            + ResponseFormat(
-                response_format=json.dumps(Response.model_json_schema(), indent=4)
-            ).to_xml()
+            + to_xml_bytes(ResponseFormat(response_format=json.dumps(Response.model_json_schema(), indent=4)))
         ).decode()
 
     def _build_secondary_prompt(
@@ -406,7 +400,7 @@ class VulnerabilityAnalyzer:
         file_path: Path,
         content: str,
         definitions: CodeDefinitions,
-        bypasses: List[str],
+        bypasses: list[str],
         vuln_prompt: str,
         analysis_approach: str,
         previous_analysis: str,
@@ -414,27 +408,25 @@ class VulnerabilityAnalyzer:
     ) -> str:
         """Build secondary analysis prompt."""
         return (
-            FileCode(file_path=str(file_path), file_source=content).to_xml()
+            to_xml_bytes(FileCode(file_path=str(file_path), file_source=content))
             + b"\n"
-            + definitions.to_xml()
+            + to_xml_bytes(definitions)
             + b"\n"
-            + ExampleBypasses(example_bypasses="\n".join(bypasses)).to_xml()
+            + to_xml_bytes(ExampleBypasses(example_bypasses="\n".join(bypasses)))
             + b"\n"
-            + Instructions(instructions=vuln_prompt).to_xml()
+            + to_xml_bytes(Instructions(instructions=vuln_prompt))
             + b"\n"
-            + AnalysisApproach(analysis_approach=analysis_approach).to_xml()
+            + to_xml_bytes(AnalysisApproach(analysis_approach=analysis_approach))
             + b"\n"
-            + PreviousAnalysis(previous_analysis=previous_analysis).to_xml()
+            + to_xml_bytes(PreviousAnalysis(previous_analysis=previous_analysis))
             + b"\n"
-            + Guidelines(guidelines=guidelines).to_xml()
+            + to_xml_bytes(Guidelines(guidelines=guidelines))
             + b"\n"
-            + ResponseFormat(
-                response_format=json.dumps(Response.model_json_schema(), indent=4)
-            ).to_xml()
+            + to_xml_bytes(ResponseFormat(response_format=json.dumps(Response.model_json_schema(), indent=4)))
         ).decode()
 
     @staticmethod
-    def _extract_between_tags(tag: str, string: str, strip: bool = False) -> List[str]:
+    def _extract_between_tags(tag: str, string: str, strip: bool = False) -> list[str]:
         """Extract content between XML tags.
 
         Based on:

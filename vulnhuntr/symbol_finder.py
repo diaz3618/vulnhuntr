@@ -1,6 +1,7 @@
-import jedi
 import pathlib
-from typing import List, Dict, Any
+from typing import Any
+
+import jedi
 from jedi.api.classes import Name
 
 
@@ -11,7 +12,7 @@ class SymbolExtractor:
         self.parsed_symbols = None
         self.ignore = ["/test", "_test/", "/docs", "/example"]
 
-    def extract(self, symbol_name: str, code_line: str, filtered_files: List) -> Dict:
+    def extract(self, symbol_name: str, code_line: str, filtered_files: list) -> dict[str, Any] | None:
         """
         Extracts the definition of a symbol from the repository.
 
@@ -31,18 +32,12 @@ class SymbolExtractor:
         """
 
         symbol_parts = symbol_name.split(".")
-        matching_files = [
-            file
-            for file in filtered_files
-            if self._search_string_in_file(file, code_line)
-        ]
+        matching_files = [file for file in filtered_files if self._search_string_in_file(file, code_line)]
         if len(matching_files) == 0:
             print(f"Code line not found: {code_line}")
             scripts = []
         else:
-            scripts = [
-                jedi.Script(path=file, project=self.project) for file in matching_files
-            ]
+            scripts = [jedi.Script(path=file, project=self.project) for file in matching_files]
 
         # Search using jedi.Script.search; uses the code_line from bot to grep for string in files
         match = self.file_search(symbol_name, scripts)
@@ -59,7 +54,7 @@ class SymbolExtractor:
 
         return match
 
-    def file_search(self, symbol_name: str, scripts: List) -> Dict[str, Any]:
+    def file_search(self, symbol_name: str, scripts: list) -> dict[str, Any] | None:
         # Analyze matching files with Jedi
         for script in scripts:
             # Search for the symbol in the script
@@ -120,9 +115,9 @@ class SymbolExtractor:
                                 continue
                         return match
 
-        return
+        return None
 
-    def project_search(self, symbol_name: str) -> List[Dict[str, Any]]:
+    def project_search(self, symbol_name: str) -> dict[str, Any] | None:
         """
         Searches for a symbol in the project using jedi.Project.search and returns a match if found.
         Handles:
@@ -140,11 +135,7 @@ class SymbolExtractor:
 
             # Functions and classes - MOST COMMON
             elif name.type in ["function", "class"]:
-                if (
-                    symbol_name == name.name
-                    or symbol_name.endswith(f".{name.name}")
-                    or symbol_name in name.description
-                ):
+                if symbol_name == name.name or symbol_name.endswith(f".{name.name}") or symbol_name in name.description:
                     inferred = name.infer()
                     for inf in inferred:
                         match = self._create_match_obj(inf, symbol_name)
@@ -174,15 +165,15 @@ class SymbolExtractor:
                             continue
                     return match
 
-        return
+        return None
 
     def all_names_search(
         self,
         symbol_name: str,
-        symbol_parts: List,
-        scripts: List[jedi.Script],
+        symbol_parts: list,
+        scripts: list[jedi.Script],
         code_line: str,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any] | None:
         """
         Searches for all names in the project using jedi.Script.get_names and returns a match if found.
         Handles method calls on variables.
@@ -209,13 +200,7 @@ class SymbolExtractor:
             names = script.get_names(all_scopes=True)
             for name in names:
                 # All these replacements are the same as we do to the code_line
-                cl = (
-                    code_line.replace(" ", "")
-                    .replace("\n", "")
-                    .replace('"', "'")
-                    .replace("\r", "")
-                    .replace("\t", "")
-                )
+                cl = code_line.replace(" ", "").replace("\n", "").replace('"', "'").replace("\r", "").replace("\t", "")
                 desc = (
                     name.description.replace(" ", "")
                     .replace("\n", "")
@@ -242,14 +227,12 @@ class SymbolExtractor:
                         return match
 
         print("No matches found for symbol:", symbol_name)
-        return
+        return None
 
-    def _is_exact_match(self, name: Name, parts: List[str]) -> bool:
+    def _is_exact_match(self, name: Name, parts: list[str]) -> bool:
         if len(parts) == 1:
             # For single-part symbols, match the name or the full name if available
-            return name.name == parts[0] or (
-                name.full_name and name.full_name.endswith(parts[0])
-            )
+            return name.name == parts[0] or (name.full_name and name.full_name.endswith(parts[0]))
         else:
             # For multi-part symbols, ensure all parts match if full_name is available
             if not name.full_name:
@@ -267,13 +250,11 @@ class SymbolExtractor:
         """
         Replace all spaces and newlines in the file and the string to be searched for and check if the string is in the file.
         """
-        with open(file_path, "r", encoding="utf-8") as file:
+        with open(file_path, encoding="utf-8") as file:
             # Remove spaces and newlines
-            return string.replace(" ", "").replace("\n", "").replace('"', "'").replace(
-                "\r", ""
-            ).replace("\t", "") in file.read().replace(" ", "").replace(
-                "\n", ""
-            ).replace('"', "'").replace("\r", "").replace("\t", "")
+            return string.replace(" ", "").replace("\n", "").replace('"', "'").replace("\r", "").replace(
+                "\t", ""
+            ) in file.read().replace(" ", "").replace("\n", "").replace('"', "'").replace("\r", "").replace("\t", "")
 
     def _get_definition_source(self, file_path: pathlib.Path, start, end):
         with file_path.open(encoding="utf-8") as f:
@@ -284,29 +265,27 @@ class SymbolExtractor:
                 return s
 
             definition = lines[start[0] - 1 : end[0]]
-            
+
             # Guard against empty definition (prevents IndexError)
             if not definition:
                 return "None"
-            
+
             end_len_diff = len(definition[-1]) - end[1]
 
-            s = (
-                "".join(definition)[start[1] : -end_len_diff]
-                if end_len_diff > 0
-                else "".join(definition)[start[1] :]
-            )
+            s = "".join(definition)[start[1] : -end_len_diff] if end_len_diff > 0 else "".join(definition)[start[1] :]
 
             if not s:
                 return "None"
 
             return s
 
-    def _create_match_obj(self, name: Name, symbol_name: str) -> Dict[str, Any]:
+    def _create_match_obj(self, name: Name, symbol_name: str) -> dict[str, Any]:
         module_path = str(name.module_path)
         if "/third_party/" in module_path or module_path == "None":
             # Extract the third party library name
-            source = f"Third party library. Claude, use what you already know about {name.full_name} to understand the code."
+            source = (
+                f"Third party library. Claude, use what you already know about {name.full_name} to understand the code."
+            )
         else:
             start = name.get_definition_start_position()
             end = name.get_definition_end_position()

@@ -10,7 +10,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
+
 import structlog
 
 log = structlog.get_logger("vulnhuntr.reporters")
@@ -58,10 +59,10 @@ class Finding:
 
     # Location information
     file_path: str
-    start_line: Optional[int] = None
-    end_line: Optional[int] = None
-    start_column: Optional[int] = None
-    end_column: Optional[int] = None
+    start_line: int | None = None
+    end_line: int | None = None
+    start_column: int | None = None
+    end_column: int | None = None
 
     # Analysis details
     description: str = ""
@@ -74,12 +75,12 @@ class Finding:
     severity: FindingSeverity = FindingSeverity.INFO
 
     # CWE mapping (Common Weakness Enumeration)
-    cwe_id: Optional[str] = None
-    cwe_name: Optional[str] = None
+    cwe_id: str | None = None
+    cwe_name: str | None = None
 
     # Context and metadata
-    context_code: List[Dict[str, str]] = field(default_factory=list)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    context_code: list[dict[str, str]] = field(default_factory=list)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     # Timestamps
     discovered_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
@@ -121,8 +122,8 @@ SEVERITY_SCORES = {
 def response_to_finding(
     response: Any,
     file_path: str,
-    vuln_type: Optional[str] = None,
-    context_code: Optional[Dict[str, Any]] = None,
+    vuln_type: str | None = None,
+    context_code: dict[str, Any] | None = None,
 ) -> Finding:
     """Convert a Vulnhuntr Response object to a Finding object.
 
@@ -163,9 +164,7 @@ def response_to_finding(
             context_items.append(
                 {
                     "name": name,
-                    "source": getattr(definition, "source", str(definition))[:500]
-                    if definition
-                    else "",
+                    "source": getattr(definition, "source", str(definition))[:500] if definition else "",
                     "file_path": getattr(definition, "file_path", ""),
                 }
             )
@@ -210,7 +209,7 @@ class ReporterBase(ABC):
 
     def __init__(
         self,
-        output_path: Optional[Path] = None,
+        output_path: Path | None = None,
         include_scratchpad: bool = False,
         include_context: bool = True,
     ):
@@ -224,13 +223,11 @@ class ReporterBase(ABC):
         self.output_path = Path(output_path) if output_path else None
         self.include_scratchpad = include_scratchpad
         self.include_context = include_context
-        self.findings: List[Finding] = []
-        self.metadata: Dict[str, Any] = {
+        self.findings: list[Finding] = []
+        self.metadata: dict[str, Any] = {
             "tool_name": "Vulnhuntr",
             "tool_version": "1.0.0",
-            "generated_at": datetime.now(timezone.utc)
-            .isoformat()
-            .replace("+00:00", "Z"),
+            "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         }
 
     def add_finding(self, finding: Finding) -> None:
@@ -238,7 +235,7 @@ class ReporterBase(ABC):
         self.findings.append(finding)
         log.debug("Finding added", rule_id=finding.rule_id, file=finding.file_path)
 
-    def add_findings(self, findings: List[Finding]) -> None:
+    def add_findings(self, findings: list[Finding]) -> None:
         """Add multiple findings to the report."""
         for finding in findings:
             self.add_finding(finding)
@@ -256,7 +253,7 @@ class ReporterBase(ABC):
         """
         pass
 
-    def write(self) -> Optional[Path]:
+    def write(self) -> Path | None:
         """Generate and write the report to file.
 
         Returns:
@@ -276,10 +273,10 @@ class ReporterBase(ABC):
 
         return None
 
-    def get_summary(self) -> Dict[str, Any]:
+    def get_summary(self) -> dict[str, Any]:
         """Get a summary of the report contents."""
-        severity_counts = {}
-        vuln_type_counts = {}
+        severity_counts: dict[str, int] = {}
+        vuln_type_counts: dict[str, int] = {}
 
         for finding in self.findings:
             # Count by severity

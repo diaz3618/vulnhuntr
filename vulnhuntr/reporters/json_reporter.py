@@ -8,10 +8,11 @@ Generates machine-readable JSON reports for programmatic processing.
 import json
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
+
 import structlog
 
-from .base import ReporterBase, Finding
+from .base import Finding, ReporterBase
 
 log = structlog.get_logger("vulnhuntr.reporters.json")
 
@@ -32,7 +33,7 @@ class JSONReporter(ReporterBase):
 
     def __init__(
         self,
-        output_path: Optional[Path] = None,
+        output_path: Path | None = None,
         include_scratchpad: bool = False,
         include_context: bool = True,
         indent: int = 2,
@@ -51,9 +52,9 @@ class JSONReporter(ReporterBase):
         self.indent = indent
         self.include_metadata = include_metadata
 
-    def _finding_to_dict(self, finding: Finding) -> Dict[str, Any]:
+    def _finding_to_dict(self, finding: Finding) -> dict[str, Any]:
         """Convert a Finding to a dictionary."""
-        result = {
+        result: dict[str, Any] = {
             "rule_id": finding.rule_id,
             "title": finding.title,
             "severity": finding.severity.value,
@@ -92,7 +93,7 @@ class JSONReporter(ReporterBase):
         """
         summary = self.get_summary()
 
-        report: Dict[str, Any] = {
+        report: dict[str, Any] = {
             "findings": [self._finding_to_dict(f) for f in self.findings],
             "summary": summary,
         }

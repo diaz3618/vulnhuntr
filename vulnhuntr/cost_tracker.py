@@ -16,7 +16,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 import structlog
 
@@ -109,7 +108,7 @@ class TokenUsage:
     model: str
     cost_usd: float
     timestamp: datetime = field(default_factory=datetime.now)
-    file_path: Optional[str] = None
+    file_path: str | None = None
     call_type: str = "analysis"  # 'readme', 'initial', 'secondary'
 
     @property
@@ -173,7 +172,7 @@ class CostTracker:
         input_tokens: int,
         output_tokens: int,
         model: str,
-        file_path: Optional[str] = None,
+        file_path: str | None = None,
         call_type: str = "analysis",
     ) -> float:
         """Track a single LLM API call.
@@ -189,9 +188,7 @@ class CostTracker:
             Cost in USD for this call
         """
         pricing = get_model_pricing(model)
-        cost = (input_tokens / 1000 * pricing["input"]) + (
-            output_tokens / 1000 * pricing["output"]
-        )
+        cost = (input_tokens / 1000 * pricing["input"]) + (output_tokens / 1000 * pricing["output"])
 
         usage = TokenUsage(
             input_tokens=input_tokens,
@@ -209,9 +206,7 @@ class CostTracker:
 
         # Track by file
         if file_path:
-            self._costs_by_file[file_path] = (
-                self._costs_by_file.get(file_path, 0.0) + cost
-            )
+            self._costs_by_file[file_path] = self._costs_by_file.get(file_path, 0.0) + cost
 
         # Track by model
         self._costs_by_model[model] = self._costs_by_model.get(model, 0.0) + cost
@@ -297,17 +292,13 @@ class CostTracker:
 
         if summary["costs_by_model"]:
             lines.append("Costs by Model:")
-            for model, cost in sorted(
-                summary["costs_by_model"].items(), key=lambda x: x[1], reverse=True
-            ):
+            for model, cost in sorted(summary["costs_by_model"].items(), key=lambda x: x[1], reverse=True):
                 lines.append(f"  {model}: ${cost:.4f}")
             lines.append("")
 
         if summary["costs_by_file"]:
             lines.append("Top 10 Files by Cost:")
-            sorted_files = sorted(
-                summary["costs_by_file"].items(), key=lambda x: x[1], reverse=True
-            )[:10]
+            sorted_files = sorted(summary["costs_by_file"].items(), key=lambda x: x[1], reverse=True)[:10]
             for file_path, cost in sorted_files:
                 lines.append(f"  ${cost:.4f} - {file_path}")
             lines.append("")
@@ -362,10 +353,10 @@ class BudgetEnforcer:
 
     def __init__(
         self,
-        max_budget_usd: Optional[float] = None,
+        max_budget_usd: float | None = None,
         warning_threshold: float = 0.8,
-        max_cost_per_file: Optional[float] = None,
-        max_cost_per_iteration: Optional[float] = None,
+        max_cost_per_file: float | None = None,
+        max_cost_per_iteration: float | None = None,
     ) -> None:
         """Initialize budget enforcer.
 
@@ -380,14 +371,12 @@ class BudgetEnforcer:
         self.max_cost_per_file = max_cost_per_file
         self.max_cost_per_iteration = max_cost_per_iteration
         self._warning_issued = False
-        self._iteration_costs: dict[
-            str, list[float]
-        ] = {}  # Track costs per file+iteration
+        self._iteration_costs: dict[str, list[float]] = {}  # Track costs per file+iteration
 
     def check(
         self,
         current_cost: float,
-        file_cost: Optional[float] = None,
+        file_cost: float | None = None,
     ) -> bool:
         """Check if analysis should continue based on budget.
 
@@ -413,9 +402,7 @@ class BudgetEnforcer:
             return True
 
         # Check warning threshold
-        if not self._warning_issued and current_cost >= (
-            self.max_budget_usd * self.warning_threshold
-        ):
+        if not self._warning_issued and current_cost >= (self.max_budget_usd * self.warning_threshold):
             log.warning(
                 "Budget warning threshold reached",
                 current_cost_usd=round(current_cost, 4),
@@ -435,7 +422,7 @@ class BudgetEnforcer:
 
         return True
 
-    def get_remaining_budget(self, current_cost: float) -> Optional[float]:
+    def get_remaining_budget(self, current_cost: float) -> float | None:
         """Get remaining budget in USD.
 
         Args:
@@ -494,10 +481,7 @@ class BudgetEnforcer:
             recent_costs = self._iteration_costs[file_key][-3:]
             # If each iteration is significantly more expensive than the last,
             # we're likely accumulating too much context
-            if all(
-                recent_costs[i] < recent_costs[i + 1] * 0.8
-                for i in range(len(recent_costs) - 1)
-            ):
+            if all(recent_costs[i] < recent_costs[i + 1] * 0.8 for i in range(len(recent_costs) - 1)):
                 log.warning(
                     "Iteration costs escalating - stopping to prevent runaway context growth",
                     file=file_path,
@@ -559,9 +543,7 @@ def estimate_file_cost(
     try:
         content = file_path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError) as e:
-        log.warning(
-            "Could not read file for estimation", file=str(file_path), error=str(e)
-        )
+        log.warning("Could not read file for estimation", file=str(file_path), error=str(e))
         return {"input_tokens": 0, "output_tokens": 0, "cost_usd": 0.0, "error": str(e)}
 
     file_tokens = estimate_tokens(content)
@@ -589,8 +571,8 @@ def estimate_file_cost(
     initial_output = 2000  # Full JSON response with scratchpad
 
     # Secondary analysis estimates
-    # Assume average of 2.5 vuln types found, 5 iterations each
-    avg_vuln_types_found = 2.5
+    # Assume average of ~35% of vuln types found, 5 iterations each
+    avg_vuln_types_found = vuln_types_count * 0.35
     avg_iterations_per_vuln = 5  # Often hits max, but not always
 
     secondary_calls = avg_vuln_types_found * avg_iterations_per_vuln
@@ -604,9 +586,7 @@ def estimate_file_cost(
     total_input = int(initial_input + (secondary_input_per_call * secondary_calls))
     total_output = int(initial_output + (secondary_output_per_call * secondary_calls))
 
-    cost = (total_input / 1000 * pricing["input"]) + (
-        total_output / 1000 * pricing["output"]
-    )
+    cost = (total_input / 1000 * pricing["input"]) + (total_output / 1000 * pricing["output"])
 
     return {
         "file_path": str(file_path),
@@ -689,12 +669,9 @@ def print_dry_run_report(estimate: dict) -> None:
     console.print(f"  Output: {estimate['estimated_output_tokens']:,}")
     console.print(f"  Total:  {estimate['estimated_total_tokens']:,}")
 
+    console.print(f"\n[bold yellow]Estimated Cost:[/bold yellow] ${estimate['estimated_cost_usd']:.4f} USD")
     console.print(
-        f"\n[bold yellow]Estimated Cost:[/bold yellow] ${estimate['estimated_cost_usd']:.4f} USD"
-    )
-    console.print(
-        f"  Range: ${estimate['estimated_cost_range']['low']:.4f} - "
-        f"${estimate['estimated_cost_range']['high']:.4f}"
+        f"  Range: ${estimate['estimated_cost_range']['low']:.4f} - ${estimate['estimated_cost_range']['high']:.4f}"
     )
 
     # Show top 10 most expensive files
@@ -723,6 +700,4 @@ def print_dry_run_report(estimate: dict) -> None:
 
     console.print("\n[dim]Actual costs might be different based on complexity.[/dim]")
     console.print("[dim]Use --budget to set a spending limit.[/dim]")
-    console.print(
-        "\n[dim]Unless you feel like swiping your card a few times per scan, set a limit![/dim]"
-    )
+    console.print("\n[dim]Unless you feel like swiping your card a few times per scan, set a limit![/dim]")
