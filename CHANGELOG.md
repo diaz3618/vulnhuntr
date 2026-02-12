@@ -6,14 +6,25 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
-### Added
-- Initial PyPI publishing workflow with GitHub Actions
-- Semantic versioning with python-semantic-release
-- Automated CHANGELOG generation
-- Makefile for development and release automation
+## [1.1.3] - 2026-02-11
 
-### Changed
-- Migrated from Poetry to PEP 621 pyproject.toml format
+### Fixed
+- All Pyright/mypy type errors across 14 files
+- Bandit B113: Added timeout to requests.post calls
+- Security: Bumped actions/download-artifact to v4
+- Security: Bumped minimum certifi to >=2024.7.4
+
+### Added
+- `to_xml_bytes()` helper for proper bytes typing from pydantic-xml
+- Memory-bank sub-agent to copilot-instructions.md
+- `.venv-*/` pattern to gitignore
+
+### Verified
+- ruff: All checks passed (27 files)
+- Pyright: 0 errors
+- bandit: 0 Medium/High issues
+- semgrep: 0 findings (843 rules)
+- grype: All vulnerabilities fixed
 
 ## [1.1.2] - 2026-02-11
 
