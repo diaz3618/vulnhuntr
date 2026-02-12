@@ -1,27 +1,87 @@
-[tool.poetry]
+[project]
 name = "vulnhuntr"
-version = "0.1.0"
-description = ""
-authors = ["Dan <dan@protectai.com>", "Marcello <marcello@protectai.com>"]
+dynamic = ["version"]
+description = "AI-Powered Vulnerability Detection using Large Language Models"
 readme = "README.md"
+authors = [
+    { name = "Daniel Diaz Santiago", email = "daniel.diaz.stg@gmail.com" }
+]
+requires-python = ">=3.10,<3.14"
+license = "MIT"
+keywords = ["vulnerability", "security", "pentesting", "python", "ai", "llm", "code-analysis", "static-analysis"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Information Technology",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Security",
+    "Topic :: Software Development :: Quality Assurance",
+    "Topic :: Software Development :: Testing",
+]
 
-[tool.poetry.scripts]
-vulnhuntr = 'vulnhuntr.__main__:run'
+dependencies = [
+    "rich>=13.7.1",
+    "pydantic-xml>=2.11.0",
+    "pydantic>=2.8.0",
+    "anthropic>=0.78.0",
+    "structlog>=24.2.0",
+    "jedi>=0.19.2",
+    "parso>=0.8.5",
+    "openai>=1.51.2",
+    "python-dotenv>=1.0.0",
+    "jinja2>=3.1.0",
+    "requests>=2.31.0",
+]
 
-[tool.poetry.dependencies]
-python = "^3.10"
-rich = "^13.7.1"
-pydantic-xml = "^2.11.0"
-pydantic = "^2.8.0"
-anthropic = "^0.78.0"
-structlog = "^24.2.0"
-jedi = "^0.19.2"
-parso = "^0.8.5"
-openai = "^1.51.2"
-python-dotenv = "^1.0.0"
-jinja2 = "^3.1.0"
-requests = "^2.31.0"
+[project.urls]
+Homepage = "https://github.com/diaz3618/vulnhuntr"
+Documentation = "https://github.com/diaz3618/vulnhuntr/blob/main/README.md"
+Repository = "https://github.com/diaz3618/vulnhuntr"
+Issues = "https://github.com/diaz3618/vulnhuntr/issues"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-cov>=4.1.0",
+    "ruff>=0.2.0",
+    "mypy>=1.8.0",
+]
+
+[project.scripts]
+vulnhuntr = "vulnhuntr.__main__:run"
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["setuptools>=45", "setuptools_scm[toml]>=6.2"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.dynamic]
+version = {attr = "vulnhuntr.__version__"}
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP"]
+ignore = []
+
+[tool.mypy]
+python_version = "3.10"
+strict = false
+warn_return_any = false
+warn_unused_configs = true
+disallow_untyped_defs = false
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+asyncio_mode = "auto"
