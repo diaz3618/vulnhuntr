@@ -8,10 +8,11 @@ Generates CSV reports for spreadsheet applications.
 import csv
 import io
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
+
 import structlog
 
-from .base import ReporterBase, Finding
+from .base import Finding, ReporterBase
 
 log = structlog.get_logger("vulnhuntr.reporters.csv")
 
@@ -52,7 +53,7 @@ class CSVReporter(ReporterBase):
 
     def __init__(
         self,
-        output_path: Optional[Path] = None,
+        output_path: Path | None = None,
         include_scratchpad: bool = False,
         include_context: bool = True,
         delimiter: str = ",",
@@ -71,7 +72,7 @@ class CSVReporter(ReporterBase):
         self.delimiter = delimiter
         self.include_header = include_header
 
-    def _get_columns(self) -> List[tuple]:
+    def _get_columns(self) -> list[tuple]:
         """Get column definitions based on settings."""
         columns = list(self.COLUMNS)
 
@@ -83,7 +84,7 @@ class CSVReporter(ReporterBase):
 
         return columns
 
-    def _finding_to_row(self, finding: Finding) -> Dict[str, Any]:
+    def _finding_to_row(self, finding: Finding) -> dict[str, Any]:
         """Convert a Finding to a row dictionary."""
         row = {
             "rule_id": finding.rule_id,
@@ -107,9 +108,7 @@ class CSVReporter(ReporterBase):
         if self.include_context:
             # Serialize context as semicolon-separated names
             if finding.context_code:
-                row["context_code"] = "; ".join(
-                    ctx.get("name", "") for ctx in finding.context_code
-                )
+                row["context_code"] = "; ".join(ctx.get("name", "") for ctx in finding.context_code)
             else:
                 row["context_code"] = ""
 

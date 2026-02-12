@@ -10,7 +10,6 @@ and context information.
 """
 
 from enum import Enum
-from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -39,12 +38,8 @@ class ContextCode(BaseModel):
     """
 
     name: str = Field(description="Function or Class name")
-    reason: str = Field(
-        description="Brief reason why this function's code is needed for analysis"
-    )
-    code_line: str = Field(
-        description="The single line of code where this context object is referenced."
-    )
+    reason: str = Field(description="Brief reason why this function's code is needed for analysis")
+    code_line: str = Field(description="The single line of code where this context object is referenced.")
 
 
 class Response(BaseModel):
@@ -54,13 +49,9 @@ class Response(BaseModel):
     This model ensures consistent parsing of LLM responses.
     """
 
-    scratchpad: str = Field(
-        description="Your step-by-step analysis process. Output in plaintext with no line breaks."
-    )
-    analysis: str = Field(
-        description="Your final analysis. Output in plaintext with no line breaks."
-    )
-    poc: Optional[str] = Field(
+    scratchpad: str = Field(description="Your step-by-step analysis process. Output in plaintext with no line breaks.")
+    analysis: str = Field(description="Your final analysis. Output in plaintext with no line breaks.")
+    poc: str | None = Field(
         default=None,
         description="Proof-of-concept exploit, if applicable.",
     )
@@ -68,10 +59,8 @@ class Response(BaseModel):
         description="0-10, where 0 is no confidence and 10 is absolute certainty "
         "because you have the entire user input to server output code path."
     )
-    vulnerability_types: List[VulnType] = Field(
-        description="The types of identified vulnerabilities"
-    )
-    context_code: List[ContextCode] = Field(
+    vulnerability_types: list[VulnType] = Field(description="The types of identified vulnerabilities")
+    context_code: list[ContextCode] = Field(
         description="List of context code items requested for analysis, "
         "one function or class name per item. "
         "No standard library or third-party package code."

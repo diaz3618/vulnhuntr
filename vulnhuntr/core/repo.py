@@ -12,8 +12,8 @@ The RepoOps class provides methods for:
 """
 
 import re
+from collections.abc import Generator
 from pathlib import Path
-from typing import Generator, List, Optional
 
 import structlog
 
@@ -153,8 +153,8 @@ class RepoOps:
     def __init__(
         self,
         repo_path: Path | str,
-        exclude_paths: Optional[set] = None,
-        exclude_filenames: Optional[List[str]] = None,
+        exclude_paths: set | None = None,
+        exclude_filenames: list[str] | None = None,
     ) -> None:
         """Initialize repository operations.
 
@@ -168,11 +168,9 @@ class RepoOps:
         self.file_names_to_exclude = exclude_filenames or self.DEFAULT_EXCLUDE_FILENAMES
 
         # Compile patterns for efficiency
-        self.compiled_patterns = [
-            re.compile(pattern) for pattern in self.NETWORK_PATTERNS
-        ]
+        self.compiled_patterns = [re.compile(pattern) for pattern in self.NETWORK_PATTERNS]
 
-    def get_readme_content(self) -> Optional[str]:
+    def get_readme_content(self) -> str | None:
         """Get README content from the repository.
 
         Searches for README files in common formats (md, rst) with
@@ -234,9 +232,7 @@ class RepoOps:
 
             yield f
 
-    def get_network_related_files(
-        self, files: List[Path]
-    ) -> Generator[Path, None, None]:
+    def get_network_related_files(self, files: list[Path]) -> Generator[Path, None, None]:
         """Filter files to only those containing network-related code.
 
         Identifies files that likely contain web endpoints, API handlers,
@@ -252,14 +248,12 @@ class RepoOps:
             try:
                 with py_f.open(encoding="utf-8") as f:
                     content = f.read()
-                if any(
-                    re.search(pattern, content) for pattern in self.compiled_patterns
-                ):
+                if any(re.search(pattern, content) for pattern in self.compiled_patterns):
                     yield py_f
             except (OSError, UnicodeDecodeError):
                 continue
 
-    def get_files_to_analyze(self, analyze_path: Optional[Path] = None) -> List[Path]:
+    def get_files_to_analyze(self, analyze_path: Path | None = None) -> list[Path]:
         """Get list of files to analyze based on optional path filter.
 
         Args:
@@ -279,6 +273,4 @@ class RepoOps:
         elif path_to_analyze.is_dir():
             return list(path_to_analyze.rglob("*.py"))
         else:
-            raise FileNotFoundError(
-                f"Specified analyze path does not exist: {path_to_analyze}"
-            )
+            raise FileNotFoundError(f"Specified analyze path does not exist: {path_to_analyze}")

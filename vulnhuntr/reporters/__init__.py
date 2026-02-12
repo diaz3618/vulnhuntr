@@ -13,17 +13,17 @@ Supported formats:
 """
 
 from .base import (
-    ReporterBase,
+    CWE_MAPPINGS,
     Finding,
     FindingSeverity,
+    ReporterBase,
     response_to_finding,
-    CWE_MAPPINGS,
 )
-from .sarif import SARIFReporter
+from .csv_reporter import CSVReporter
 from .html import HTMLReporter
 from .json_reporter import JSONReporter
-from .csv_reporter import CSVReporter
 from .markdown_reporter import MarkdownReporter
+from .sarif import SARIFReporter
 
 __all__ = [
     "ReporterBase",

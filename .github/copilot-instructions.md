@@ -59,6 +59,13 @@ The main agent coordinates all interactions and routes to specialized sub-agents
    - Jedi/Parso strict versioning
    - Security vulnerability handling
 
+8. **[docs/agents/memory-bank.md](../docs/agents/memory-bank.md)**
+   - Memory Bank MCP server usage (non-negotiable: read before work, update after work)
+   - First-time setup and initialization workflow
+   - Knowledge graph management (entities, observations, relationships)
+   - Session lifecycle: `get_context_digest` → work → `track_progress` / `log_decision` / `update_active_context`
+   - Backup and store management
+
 ---
 
 ## MCP Server Integration
@@ -200,6 +207,7 @@ Configuration is in `.vscode/mcp.json`:
 - **Git workflow/commits** → Load `docs/agents/git-workflow.md`
 - **Logging/structlog** → Load `docs/agents/logging.md`
 - **Dependencies/versions** → Load `docs/agents/dependency-management.md`
+- **Memory Bank / context persistence** → Load `docs/agents/memory-bank.md`
 - **Deployment/setup** → Load `AGENT.md` + `QUICKSTART.md`
 
 ### 2. Knowledge Refresh Triggers
