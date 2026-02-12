@@ -13,7 +13,6 @@ classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "Intended Audience :: Information Technology",
-    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
@@ -60,8 +59,14 @@ dev = [
 vulnhuntr = "vulnhuntr.__main__:run"
 
 [build-system]
-requires = ["setuptools>=45", "setuptools_scm[toml]>=6.2"]
+requires = ["setuptools>=70", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["vulnhuntr", "vulnhuntr.cli", "vulnhuntr.core", "vulnhuntr.integrations", "vulnhuntr.reporters"]
+
+[tool.setuptools.package-data]
+vulnhuntr = ["py.typed"]
 
 [tool.setuptools.dynamic]
 version = {attr = "vulnhuntr.__version__"}
