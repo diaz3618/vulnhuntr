@@ -1,0 +1,59 @@
+name: Keploy Integration Tests
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  keploy_test:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+          
+      - name: Check for Keploy test cases
+        id: check_keploy
+        run: |
+          if [ -d "keploy" ] && [ "$(ls -A keploy 2>/dev/null)" ]; then
+            echo "has_tests=true" >> $GITHUB_OUTPUT
+            echo "Found Keploy test cases in ./keploy"
+          else
+            echo "has_tests=false" >> $GITHUB_OUTPUT
+            echo "No Keploy test cases found. To record tests:"
+            echo "  1. Install keploy: curl -O https://raw.githubusercontent.com/keploy/keploy/main/keploy.sh && source keploy.sh"
+            echo "  2. Record: keploy record -c 'vulnhuntr -r https://github.com/example/repo -a YOUR_API_KEY'"
+            echo "  3. Commit the ./keploy directory"
+          fi
+          
+      - name: Run Keploy Tests
+        if: steps.check_keploy.outputs.has_tests == 'true'
+        uses: keploy/testgpt@main
+        with:
+          working-directory: ./
+          delay: 10
+          command: vulnhuntr --help
+          keploy-path: ./
+          
+      - name: Skip message
+        if: steps.check_keploy.outputs.has_tests == 'false'
+        run: |
+          echo "::notice::Keploy tests skipped - no recorded test cases found in ./keploy directory"
+          echo "To enable Keploy integration tests:"
+          echo "1. Record LLM API interactions locally with 'keploy record -c \"vulnhuntr -r REPO\"'"
+          echo "2. Commit the generated ./keploy directory with mocked responses"
+          echo "3. Re-run this workflow"
