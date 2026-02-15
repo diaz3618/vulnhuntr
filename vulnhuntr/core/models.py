@@ -49,19 +49,30 @@ class Response(BaseModel):
     This model ensures consistent parsing of LLM responses.
     """
 
-    scratchpad: str = Field(description="Your step-by-step analysis process. Output in plaintext with no line breaks.")
-    analysis: str = Field(description="Your final analysis. Output in plaintext with no line breaks.")
+    scratchpad: str = Field(
+        default="",
+        description="Your step-by-step analysis process. Output in plaintext with no line breaks.",
+    )
+    analysis: str = Field(
+        default="",
+        description="Your final analysis. Output in plaintext with no line breaks.",
+    )
     poc: str | None = Field(
         default=None,
         description="Proof-of-concept exploit, if applicable.",
     )
     confidence_score: int = Field(
+        default=0,
         description="0-10, where 0 is no confidence and 10 is absolute certainty "
-        "because you have the entire user input to server output code path."
+        "because you have the entire user input to server output code path.",
     )
-    vulnerability_types: list[VulnType] = Field(description="The types of identified vulnerabilities")
+    vulnerability_types: list[VulnType] = Field(
+        default_factory=list,
+        description="The types of identified vulnerabilities",
+    )
     context_code: list[ContextCode] = Field(
+        default_factory=list,
         description="List of context code items requested for analysis, "
         "one function or class name per item. "
-        "No standard library or third-party package code."
+        "No standard library or third-party package code.",
     )

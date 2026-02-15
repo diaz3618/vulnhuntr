@@ -127,6 +127,9 @@ class SymbolExtractor:
         res = list(self.project.search(symbol_name))
 
         for name in res:
+            if self._should_exclude(str(name.module_path)):
+                continue
+
             # Statements
             if name.type == "statement":
                 if symbol_name in name.description:
@@ -181,6 +184,8 @@ class SymbolExtractor:
         for script in scripts:
             names = script.get_names(all_scopes=True, definitions=True, references=True)
             for name in names:
+                if self._should_exclude(str(name.module_path)):
+                    continue
                 if name.type in ["function", "class", "instance"]:
                     if name.full_name:
                         if name.full_name.endswith(symbol_name):
@@ -199,6 +204,8 @@ class SymbolExtractor:
         for script in scripts:
             names = script.get_names(all_scopes=True)
             for name in names:
+                if self._should_exclude(str(name.module_path)):
+                    continue
                 # All these replacements are the same as we do to the code_line
                 cl = code_line.replace(" ", "").replace("\n", "").replace('"', "'").replace("\r", "").replace("\t", "")
                 desc = (

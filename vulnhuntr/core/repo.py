@@ -222,12 +222,15 @@ class RepoOps:
                 # If relative_to fails, skip this file
                 continue
 
-            # Check if any exclusion pattern matches
-            if any(exclude in f_str for exclude in self.to_exclude):
+            # Check if any exclusion pattern matches a complete path component.
+            # Split into segments so that "/dist" does NOT match "distance_metrics.py".
+            f_parts = f_str.split("/")
+            if any(exclude.strip("/").lower() in f_parts for exclude in self.to_exclude):
                 continue
 
-            # Check if the filename should be excluded
-            if any(fn in f.name for fn in self.file_names_to_exclude):
+            # Check if the filename matches exclusion patterns by prefix/suffix,
+            # so "test_" does NOT match "attest_logic.py".
+            if any(f.name.startswith(fn) or f.name.endswith(fn) or f.name == fn for fn in self.file_names_to_exclude):
                 continue
 
             yield f
