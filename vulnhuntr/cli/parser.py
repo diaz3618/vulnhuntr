@@ -66,6 +66,20 @@ Examples:
     )
 
     parser.add_argument(
+        "--fallback1",
+        type=str,
+        metavar="PROVIDER:MODEL",
+        help="First fallback LLM (format: 'provider:model', e.g., 'openrouter:deepseek/deepseek-r1-0528:free')",
+    )
+
+    parser.add_argument(
+        "--fallback2",
+        type=str,
+        metavar="PROVIDER:MODEL",
+        help="Second fallback LLM (format: 'provider:model', e.g., 'ollama:llama3')",
+    )
+
+    parser.add_argument(
         "-v",
         "--verbosity",
         action="count",

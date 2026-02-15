@@ -95,6 +95,96 @@ def initialize_llm(
         raise ValueError(f"Invalid LLM argument: {llm_arg}\nValid options are: claude, gpt, ollama, openrouter")
 
 
+def parse_fallback_spec(
+    spec: str,
+    system_prompt: str = "",
+    cost_callback: Callable | None = None,
+):
+    """Parse a fallback spec like 'provider:model' and return an LLM instance.
+
+    Args:
+        spec: String in format 'provider:model' (e.g., 'openrouter:deepseek/deepseek-r1-0528:free')
+        system_prompt: System prompt to use
+        cost_callback: Optional callback for cost tracking
+
+    Returns:
+        Initialized LLM client
+
+    Raises:
+        ValueError: If spec format is invalid or provider unknown
+    """
+    from vulnhuntr.llms import ChatGPT, Claude, Ollama, OpenRouter
+
+    parts = spec.split(":", 1)
+    if len(parts) != 2 or not parts[1]:  # noqa: PLR2004
+        raise ValueError(
+            f"Invalid fallback spec '{spec}'. "
+            f"Expected format: 'provider:model' (e.g., 'openrouter:deepseek/deepseek-r1-0528:free')"
+        )
+
+    provider, model = parts[0].lower(), parts[1]
+    providers: dict[str, type] = {
+        "claude": Claude,
+        "gpt": ChatGPT,
+        "openrouter": OpenRouter,
+        "ollama": Ollama,
+    }
+
+    if provider not in providers:
+        raise ValueError(f"Unknown provider '{provider}' in fallback spec. Valid providers: {', '.join(providers)}")
+
+    # Determine base_url from environment
+    base_urls = {
+        "claude": os.getenv("ANTHROPIC_BASE_URL", "https://api.anthropic.com"),
+        "gpt": os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1"),
+        "openrouter": os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"),
+        "ollama": os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434/api/generate"),
+    }
+
+    cls = providers[provider]
+    base_url = base_urls[provider]
+    return cls(model, base_url, system_prompt, cost_callback)
+
+
+def wrap_with_fallbacks(
+    primary,
+    args: argparse.Namespace,
+    cost_callback: Callable | None = None,
+    system_prompt: str = "",
+):
+    """Wrap primary LLM with FallbackLLM if fallback args are specified.
+
+    Args:
+        primary: Primary LLM instance
+        args: Parsed CLI arguments (checks args.fallback1, args.fallback2)
+        cost_callback: Cost tracking callback
+        system_prompt: System prompt for fallback LLMs
+
+    Returns:
+        FallbackLLM wrapper if fallbacks specified, otherwise primary unchanged
+    """
+    fallback1 = getattr(args, "fallback1", None)
+    fallback2 = getattr(args, "fallback2", None)
+
+    if not fallback1 and not fallback2:
+        return primary
+
+    from vulnhuntr.llms import FallbackLLM
+
+    fallbacks = []
+    if fallback1:
+        fb1 = parse_fallback_spec(fallback1, system_prompt, cost_callback)
+        fallbacks.append(fb1)
+        log.info("Fallback 1 configured", spec=fallback1)
+    if fallback2:
+        fb2 = parse_fallback_spec(fallback2, system_prompt, cost_callback)
+        fallbacks.append(fb2)
+        log.info("Fallback 2 configured", spec=fallback2)
+
+    log.info("Wrapping LLM with fallback support", fallback_count=len(fallbacks))
+    return FallbackLLM(primary, fallbacks)
+
+
 def get_model_name(llm_arg: str) -> str:
     """Get the model name for the given LLM provider from environment.
 
@@ -254,6 +344,7 @@ def run_analysis(args: argparse.Namespace) -> int:
 
     # Initialize LLM (without system prompt initially, for README summarization)
     llm = initialize_llm(args.llm, cost_callback=cost_callback)
+    llm = wrap_with_fallbacks(llm, args, cost_callback)
 
     # Get and summarize README
     readme_content = repo.get_readme_content()
@@ -283,6 +374,7 @@ def run_analysis(args: argparse.Namespace) -> int:
     ).decode()
 
     llm = initialize_llm(args.llm, system_prompt, cost_callback)
+    llm = wrap_with_fallbacks(llm, args, cost_callback, system_prompt)
 
     # Track analysis success for checkpoint finalization
     analysis_success = True

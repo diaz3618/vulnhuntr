@@ -407,18 +407,20 @@ class OpenRouter(LLM):
 
     def send_message(self, messages: list[dict[str, str]], max_tokens: int, response_model=None) -> dict[str, Any]:
         try:
-            params = {
+            params: dict[str, Any] = {
                 "model": self.model,
                 "messages": messages,
                 "max_tokens": max_tokens,
             }
 
-            # Add response format configuration if a model is provided
-            # Note: Not all OpenRouter models support json_object mode
-            if response_model:
-                # Check if model likely supports structured output
+            # OpenRouter free models generally don't support json_object mode.
+            # Only enable it for known-compatible paid models to avoid errors.
+            # The validation pipeline handles raw text via regex extraction anyway.
+            if response_model and ":free" not in self.model:
                 model_lower = self.model.lower()
-                supports_json = any(x in model_lower for x in ["gpt", "claude", "mistral", "qwen", "gemma"])
+                supports_json = any(
+                    x in model_lower for x in ["gpt-4", "gpt-3.5", "claude", "mistral-large", "mistral-medium"]
+                )
                 if supports_json:
                     params["response_format"] = {"type": "json_object"}
 
@@ -439,6 +441,11 @@ class OpenRouter(LLM):
                 raise LLMError(
                     f"OpenRouter model not found: {self.model}. Check model name at https://openrouter.ai/models"
                 ) from e
+            elif e.status_code == 400:
+                # Common when a model doesn't support a requested feature
+                raise LLMError(
+                    f"OpenRouter bad request for model {self.model}: {e.message if hasattr(e, 'message') else e}"
+                ) from e
             raise APIStatusError(e.status_code, e.response) from e
         except Exception as e:
             raise LLMError(f"OpenRouter unexpected error: {str(e)}") from e
@@ -458,6 +465,88 @@ class OpenRouter(LLM):
 # =============================================================================
 # Ollama (Local)
 # =============================================================================
+
+
+# =============================================================================
+# Fallback LLM Wrapper
+# =============================================================================
+
+
+class FallbackLLM:
+    """Wraps a primary LLM with up to 2 fallback LLMs for resilience.
+
+    When the active LLM fails (timeout, rate-limit, API error), automatically
+    switches to the next fallback. Conversation history is transferred to
+    maintain analysis continuity.
+
+    All attribute access is transparently delegated to the currently active LLM,
+    so this class can be used as a drop-in replacement for any LLM instance.
+
+    Example:
+        >>> primary = Claude(model, base_url, system_prompt)
+        >>> fallback1 = OpenRouter(model, base_url, system_prompt)
+        >>> llm = FallbackLLM(primary, [fallback1])
+        >>> llm.chat(prompt, response_model=Response)  # tries primary, then fallback1
+    """
+
+    def __init__(self, primary: LLM, fallbacks: list[LLM]) -> None:
+        self._primary = primary
+        self._fallbacks = fallbacks
+        self._active: LLM = primary
+        self._all_llms: list[LLM] = [primary] + fallbacks
+
+    def __getattr__(self, name: str) -> Any:
+        """Delegate attribute access to the active LLM."""
+        # Avoid infinite recursion for our own attributes
+        if name.startswith("_"):
+            raise AttributeError(name)
+        return getattr(self._active, name)
+
+    def set_context(self, file_path: str | None = None, call_type: str = "analysis") -> None:
+        """Set context on all LLMs so fallbacks have correct context."""
+        for llm in self._all_llms:
+            llm.set_context(file_path, call_type)
+
+    def chat(
+        self, user_prompt: str, response_model: type[BaseModel] | None = None, max_tokens: int = 4096
+    ) -> BaseModel | str:
+        """Send chat request with automatic fallback on failure.
+
+        Tries the active LLM first. On failure, syncs conversation history
+        to the next fallback and retries. Raises if all LLMs fail.
+        """
+        active_idx = self._all_llms.index(self._active)
+
+        for i in range(active_idx, len(self._all_llms)):
+            llm = self._all_llms[i]
+            try:
+                # Sync history and system prompt from active to fallback
+                if llm is not self._active:
+                    llm.history = self._active.history.copy()
+                    llm.system_prompt = self._active.system_prompt
+                    llm.prev_prompt = self._active.prev_prompt
+                    llm.prev_response = self._active.prev_response
+                    log.warning(
+                        f"Primary LLM failed, falling back to {llm.model}",
+                        extra={"fallback_index": i, "model": llm.model},
+                    )
+
+                result = llm.chat(user_prompt, response_model, max_tokens)
+                self._active = llm
+                return result
+
+            except (LLMError, Exception) as e:
+                log.error(
+                    f"LLM {llm.model} failed: {e}",
+                    extra={"model": llm.model, "fallback_index": i},
+                )
+                if i == len(self._all_llms) - 1:
+                    raise LLMError(
+                        f"All LLMs failed (primary + {len(self._fallbacks)} fallbacks). Last error: {e}"
+                    ) from e
+                continue
+
+        raise LLMError("All LLMs (primary + fallbacks) exhausted")
 
 
 class Ollama(LLM):

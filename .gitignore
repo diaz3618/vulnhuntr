@@ -4,9 +4,6 @@ __pycache__/
 *$py.class
 fake_project/
 
-# Memory Bank (MCP server context management)
-memory-bank/
-
 # C extensions
 *.so
 
@@ -168,25 +165,9 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 .idea/
 
-# Local development directories (not in version control)
-repos/
-internal/
-archive/
-scripts/
-AGENT.md
-
-# VSCode workspace settings (local only)
-.vscode/launch.json
-.vscode/mcp.json
-
-# Documentation directories (local only)
-docs/archive/
-docs/design_notes/
-docs/development_path/
-docs/agents/
-
 # Test files (local only)
 tests/
+
 #tests/test_results
 test_*.py
 test_results.*
