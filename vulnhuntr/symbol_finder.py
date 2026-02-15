@@ -127,6 +127,9 @@ class SymbolExtractor:
         res = list(self.project.search(symbol_name))
 
         for name in res:
+            if self._should_exclude(str(name.module_path)):
+                continue
+
             # Statements
             if name.type == "statement":
                 if symbol_name in name.description:
@@ -181,6 +184,8 @@ class SymbolExtractor:
         for script in scripts:
             names = script.get_names(all_scopes=True, definitions=True, references=True)
             for name in names:
+                if self._should_exclude(str(name.module_path)):
+                    continue
                 if name.type in ["function", "class", "instance"]:
                     if name.full_name:
                         if name.full_name.endswith(symbol_name):
@@ -199,6 +204,8 @@ class SymbolExtractor:
         for script in scripts:
             names = script.get_names(all_scopes=True)
             for name in names:
+                if self._should_exclude(str(name.module_path)):
+                    continue
                 # All these replacements are the same as we do to the code_line
                 cl = code_line.replace(" ", "").replace("\n", "").replace('"', "'").replace("\r", "").replace("\t", "")
                 desc = (
@@ -243,7 +250,15 @@ class SymbolExtractor:
     # Helper function to check if a name should be excluded
     def _should_exclude(self, module_path: str) -> bool:
         module_path = module_path.lower().replace("\\", "/")
-        return any(x in module_path for x in self.ignore)
+        # Use path-component matching instead of substring matching
+        # to avoid false positives (e.g. "/test" matching "test_finds_..." in tmp dirs)
+        parts = module_path.split("/")
+        for pattern in self.ignore:
+            normalized = pattern.strip("/").lower()
+            # Check for exact path-component match (e.g. "/test" matches ".../test/...")
+            if normalized in parts:
+                return True
+        return False
 
     # Function to search for a string in a file
     def _search_string_in_file(self, file_path, string):

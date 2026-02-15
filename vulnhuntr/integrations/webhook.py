@@ -146,7 +146,7 @@ class WebhookNotifier:
             "description": finding.description,
             "analysis": finding.analysis,
             "poc": finding.poc,
-            "discovered_at": finding.discovered_at.isoformat() + "Z",
+            "discovered_at": finding.discovered_at.isoformat().replace("+00:00", "Z"),
         }
 
     def _format_json_payload(

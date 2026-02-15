@@ -122,7 +122,7 @@ class GitHubIssueCreator:
 
     def _get_issue_fingerprint(self, finding: Finding) -> str:
         """Generate a unique fingerprint for deduplication."""
-        return f"{finding.rule_id}:{finding.file_path}"
+        return f"{finding.rule_id}:{finding.file_path}:{finding.start_line}"
 
     def _format_issue_title(self, finding: Finding) -> str:
         """Format the issue title."""

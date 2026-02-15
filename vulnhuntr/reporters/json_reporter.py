@@ -65,7 +65,7 @@ class JSONReporter(ReporterBase):
             "poc": finding.poc if finding.poc else None,
             "cwe_id": finding.cwe_id,
             "cwe_name": finding.cwe_name,
-            "discovered_at": finding.discovered_at.isoformat() + "Z",
+            "discovered_at": finding.discovered_at.isoformat().replace("+00:00", "Z"),
         }
 
         # Add line information if available
