@@ -551,7 +551,7 @@ def run_analysis(args: argparse.Namespace) -> int:
                         log.debug("No new context functions or classes requested")
 
                 # Collect finding if vulnerability confirmed
-                if "secondary_analysis_report" in dir() and secondary_analysis_report.confidence_score >= 5:
+                if secondary_analysis_report is not None and secondary_analysis_report.confidence_score >= 5:
                     finding = response_to_finding(
                         response=secondary_analysis_report,
                         file_path=str(py_f),
@@ -623,7 +623,7 @@ def _generate_reports(
         try:
             sarif_path = Path(args.sarif)
             sarif_path.parent.mkdir(parents=True, exist_ok=True)
-            reporter = SARIFReporter(output_path=sarif_path)
+            reporter = SARIFReporter(output_path=sarif_path, repo_root=Path(args.root))
             reporter.add_findings(all_findings)
             reporter.write()
             print_report_status("SARIF", args.sarif, True)
@@ -718,7 +718,7 @@ def _export_all_reports(args: argparse.Namespace, findings: list[Finding]) -> No
 
         # Export each format
         formats = [
-            (SARIFReporter(), "sarif"),
+            (SARIFReporter(repo_root=Path(args.root)), "sarif"),
             (HTMLReporter(), "html"),
             (JSONReporter(), "json"),
             (CSVReporter(), "csv"),

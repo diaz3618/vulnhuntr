@@ -74,11 +74,20 @@ def get_model_pricing(model: str) -> dict[str, float]:
     if model in PRICING_TABLE:
         return PRICING_TABLE[model]
 
-    # Partial match (e.g., "claude-3-5-sonnet" matches "claude-3-5-sonnet-20241022")
+    # Partial match — prefer the longest matching key so that
+    # "gpt-4o-mini" matches the "gpt-4o-mini" entry instead of "gpt-4o".
     model_lower = model.lower()
+    best_match: dict[str, float] | None = None
+    best_match_len = 0
     for known_model, pricing in PRICING_TABLE.items():
-        if known_model.lower() in model_lower or model_lower in known_model.lower():
-            return pricing
+        known_lower = known_model.lower()
+        if known_lower in model_lower or model_lower in known_lower:
+            match_len = len(known_lower)
+            if match_len > best_match_len:
+                best_match = pricing
+                best_match_len = match_len
+    if best_match is not None:
+        return best_match
 
     # Check for provider patterns
     if "claude" in model_lower:

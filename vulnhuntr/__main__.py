@@ -19,6 +19,7 @@ Usage:
     vulnhuntr -r /path/to/project --help
 """
 
+import logging
 import sys
 
 import dotenv
@@ -72,6 +73,16 @@ def main() -> int:
 
     # Normalize paths
     args = normalize_args(args)
+
+    # Configure logging level based on verbosity flags
+    if args.verbosity >= 2:
+        log_level = logging.DEBUG
+    elif args.verbosity == 1:
+        log_level = logging.INFO
+    else:
+        log_level = logging.WARNING
+    logging.basicConfig(level=log_level, format="%(message)s")
+    logging.getLogger().setLevel(log_level)
 
     # Run the analysis
     try:

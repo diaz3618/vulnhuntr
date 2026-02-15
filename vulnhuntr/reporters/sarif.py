@@ -86,6 +86,7 @@ class SARIFReporter(ReporterBase):
         include_context: bool = True,
         repository_uri: str | None = None,
         repository_branch: str | None = None,
+        repo_root: Path | None = None,
     ):
         """Initialize SARIF reporter.
 
@@ -95,10 +96,12 @@ class SARIFReporter(ReporterBase):
             include_context: Include code context in results
             repository_uri: URI of the scanned repository (for versionControlProvenance)
             repository_branch: Branch name (for versionControlProvenance)
+            repo_root: Repository root path for relativizing file paths
         """
         super().__init__(output_path, include_scratchpad, include_context)
         self.repository_uri = repository_uri
         self.repository_branch = repository_branch
+        self.repo_root = repo_root
 
         # Track unique rules encountered
         self._rules: dict[str, dict[str, Any]] = {}
@@ -221,10 +224,18 @@ class SARIFReporter(ReporterBase):
         # Ensure rule exists
         self._get_rule(finding.rule_id)
 
-        # Build location
+        # Build location — SARIF 2.1.0 §3.10.2 requires a relative URI
+        # when uriBaseId is set.
+        file_path = Path(finding.file_path)
+        if self.repo_root and file_path.is_absolute():
+            try:
+                file_path = file_path.relative_to(self.repo_root)
+            except ValueError:
+                pass  # keep the original path if it's outside repo_root
+
         physical_location: dict[str, Any] = {
             "artifactLocation": {
-                "uri": Path(finding.file_path).as_posix(),
+                "uri": file_path.as_posix(),
                 "uriBaseId": "%SRCROOT%",
             }
         }
