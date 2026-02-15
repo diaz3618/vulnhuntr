@@ -250,7 +250,15 @@ class SymbolExtractor:
     # Helper function to check if a name should be excluded
     def _should_exclude(self, module_path: str) -> bool:
         module_path = module_path.lower().replace("\\", "/")
-        return any(x in module_path for x in self.ignore)
+        # Use path-component matching instead of substring matching
+        # to avoid false positives (e.g. "/test" matching "test_finds_..." in tmp dirs)
+        parts = module_path.split("/")
+        for pattern in self.ignore:
+            normalized = pattern.strip("/").lower()
+            # Check for exact path-component match (e.g. "/test" matches ".../test/...")
+            if normalized in parts:
+                return True
+        return False
 
     # Function to search for a string in a file
     def _search_string_in_file(self, file_path, string):
