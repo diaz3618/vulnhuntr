@@ -571,104 +571,72 @@ file_names_to_exclude = ['test_', 'conftest', '_test.py']
 
 #### 1. Anthropic Claude
 
-```
-Application                          Anthropic API
-     │                                     │
-     │  POST /v1/messages                  │
-     │  ─────────────────────────────────> │
-     │  {                                  │
-     │    "model": "claude-sonnet-4-5",    │
-     │    "max_tokens": 8192,              │
-     │    "system": "system prompt",       │
-     │    "messages": [                    │
-     │      {"role": "user", "content":""},│
-     │      {"role": "assistant",          │
-     │       "content": "{\"scratchpad\""} │
-     │    ]                                │
-     │  }                                  │
-     │                                     │
-     │  <───────────────────────────────── │
-     │  {                                  │
-     │    "content": [                     │
-     │      {"text": "1.Analysis...\n      │
-     │                {\"scratchpad\":..}"}│
-     │    ],                               │
-     │    "usage": {...}                   │
-     │  }                                  │
-     │                                     │
-     v                                     v
-Extract: content[0].text.replace('\n','')
-Validate: Regex extract JSON
-Parse: pydantic model_validate_json()
+```mermaid
+sequenceDiagram
+    participant App as Application
+    participant API as Anthropic API
+
+    App->>API: POST /v1/messages
+    Note right of App: model: "claude-sonnet-4-5"<br/>max_tokens: 8192<br/>system: "system prompt"<br/>messages: [{role: "user", ...},<br/>{role: "assistant",<br/>content: '{"scratchpad"'}]
+
+    API-->>App: Response
+    Note left of API: content[0].text:<br/>'1.Analysis...\n{"scratchpad":..}'<br/>usage: {...}
+
+    Note over App: Extract: content[0].text.replace('\n','')<br/>Validate: Regex extract JSON<br/>Parse: pydantic model_validate_json()
 ```
 
 **Key Implementation Detail**: Claude's prefill is used to force structured JSON output. The assistant message with partial JSON start ensures the model continues in that format.
 
 #### 2. OpenAI ChatGPT
 
-```
-Application                          OpenAI API
-     │                                     │
-     │  POST /v1/chat/completions          │
-     │  ─────────────────────────────────> │
-     │  {                                  │
-     │    "model": "chatgpt-4o-latest",    │
-     │    "max_tokens": 8192,              │
-     │    "messages": [                    │
-     │      {"role": "system",             │
-     │       "content": "system prompt"},  │
-     │      {"role": "user",               │
-     │       "content": "user prompt"}     │
-     │    ],                               │
-     │    "response_format": {             │
-     │      "type": "json_object"          │
-     │    }                                │
-     │  }                                  │
-     │                                     │
-     │  <───────────────────────────────── │
-     │  {                                  │
-     │    "choices": [                     │
-     │      {"message": {                  │
-     │        "content": "{\"scratchpad\":"│
-     │      }}                             │
-     │    ],                               │
-     │    "usage": {...}                   │
-     │  }                                  │
-     │                                     │
-     v                                     v
-Extract: choices[0].message.content
-Validate: Regex extract JSON
-Parse: pydantic model_validate_json()
+```mermaid
+sequenceDiagram
+    participant App as Application
+    participant API as OpenAI API
+
+    App->>API: POST /v1/chat/completions
+    Note right of App: model: "chatgpt-4o-latest"<br/>max_tokens: 8192<br/>messages: [{role: "system", ...},<br/>{role: "user", ...}]<br/>response_format: {type: "json_object"}
+
+    API-->>App: Response
+    Note left of API: choices[0].message.content:<br/>'{"scratchpad":...}'<br/>usage: {...}
+
+    Note over App: Extract: choices[0].message.content<br/>Validate: Regex extract JSON<br/>Parse: pydantic model_validate_json()
 ```
 
 **Key Implementation Detail**: GPT uses `response_format` parameter to request JSON output. System prompt is in messages array unlike Claude.
 
-#### 3. Ollama (Local)
+#### 3. OpenRouter
 
+```mermaid
+sequenceDiagram
+    participant App as Application
+    participant API as OpenRouter API
+
+    App->>API: POST /api/v1/chat/completions
+    Note right of App: model: "qwen/qwen3-coder:free"<br/>max_tokens: 8192<br/>messages: [{role: "system", ...},<br/>{role: "user", ...}]<br/>Headers: Authorization, HTTP-Referer, X-Title<br/>Note: json_object mode disabled for :free models
+
+    API-->>App: Response
+    Note left of API: choices[0].message.content:<br/>'{"scratchpad":...}'<br/>usage: {...}
+
+    Note over App: Extract: choices[0].message.content<br/>Validate: Regex extract JSON<br/>Parse: pydantic model_validate_json()
 ```
-Application                      Ollama Local Server
-     │                                     │
-     │  POST /api/generate                 │
-     │  ─────────────────────────────────> │
-     │  {                                  │
-     │    "model": "llama3",               │
-     │    "prompt": "user prompt",         │
-     │    "options": {                     │
-     │      "temperature": 1,              │
-     │      "system": "system prompt"      │
-     │    },                               │
-     │    "stream": false                  │
-     │  }                                  │
-     │                                     │
-     │  <───────────────────────────────── │
-     │  {                                  │
-     │    "response": "text response..."   │
-     │  }                                  │
-     │                                     │
-     v                                     v
-Extract: response.json()['response']
-Validate: Regex extract JSON
-Parse: pydantic model_validate_json()
+
+**Key Implementation Detail**: OpenRouter uses the OpenAI SDK with a custom `base_url` and extra headers (`HTTP-Referer`, `X-Title`). Free models (`:free` suffix) do not support `response_format: json_object`, so structured output relies on the regex validation pipeline instead.
+
+#### 4. Ollama (Local)
+
+```mermaid
+sequenceDiagram
+    participant App as Application
+    participant API as Ollama Local Server
+
+    App->>API: POST /api/generate
+    Note right of App: model: "llama3"<br/>prompt: "user prompt"<br/>options: {temperature: 1,<br/>system: "system prompt"}<br/>stream: false
+
+    API-->>App: Response
+    Note left of API: response: "text response..."
+
+    Note over App: Extract: response.json()['response']<br/>Validate: Regex extract JSON<br/>Parse: pydantic model_validate_json()
 ```
 
 **Key Implementation Detail**: Ollama uses different endpoint (`/api/generate` not `/v1/chat/completions`) and different request format. This is why OpenAI-compatible APIs fail - they expect chat completions format.
