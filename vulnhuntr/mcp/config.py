@@ -90,6 +90,91 @@ class MCPServerConfig(BaseModel):
         return self
 
 
+class MCPAnalysisMode(str, enum.Enum):
+    """How the analysis pipeline uses MCP tools.
+
+    - off: MCP is ignored during analysis (default — preserves existing behaviour).
+    - auto: The LLM is informed about available MCP tools and MAY request them.
+    - force: The LLM MUST use at least one tool from ``force_servers`` per file.
+    """
+
+    OFF = "off"
+    AUTO = "auto"
+    FORCE = "force"
+
+
+class MCPAnalysisPolicy(BaseModel):
+    """Policy governing MCP tool usage during vulnerability analysis.
+
+    Attributes:
+        mode: Analysis mode (off / auto / force).
+        force_servers: Server names required in ``force`` mode.
+        max_tool_calls_per_iteration: Cap on tool calls in a single analysis iteration.
+        allow_destructive_tools: If ``False`` (default), block tools whose names
+            contain 'write', 'delete', 'create', 'modify', 'update', 'execute', 'run'.
+        tool_timeout_seconds: Per-tool call timeout.
+    """
+
+    mode: MCPAnalysisMode = Field(
+        default=MCPAnalysisMode.OFF,
+        description="How analysis uses MCP tools (off|auto|force)",
+    )
+    force_servers: list[str] = Field(
+        default_factory=list,
+        description="Server names required in force mode (empty = all enabled servers)",
+    )
+    max_tool_calls_per_iteration: int = Field(
+        default=3,
+        ge=0,
+        description="Maximum number of MCP tool calls per analysis iteration",
+    )
+    allow_destructive_tools: bool = Field(
+        default=False,
+        description="Allow tools that write, delete, create, modify, update, execute, or run",
+    )
+    tool_timeout_seconds: int = Field(
+        default=30,
+        ge=0,
+        description="Per-tool invocation timeout in seconds (0 = no timeout)",
+    )
+
+    model_config = {"use_enum_values": True}
+
+    @model_validator(mode="after")
+    def validate_force_mode(self) -> MCPAnalysisPolicy:
+        """Ensure force_servers is non-empty when mode is force."""
+        mode = self.mode
+        if isinstance(mode, str):
+            mode = MCPAnalysisMode(mode)
+        if mode == MCPAnalysisMode.FORCE and not self.force_servers:
+            raise ValueError("force_servers must list at least one server name when mode is 'force'")
+        return self
+
+    # Patterns that indicate a destructive / write operation
+    DESTRUCTIVE_PATTERNS: tuple[str, ...] = (
+        "write",
+        "delete",
+        "create",
+        "modify",
+        "update",
+        "execute",
+        "run",
+        "remove",
+        "drop",
+        "put",
+        "post",
+        "patch",
+        "send",
+    )
+
+    def is_tool_allowed(self, tool_name: str) -> bool:
+        """Return True if the tool passes the destructive-tool filter."""
+        if self.allow_destructive_tools:
+            return True
+        name_lower = tool_name.lower()
+        return not any(pat in name_lower for pat in self.DESTRUCTIVE_PATTERNS)
+
+
 class MCPSettings(BaseModel):
     """Top-level MCP configuration from .vulnhuntr.yaml.
 
@@ -97,11 +182,13 @@ class MCPSettings(BaseModel):
         servers: Dictionary of server name -> server configuration.
         enabled: Global toggle to enable/disable all MCP servers.
         log_level: Logging level for MCP operations.
+        analysis: Policy for MCP usage during vulnerability analysis.
     """
 
     servers: dict[str, MCPServerConfig] = Field(default_factory=dict, description="Named MCP server configurations")
     enabled: bool = Field(default=True, description="Global MCP toggle")
     log_level: str = Field(default="info", description="MCP logging level")
+    analysis: MCPAnalysisPolicy = Field(default_factory=MCPAnalysisPolicy, description="Analysis pipeline MCP policy")
 
     @model_validator(mode="after")
     def populate_server_names(self) -> MCPSettings:
@@ -153,7 +240,19 @@ def parse_mcp_section(data: dict[str, Any]) -> MCPSettings:
         servers=servers,
         enabled=mcp_data.get("enabled", True),
         log_level=mcp_data.get("log_level", "info"),
+        analysis=_parse_analysis_policy(mcp_data.get("analysis", {})),
     )
+
+
+def _parse_analysis_policy(raw: dict[str, Any] | None) -> MCPAnalysisPolicy:
+    """Parse the ``mcp.analysis`` sub-section into an MCPAnalysisPolicy."""
+    if not raw or not isinstance(raw, dict):
+        return MCPAnalysisPolicy()
+    try:
+        return MCPAnalysisPolicy(**raw)
+    except Exception as e:
+        log.error("Failed to parse MCP analysis policy, using defaults", error=str(e))
+        return MCPAnalysisPolicy()
 
 
 def load_mcp_config(

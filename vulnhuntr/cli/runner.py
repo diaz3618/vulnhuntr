@@ -260,6 +260,32 @@ def run_analysis(args: argparse.Namespace) -> int:
     if config.dry_run and not args.dry_run:
         args.dry_run = config.dry_run
 
+    # ---- MCP initialisation (no-op when mode == "off") ----
+    mcp_helper: _MCPAnalysisHelper | None = None
+    try:
+        from vulnhuntr.mcp import MCPAnalysisHelper as _MCPAnalysisHelper
+        from vulnhuntr.mcp import load_mcp_config, run_async, should_use_mcp
+
+        mcp_settings = load_mcp_config(start_dir=Path(args.root))
+        if should_use_mcp(mcp_settings):
+            mcp_helper = _MCPAnalysisHelper(mcp_settings)
+            try:
+                run_async(mcp_helper.initialize())
+                if mcp_helper.is_active:
+                    log.info(
+                        "MCP analysis integration active",
+                        mode=mcp_helper.mode,
+                    )
+                else:
+                    log.warning("MCP initialised but no tools discovered, falling back")
+                    mcp_helper = None
+            except Exception as e:
+                log.error("MCP initialisation failed, continuing without MCP", error=str(e))
+                mcp_helper = None
+    except ImportError:
+        log.debug("MCP module not available (install with pip install vulnhuntr[mcp])")
+        mcp_helper = None
+
     # Initialize repository operations
     repo = RepoOps(args.root)
     code_extractor = SymbolExtractor(args.root)
@@ -373,6 +399,12 @@ def run_analysis(args: argparse.Namespace) -> int:
         + to_xml_bytes(ReadmeSummary(readme_summary=summary))
     ).decode()
 
+    # Inject MCP tool descriptions into system prompt when active
+    if mcp_helper is not None and mcp_helper.is_active:
+        mcp_tool_section = mcp_helper.get_tool_prompt_section()
+        if mcp_tool_section:
+            system_prompt += "\n" + mcp_tool_section
+
     llm = initialize_llm(args.llm, system_prompt, cost_callback)
     llm = wrap_with_fallbacks(llm, args, cost_callback, system_prompt)
 
@@ -428,6 +460,16 @@ def run_analysis(args: argparse.Namespace) -> int:
 
         initial_analysis_report = cast(Response, llm.chat(user_prompt, response_model=Response, max_tokens=8192))
         log.info("Initial analysis complete", report=initial_analysis_report.model_dump())
+
+        # Execute MCP tool calls from initial analysis (if any)
+        mcp_results_context = ""
+        if mcp_helper is not None and mcp_helper.is_active and initial_analysis_report.mcp_tool_calls:
+            try:
+                mcp_results = run_async(mcp_helper.execute_tool_calls(initial_analysis_report.mcp_tool_calls))
+                mcp_results_context = mcp_helper.format_results_for_prompt(mcp_results)
+                log.info("MCP tool calls executed (initial)", count=len(mcp_results))
+            except Exception as e:
+                log.error("MCP tool execution failed (initial)", error=str(e))
 
         print_readable(initial_analysis_report)
 
@@ -505,6 +547,10 @@ def run_analysis(args: argparse.Namespace) -> int:
                         )
                     ).decode()
 
+                    # Append MCP tool results from previous iteration (if any)
+                    if mcp_results_context:
+                        vuln_specific_user_prompt += "\n" + mcp_results_context
+
                     secondary_analysis_report = cast(
                         Response,
                         llm.chat(
@@ -517,6 +563,18 @@ def run_analysis(args: argparse.Namespace) -> int:
                         "Secondary analysis complete",
                         secondary_analysis_report=secondary_analysis_report.model_dump(),
                     )
+
+                    # Execute MCP tool calls from secondary analysis (if any)
+                    if mcp_helper is not None and mcp_helper.is_active and secondary_analysis_report.mcp_tool_calls:
+                        try:
+                            mcp_results = run_async(
+                                mcp_helper.execute_tool_calls(secondary_analysis_report.mcp_tool_calls)
+                            )
+                            mcp_results_context = mcp_helper.format_results_for_prompt(mcp_results)
+                            log.info("MCP tool calls executed (secondary)", count=len(mcp_results))
+                        except Exception as e:
+                            log.error("MCP tool execution failed (secondary)", error=str(e))
+                            mcp_results_context = ""
 
                     # Check iteration costs
                     if budget_enforcer:
@@ -574,6 +632,14 @@ def run_analysis(args: argparse.Namespace) -> int:
 
     # Finalize checkpoint
     checkpoint.finalize(success=analysis_success and len(files_to_analyze) > 0)
+
+    # Shutdown MCP connections
+    if mcp_helper is not None:
+        try:
+            run_async(mcp_helper.shutdown())
+            log.info("MCP connections closed")
+        except Exception as e:
+            log.warning("MCP shutdown error", error=str(e))
 
     # Print cost summary
     console.print(cost_tracker.get_detailed_report())
