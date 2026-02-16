@@ -9,6 +9,8 @@ the application for representing vulnerabilities, analysis results,
 and context information.
 """
 
+from __future__ import annotations
+
 from enum import Enum
 
 from pydantic import BaseModel, Field
@@ -27,6 +29,48 @@ class VulnType(str, Enum):
     SQLI = "SQLI"  # SQL Injection (CWE-89)
     XSS = "XSS"  # Cross-Site Scripting (CWE-79)
     IDOR = "IDOR"  # Insecure Direct Object Reference (CWE-639)
+
+
+# ---------------------------------------------------------------------------
+# MCP tool-call models (used when analysis.mode != "off")
+# ---------------------------------------------------------------------------
+
+MAX_TOOL_RESULT_CHARS = 4096  # Truncation limit for tool output fed back to LLM
+
+
+class MCPToolCallRequest(BaseModel):
+    """A single tool call the LLM wants to make via MCP.
+
+    The LLM populates these inside its structured response so the runner can
+    execute them on behalf of the analysis agent.
+    """
+
+    server: str = Field(description="Name of the MCP server that exposes the tool")
+    tool: str = Field(description="Exact tool name to invoke")
+    arguments: dict[str, object] = Field(
+        default_factory=dict,
+        description="Tool arguments as a JSON-serialisable dictionary",
+    )
+    reason: str = Field(
+        default="",
+        description="Brief justification for why this tool call aids the analysis",
+    )
+
+
+class MCPToolCallResult(BaseModel):
+    """Result of executing a single MCP tool call (populated by the runner)."""
+
+    server: str = Field(description="Server that handled the call")
+    tool: str = Field(description="Tool name that was invoked")
+    success: bool = Field(description="Whether the call succeeded")
+    output: str = Field(default="", description="Truncated tool output (max 4 KiB)")
+    error: str | None = Field(default=None, description="Error message, if any")
+
+    def truncated_output(self, max_chars: int = MAX_TOOL_RESULT_CHARS) -> str:
+        """Return output truncated to *max_chars* with an ellipsis marker."""
+        if len(self.output) <= max_chars:
+            return self.output
+        return self.output[:max_chars] + "\n... [truncated]"
 
 
 class ContextCode(BaseModel):
@@ -75,4 +119,9 @@ class Response(BaseModel):
         description="List of context code items requested for analysis, "
         "one function or class name per item. "
         "No standard library or third-party package code.",
+    )
+    mcp_tool_calls: list[MCPToolCallRequest] = Field(
+        default_factory=list,
+        description="Optional MCP tool calls the analysis agent wants to make. "
+        "Only populated when MCP integration is enabled.",
     )
