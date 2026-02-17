@@ -1,0 +1,202 @@
+# =============================================================================
+# Vulnhuntr Configuration — Example
+# =============================================================================
+# Copy this file to .vulnhuntr.yaml and customize:
+#   cp .vulnhuntr.yaml.example .vulnhuntr.yaml
+#
+# .vulnhuntr.yaml is gitignored (may contain API keys in env vars).
+# This example file IS committed so new contributors have a reference.
+# =============================================================================
+
+# --- Core Settings -----------------------------------------------------------
+
+# Cost Management
+cost:
+  # Maximum USD budget (analysis stops when exceeded)
+  budget: 10.0
+  # Enable checkpointing for resume after interruption
+  checkpoint: true
+  # Checkpoint save interval in seconds
+  checkpoint_interval: 300
+
+# LLM Settings
+llm:
+  # Provider: claude, gpt, openrouter, or ollama
+  provider: claude
+  # Model override (uses environment variable if not set)
+  # model: claude-sonnet-4-5
+  # Fallback models (format: 'provider:model') — used when primary fails
+  # fallback1: "openrouter:meta-llama/llama-3.3-70b-instruct:free"
+  # fallback2: "claude:claude-haiku-4-5"
+
+# Analysis Settings
+analysis:
+  # Vulnerability types to scan for (empty = all)
+  vuln_types: []
+  # vuln_types:
+  #   - sqli
+  #   - xss
+  #   - ssrf
+  #   - rce
+  #   - idor
+  #   - lfi
+  #   - afi
+  #   - path_traversal
+
+  # Paths to exclude from analysis
+  exclude_paths:
+    - tests/
+    - docs/
+    - examples/
+    - venv/
+    - .venv/
+    - node_modules/
+
+  # Maximum secondary analysis iterations per vulnerability type
+  max_iterations: 7
+
+  # Minimum confidence threshold to report findings (1-10)
+  confidence_threshold: 1
+
+# Output Settings
+verbosity: 1      # 0=quiet, 1=normal, 2=verbose, 3=debug
+dry_run: false    # If true, estimate costs without running analysis
+
+# --- MCP Server Configuration (Optional) ------------------------------------
+# Enable MCP servers to give the LLM access to external tools during analysis.
+# See docs/project/MCP_ANALYSIS_SERVER_RECOMMENDATIONS.md for server options.
+# See docs/MCP_SETUP.md for full integration documentation.
+
+mcp:
+  # Global toggle — set to false to disable all MCP servers
+  enabled: true
+
+  # Logging level for MCP operations (debug, info, warning, error)
+  log_level: info
+
+  # Analysis integration policy — controls how the LLM uses MCP tools
+  analysis:
+    # off   = MCP tools never used during analysis (safe default)
+    # auto  = LLM may request tool calls when it deems useful
+    # force = LLM must attempt tool calls every iteration
+    mode: "off"
+
+    # Max tool calls the LLM can make per analysis iteration
+    max_tool_calls_per_iteration: 3
+
+    # Allow tools matching destructive patterns (delete, drop, write, etc.)
+    # WARNING: Only enable for trusted servers scanning authorized targets
+    allow_destructive_tools: false
+
+    # Timeout in seconds for each individual tool call
+    tool_timeout_seconds: 30
+
+    # Force specific servers (only used when mode=force)
+    # force_servers:
+    #   - cve-intel
+    #   - analyzer
+
+  servers:
+    # -----------------------------------------------------------------
+    # STDIO TRANSPORT — Launch server as a subprocess
+    # -----------------------------------------------------------------
+
+    # CVE Intelligence (free, no auth required)
+    # cve-intel:
+    #   transport: stdio
+    #   command: npx
+    #   args: ["mcp-cve-intelligence-server-lite"]
+    #   enabled: true
+    #   timeout: 30
+    #   description: "CVE/EPSS intelligence from public databases"
+
+    # Code analysis with ruff + vulture (Python/uvx)
+    # analyzer:
+    #   transport: stdio
+    #   command: uvx
+    #   args: ["mcp-server-analyzer"]
+    #   enabled: true
+    #   timeout: 30
+    #   description: "Python code analysis with ruff linting and vulture"
+
+    # Ripgrep search (Node.js/npx)
+    # ripgrep:
+    #   transport: stdio
+    #   command: npx
+    #   args: ["-y", "mcp-ripgrep@latest"]
+    #   enabled: false
+    #   timeout: 30
+    #   description: "Fast regex search across files"
+
+    # Sequential thinking (structured reasoning)
+    # sequential-thinking:
+    #   transport: stdio
+    #   command: npx
+    #   args: ["-y", "@modelcontextprotocol/server-sequential-thinking"]
+    #   enabled: false
+    #   description: "Multi-step reasoning for complex vulnerability chains"
+
+    # Python LSP analysis (Pyright diagnostics)
+    # python-lsp:
+    #   transport: stdio
+    #   command: uvx
+    #   args: ["python-lsp-mcp@latest"]
+    #   enabled: false
+    #   timeout: 60
+    #   description: "Python language server for type checking and diagnostics"
+
+    # Snyk vulnerability scanning (requires API key)
+    # snyk:
+    #   transport: stdio
+    #   command: snyk-ls
+    #   enabled: false
+    #   env:
+    #     SNYK_TOKEN: "${SNYK_TOKEN}"
+    #   description: "SCA/SAST scanning via Snyk"
+
+    # GitGuardian secret detection (requires API key)
+    # gitguardian:
+    #   transport: stdio
+    #   command: ggshield
+    #   args: ["mcp"]
+    #   enabled: false
+    #   env:
+    #     GITGUARDIAN_API_KEY: "${GITGUARDIAN_API_KEY}"
+    #   description: "500+ secret detectors for credential leak prevention"
+
+    # Python package vulnerability scanner (free, no auth)
+    # vulnicheck:
+    #   transport: stdio
+    #   command: uvx
+    #   args: ["vulnicheck"]
+    #   enabled: false
+    #   description: "Python package vulnerability scanning via OSV/NVD"
+
+    # -----------------------------------------------------------------
+    # STREAMABLE HTTP TRANSPORT — Connect to remote servers
+    # -----------------------------------------------------------------
+
+    # remote-analysis:
+    #   transport: streamable-http
+    #   url: "http://localhost:8000/mcp"
+    #   enabled: false
+    #   timeout: 60
+    #   description: "Remote analysis server via HTTP"
+
+    # authenticated-server:
+    #   transport: streamable-http
+    #   url: "https://mcp.example.com/api/mcp"
+    #   headers:
+    #     Authorization: "Bearer ${MCP_AUTH_TOKEN}"
+    #   enabled: false
+    #   description: "Authenticated remote MCP server"
+
+    # -----------------------------------------------------------------
+    # SSE TRANSPORT — Legacy (use streamable-http for new deployments)
+    # -----------------------------------------------------------------
+
+    # legacy-sse:
+    #   transport: sse
+    #   url: "http://localhost:9000/sse"
+    #   enabled: false
+    #   description: "Legacy SSE-based MCP server"

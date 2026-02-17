@@ -61,7 +61,7 @@ Examples:
         "--llm",
         type=str,
         choices=["claude", "gpt", "ollama", "openrouter"],
-        default="claude",
+        default=None,
         help="LLM client to use (default: claude). OpenRouter provides access to free models.",
     )
 
