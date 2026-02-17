@@ -1,0 +1,187 @@
+# =============================================================================
+# Vulnhuntr MCP Server Configuration
+# =============================================================================
+#
+# This section configures MCP servers that Vulnhuntr
+# can connect to for enhanced analysis capabilities.
+#
+# Supported transport types:
+#   - stdio:           Launch server as subprocess (npx, uvx, python, etc.)
+#   - streamable-http: Connect to an HTTP endpoint (recommended for remote)
+#   - sse:             Connect to a Server-Sent Events endpoint (legacy)
+#
+# Place this file as .vulnhuntr.yaml in your project root or ~/.vulnhuntr.yaml
+# =============================================================================
+
+# --- Existing Vulnhuntr settings (unchanged) --------------------------------
+
+cost:
+  budget: 10.0
+  checkpoint: true
+  checkpoint_interval: 300
+
+llm:
+  provider: claude
+
+analysis:
+  vuln_types: []
+  exclude_paths:
+    - tests/
+    - docs/
+    - venv/
+    - node_modules/
+  max_iterations: 7
+  confidence_threshold: 1
+
+verbosity: 1
+dry_run: false
+
+# --- MCP Server Configuration -----------------------------------------------
+
+mcp:
+  # Global toggle — set to false to disable all MCP servers
+  enabled: true
+
+  # Logging level for MCP operations (debug, info, warning, error)
+  log_level: info
+
+  servers:
+    # -----------------------------------------------------------------
+    # STDIO TRANSPORT EXAMPLES
+    # -----------------------------------------------------------------
+    # stdio transport launches the server as a subprocess.
+    # Works with npx (Node.js packages), uvx (Python packages),
+    # python scripts, or any local binary.
+    # -----------------------------------------------------------------
+
+    # Example: Code analysis with ruff + vulture (Python/uvx)
+    analyzer:
+      transport: stdio
+      command: uvx
+      args:
+        - mcp-server-analyzer
+      enabled: true
+      timeout: 30
+      description: "Python code analysis with ruff linting and vulture dead code detection"
+
+    # Example: Ripgrep search (Node.js/npx)
+    ripgrep:
+      transport: stdio
+      command: npx
+      args:
+        - "-y"
+        - mcp-ripgrep@latest
+      enabled: false
+      timeout: 30
+      description: "Fast regex search across files using ripgrep"
+
+    # Example: Filesystem access (Node.js/npx)
+    filesystem:
+      transport: stdio
+      command: npx
+      args:
+        - "-y"
+        - "@modelcontextprotocol/server-filesystem"
+        - "/path/to/your/repo"
+      enabled: false
+      timeout: 30
+      description: "Sandboxed filesystem access for reading/writing files"
+
+    # Example: Sequential thinking (Node.js/npx)
+    sequential-thinking:
+      transport: stdio
+      command: npx
+      args:
+        - "-y"
+        - "@modelcontextprotocol/server-sequential-thinking"
+      enabled: false
+      description: "Structured sequential reasoning for complex problems"
+
+    # Example: Python LSP analysis (Python/uvx)
+    python-lsp:
+      transport: stdio
+      command: uvx
+      args:
+        - python-lsp-mcp@latest
+      enabled: false
+      timeout: 60
+      description: "Python language server for diagnostics, search, and symbols"
+
+    # Example: Memory Bank (Node.js/npx)
+    memory-bank:
+      transport: stdio
+      command: npx
+      args:
+        - "-y"
+        - "@diazstg/memory-bank-mcp"
+        - "--mode"
+        - "code"
+        - "--username"
+        - "your-username"
+      enabled: false
+      description: "Persistent context memory across sessions"
+
+    # Example: Local Python script as MCP server
+    custom-python-server:
+      transport: stdio
+      command: python
+      args:
+        - /path/to/your/mcp_server.py
+      enabled: false
+      env:
+        MY_API_KEY: "your-api-key"
+        DATABASE_URL: "postgresql://localhost/mydb"
+      timeout: 60
+      description: "Custom Python MCP server"
+
+    # Example: Local binary / any executable
+    custom-binary:
+      transport: stdio
+      command: /usr/local/bin/my-mcp-server
+      args:
+        - "--config"
+        - "/etc/mcp/config.json"
+      enabled: false
+      description: "Custom binary MCP server"
+
+    # -----------------------------------------------------------------
+    # STREAMABLE HTTP TRANSPORT EXAMPLES
+    # -----------------------------------------------------------------
+    # streamable-http connects to an HTTP endpoint. Recommended for
+    # remote/production servers. Supports stateful and stateless modes.
+    # -----------------------------------------------------------------
+
+    # Example: Remote MCP server via HTTP
+    remote-analysis:
+      transport: streamable-http
+      url: "http://localhost:8000/mcp"
+      enabled: false
+      timeout: 60
+      description: "Remote analysis server via HTTP"
+
+    # Example: Authenticated HTTP server
+    authenticated-server:
+      transport: streamable-http
+      url: "https://mcp.example.com/api/mcp"
+      headers:
+        Authorization: "Bearer your-token-here"
+        X-Custom-Header: "custom-value"
+      enabled: false
+      timeout: 30
+      description: "Authenticated remote MCP server"
+
+    # -----------------------------------------------------------------
+    # SSE TRANSPORT EXAMPLES (Legacy)
+    # -----------------------------------------------------------------
+    # SSE transport uses Server-Sent Events. Being superseded by
+    # streamable-http in the MCP specification. Use streamable-http
+    # for new deployments.
+    # -----------------------------------------------------------------
+
+    # Example: SSE-based server
+    legacy-sse-server:
+      transport: sse
+      url: "http://localhost:9000/sse"
+      enabled: false
+      timeout: 30
+      description: "Legacy SSE-based MCP server"
