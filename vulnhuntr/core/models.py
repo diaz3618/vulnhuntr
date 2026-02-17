@@ -11,9 +11,12 @@ and context information.
 
 from __future__ import annotations
 
+import logging
 from enum import Enum
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+log = logging.getLogger(__name__)
 
 
 class VulnType(str, Enum):
@@ -114,6 +117,28 @@ class Response(BaseModel):
         default_factory=list,
         description="The types of identified vulnerabilities",
     )
+
+    @field_validator("vulnerability_types", mode="before")
+    @classmethod
+    def _filter_unknown_vuln_types(cls, v: list[object]) -> list[str]:
+        """Filter out unknown vulnerability types instead of failing validation.
+
+        LLMs sometimes return valid-but-unsupported types (e.g., INFO_DISCLOSURE,
+        AUTH_BYPASS). Instead of rejecting the entire response, keep only the
+        types we support and log a warning for the rest.
+        """
+        if not isinstance(v, list):
+            return v  # let Pydantic handle non-list input
+        valid_values = {member.value for member in VulnType}
+        kept: list[str] = []
+        for item in v:
+            raw = str(item).replace("VulnType.", "") if isinstance(item, str) else str(item)
+            if raw in valid_values:
+                kept.append(raw)
+            else:
+                log.warning("Ignoring unsupported vulnerability type from LLM: %s", raw)
+        return kept
+
     context_code: list[ContextCode] = Field(
         default_factory=list,
         description="List of context code items requested for analysis, "

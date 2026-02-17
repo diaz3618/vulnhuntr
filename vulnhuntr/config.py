@@ -58,6 +58,8 @@ class VulnhuntrConfig:
     # LLM settings
     provider: str | None = None
     model: str | None = None
+    fallback1: str | None = None  # format: 'provider:model'
+    fallback2: str | None = None  # format: 'provider:model'
 
     # Output settings
     verbosity: int = 0
@@ -128,6 +130,10 @@ class VulnhuntrConfig:
                 config.provider = str(llm["provider"]) if llm["provider"] else None
             if "model" in llm:
                 config.model = str(llm["model"]) if llm["model"] else None
+            if "fallback1" in llm:
+                config.fallback1 = str(llm["fallback1"]) if llm["fallback1"] else None
+            if "fallback2" in llm:
+                config.fallback2 = str(llm["fallback2"]) if llm["fallback2"] else None
 
         if "analysis" in data and isinstance(data["analysis"], dict):
             analysis = data["analysis"]
@@ -152,6 +158,8 @@ class VulnhuntrConfig:
             "checkpoint_interval": self.checkpoint_interval,
             "provider": self.provider,
             "model": self.model,
+            "fallback1": self.fallback1,
+            "fallback2": self.fallback2,
             "verbosity": self.verbosity,
             "dry_run": self.dry_run,
             "vuln_types": self.vuln_types,
@@ -291,9 +299,15 @@ def merge_config_with_args(config: VulnhuntrConfig, args: Any) -> VulnhuntrConfi
     if hasattr(args, "no_checkpoint") and args.no_checkpoint:
         config.checkpoint = False
 
-    # Provider: CLI overrides config
-    if hasattr(args, "llm") and args.llm:
+    # Provider: CLI overrides config (None means not specified on CLI)
+    if hasattr(args, "llm") and args.llm is not None:
         config.provider = args.llm
+
+    # Fallbacks: CLI overrides config
+    if hasattr(args, "fallback1") and args.fallback1 is not None:
+        config.fallback1 = args.fallback1
+    if hasattr(args, "fallback2") and args.fallback2 is not None:
+        config.fallback2 = args.fallback2
 
     # Verbosity: CLI overrides config
     if hasattr(args, "verbosity") and args.verbosity:

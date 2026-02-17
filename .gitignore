@@ -173,6 +173,10 @@ test_*.py
 test_results.*
 integration_test.log
 
+# User config (may contain env var references for API keys)
+.vulnhuntr.yaml
+.vulnhuntr.yml
+
 # Checkpoint data (runtime state)
 .vulnhuntr_checkpoint
 

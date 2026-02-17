@@ -107,6 +107,10 @@ class LLM:
 
     def _validate_response(self, response_text: str, response_model: type[BaseModel]) -> BaseModel:
         try:
+            # Early check for empty response
+            if not response_text or not response_text.strip():
+                raise LLMError("LLM returned empty response")
+
             if self.prefill:
                 response_text = self.prefill + response_text
 
@@ -317,27 +321,47 @@ class ChatGPT(LLM):
         ]
         return messages
 
-    def send_message(self, messages: list[dict[str, str]], max_tokens: int, response_model=None) -> dict[str, Any]:
-        try:
-            params = {
-                "model": self.model,
-                "messages": messages,
-                "max_tokens": max_tokens,
-            }
+    def send_message(
+        self,
+        messages: list[dict[str, str]],
+        max_tokens: int,
+        response_model=None,
+        *,
+        _max_retries: int = 3,
+        _base_delay: float = 2.0,
+    ) -> dict[str, Any]:
+        params = {
+            "model": self.model,
+            "messages": messages,
+            "max_tokens": max_tokens,
+        }
 
-            # Add response format configuration if a model is provided
-            if response_model:
-                params["response_format"] = {"type": "json_object"}
+        # Add response format configuration if a model is provided
+        if response_model:
+            params["response_format"] = {"type": "json_object"}
 
-            return self.client.chat.completions.create(**params)  # type: ignore[call-overload]
-        except openai.APIConnectionError as e:
-            raise APIConnectionError("The server could not be reached") from e
-        except openai.RateLimitError as e:
-            raise RateLimitError("Request was rate-limited; consider backing off") from e
-        except openai.APIStatusError as e:
-            raise APIStatusError(e.status_code, e.response) from e
-        except Exception as e:
-            raise LLMError(f"An unexpected error occurred: {str(e)}") from e
+        last_exc: Exception | None = None
+        for attempt in range(_max_retries):
+            try:
+                return self.client.chat.completions.create(**params)  # type: ignore[call-overload]
+            except openai.RateLimitError as e:
+                last_exc = e
+                delay = _base_delay * (2**attempt)
+                log.warning(
+                    "Rate-limited, retrying",
+                    extra={"attempt": attempt + 1, "max_retries": _max_retries, "delay_s": delay, "model": self.model},
+                )
+                time.sleep(delay)
+            except openai.APIConnectionError as e:
+                raise APIConnectionError("The server could not be reached") from e
+            except openai.APIStatusError as e:
+                raise APIStatusError(e.status_code, e.response) from e
+            except Exception as e:
+                raise LLMError(f"An unexpected error occurred: {str(e)}") from e
+
+        raise RateLimitError(
+            f"Request was rate-limited after {_max_retries} retries; consider backing off"
+        ) from last_exc
 
     def get_response(self, response: Any) -> str:
         return response.choices[0].message.content
@@ -405,50 +429,75 @@ class OpenRouter(LLM):
         ]
         return messages
 
-    def send_message(self, messages: list[dict[str, str]], max_tokens: int, response_model=None) -> dict[str, Any]:
-        try:
-            params: dict[str, Any] = {
-                "model": self.model,
-                "messages": messages,
-                "max_tokens": max_tokens,
-            }
+    def send_message(
+        self,
+        messages: list[dict[str, str]],
+        max_tokens: int,
+        response_model=None,
+        *,
+        _max_retries: int = 3,
+        _base_delay: float = 2.0,
+    ) -> dict[str, Any]:
+        params: dict[str, Any] = {
+            "model": self.model,
+            "messages": messages,
+            "max_tokens": max_tokens,
+        }
 
-            # OpenRouter free models generally don't support json_object mode.
-            # Only enable it for known-compatible paid models to avoid errors.
-            # The validation pipeline handles raw text via regex extraction anyway.
-            if response_model and ":free" not in self.model:
-                model_lower = self.model.lower()
-                supports_json = any(
-                    x in model_lower for x in ["gpt-4", "gpt-3.5", "claude", "mistral-large", "mistral-medium"]
+        # OpenRouter free models generally don't support json_object mode.
+        # Only enable it for known-compatible paid models to avoid errors.
+        # The validation pipeline handles raw text via regex extraction anyway.
+        if response_model and ":free" not in self.model:
+            model_lower = self.model.lower()
+            supports_json = any(
+                x in model_lower for x in ["gpt-4", "gpt-3.5", "claude", "mistral-large", "mistral-medium"]
+            )
+            if supports_json:
+                params["response_format"] = {"type": "json_object"}
+
+        last_exc: Exception | None = None
+        for attempt in range(_max_retries):
+            try:
+                return self.client.chat.completions.create(**params)  # type: ignore[call-overload]
+            except openai.RateLimitError as e:
+                last_exc = e
+                delay = _base_delay * (2**attempt)
+                log.warning(
+                    "OpenRouter rate-limited, retrying",
+                    extra={
+                        "attempt": attempt + 1,
+                        "max_retries": _max_retries,
+                        "delay_s": delay,
+                        "model": self.model,
+                    },
                 )
-                if supports_json:
-                    params["response_format"] = {"type": "json_object"}
+                time.sleep(delay)
+            except openai.APIConnectionError as e:
+                raise APIConnectionError(f"OpenRouter server could not be reached: {e}") from e
+            except openai.APIStatusError as e:
+                # Provide more helpful error messages for common issues
+                if e.status_code == 401:
+                    raise LLMError("OpenRouter authentication failed. Check your OPENROUTER_API_KEY.") from e
+                elif e.status_code == 402:
+                    raise LLMError(
+                        "OpenRouter credits exhausted. Add credits or use a free model (e.g., qwen/qwen3-coder:free)"
+                    ) from e
+                elif e.status_code == 404:
+                    raise LLMError(
+                        f"OpenRouter model not found: {self.model}. Check model name at https://openrouter.ai/models"
+                    ) from e
+                elif e.status_code == 400:
+                    # Common when a model doesn't support a requested feature
+                    raise LLMError(
+                        f"OpenRouter bad request for model {self.model}: {e.message if hasattr(e, 'message') else e}"
+                    ) from e
+                raise APIStatusError(e.status_code, e.response) from e
+            except Exception as e:
+                raise LLMError(f"OpenRouter unexpected error: {str(e)}") from e
 
-            return self.client.chat.completions.create(**params)  # type: ignore[call-overload]
-        except openai.APIConnectionError as e:
-            raise APIConnectionError(f"OpenRouter server could not be reached: {e}") from e
-        except openai.RateLimitError as e:
-            raise RateLimitError("OpenRouter request was rate-limited; consider backing off") from e
-        except openai.APIStatusError as e:
-            # Provide more helpful error messages for common issues
-            if e.status_code == 401:
-                raise LLMError("OpenRouter authentication failed. Check your OPENROUTER_API_KEY.") from e
-            elif e.status_code == 402:
-                raise LLMError(
-                    "OpenRouter credits exhausted. Add credits or use a free model (e.g., qwen/qwen3-coder:free)"
-                ) from e
-            elif e.status_code == 404:
-                raise LLMError(
-                    f"OpenRouter model not found: {self.model}. Check model name at https://openrouter.ai/models"
-                ) from e
-            elif e.status_code == 400:
-                # Common when a model doesn't support a requested feature
-                raise LLMError(
-                    f"OpenRouter bad request for model {self.model}: {e.message if hasattr(e, 'message') else e}"
-                ) from e
-            raise APIStatusError(e.status_code, e.response) from e
-        except Exception as e:
-            raise LLMError(f"OpenRouter unexpected error: {str(e)}") from e
+        raise RateLimitError(
+            f"OpenRouter rate-limited after {_max_retries} retries; consider backing off"
+        ) from last_exc
 
     def get_response(self, response: Any) -> str:
         return response.choices[0].message.content

@@ -18,7 +18,7 @@ import os
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import structlog
 
@@ -53,13 +53,15 @@ def initialize_llm(
     llm_arg: str,
     system_prompt: str = "",
     cost_callback: Callable | None = None,
+    model_override: str | None = None,
 ):
     """Initialize LLM client with optional cost tracking callback.
 
     Args:
-        llm_arg: LLM provider ('claude', 'gpt', 'ollama')
+        llm_arg: LLM provider ('claude', 'gpt', 'ollama', 'openrouter')
         system_prompt: System prompt to use
         cost_callback: Optional callback for cost tracking
+        model_override: Model name from config (overrides env var default)
 
     Returns:
         Initialized LLM client
@@ -72,22 +74,22 @@ def initialize_llm(
     llm_arg = llm_arg.lower()
 
     if llm_arg == "claude":
-        model = os.getenv("ANTHROPIC_MODEL", "claude-3-5-sonnet-latest")
+        model = model_override or os.getenv("ANTHROPIC_MODEL", "claude-3-5-sonnet-latest")
         base_url = os.getenv("ANTHROPIC_BASE_URL", "https://api.anthropic.com")
         return Claude(model, base_url, system_prompt, cost_callback)
 
     elif llm_arg == "gpt":
-        model = os.getenv("OPENAI_MODEL", "chatgpt-4o-latest")
+        model = model_override or os.getenv("OPENAI_MODEL", "chatgpt-4o-latest")
         base_url = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
         return ChatGPT(model, base_url, system_prompt, cost_callback)
 
     elif llm_arg == "openrouter":
-        model = os.getenv("OPENROUTER_MODEL", "qwen/qwen3-coder:free")
+        model = model_override or os.getenv("OPENROUTER_MODEL", "qwen/qwen3-coder:free")
         base_url = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
         return OpenRouter(model, base_url, system_prompt, cost_callback)
 
     elif llm_arg == "ollama":
-        model = os.getenv("OLLAMA_MODEL", "llama3")
+        model = model_override or os.getenv("OLLAMA_MODEL", "llama3")
         base_url = os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434/api/generate")
         return Ollama(model, base_url, system_prompt, cost_callback)
 
@@ -99,13 +101,21 @@ def parse_fallback_spec(
     spec: str,
     system_prompt: str = "",
     cost_callback: Callable | None = None,
+    default_provider: str | None = None,
 ):
     """Parse a fallback spec like 'provider:model' and return an LLM instance.
 
+    Supports two formats:
+    - Explicit provider: 'provider:model' (e.g., 'openrouter:deepseek/deepseek-r1-0528:free')
+    - Model-only: 'model' (e.g., 'qwen/qwen3-next-80b-a3b-instruct:free')
+      When no valid provider prefix is found, uses default_provider or 'openrouter'
+      if the model name contains '/' (typical of OpenRouter model identifiers).
+
     Args:
-        spec: String in format 'provider:model' (e.g., 'openrouter:deepseek/deepseek-r1-0528:free')
+        spec: Fallback specification string
         system_prompt: System prompt to use
         cost_callback: Optional callback for cost tracking
+        default_provider: Provider to use when spec has no explicit provider prefix
 
     Returns:
         Initialized LLM client
@@ -115,20 +125,33 @@ def parse_fallback_spec(
     """
     from vulnhuntr.llms import ChatGPT, Claude, Ollama, OpenRouter
 
-    parts = spec.split(":", 1)
-    if len(parts) != 2 or not parts[1]:  # noqa: PLR2004
-        raise ValueError(
-            f"Invalid fallback spec '{spec}'. "
-            f"Expected format: 'provider:model' (e.g., 'openrouter:deepseek/deepseek-r1-0528:free')"
-        )
-
-    provider, model = parts[0].lower(), parts[1]
     providers: dict[str, type] = {
         "claude": Claude,
         "gpt": ChatGPT,
         "openrouter": OpenRouter,
         "ollama": Ollama,
     }
+
+    parts = spec.split(":", 1)
+    if len(parts) == 2 and parts[0].lower() in providers:  # noqa: PLR2004
+        # Explicit provider prefix: 'openrouter:model-name:free'
+        provider, model = parts[0].lower(), parts[1]
+    else:
+        # No valid provider prefix — treat entire spec as model name.
+        # Infer provider: use default_provider, or 'openrouter' for slash-style names.
+        model = spec
+        if default_provider and default_provider.lower() in providers:
+            provider = default_provider.lower()
+        elif "/" in spec:
+            provider = "openrouter"  # slash in name implies OpenRouter model ID
+        else:
+            raise ValueError(
+                f"Cannot determine provider for fallback spec '{spec}'. "
+                f"Use 'provider:model' format (e.g., 'openrouter:{spec}') "
+                f"or set a primary provider in config. "
+                f"Valid providers: {', '.join(providers)}"
+            )
+        log.info("Inferred provider for fallback spec", spec=spec, provider=provider)
 
     if provider not in providers:
         raise ValueError(f"Unknown provider '{provider}' in fallback spec. Valid providers: {', '.join(providers)}")
@@ -151,33 +174,49 @@ def wrap_with_fallbacks(
     args: argparse.Namespace,
     cost_callback: Callable | None = None,
     system_prompt: str = "",
+    config: Any | None = None,
 ):
     """Wrap primary LLM with FallbackLLM if fallback args are specified.
+
+    Fallback sources (in priority order):
+    1. CLI arguments: --fallback1, --fallback2
+    2. Config file: llm.fallback1, llm.fallback2
 
     Args:
         primary: Primary LLM instance
         args: Parsed CLI arguments (checks args.fallback1, args.fallback2)
         cost_callback: Cost tracking callback
         system_prompt: System prompt for fallback LLMs
+        config: VulnhuntrConfig instance (for config-based fallbacks)
 
     Returns:
         FallbackLLM wrapper if fallbacks specified, otherwise primary unchanged
     """
+    # Resolve fallback specs: CLI args take priority, then config
     fallback1 = getattr(args, "fallback1", None)
     fallback2 = getattr(args, "fallback2", None)
+    if not fallback1 and config and getattr(config, "fallback1", None):
+        fallback1 = config.fallback1
+    if not fallback2 and config and getattr(config, "fallback2", None):
+        fallback2 = config.fallback2
 
     if not fallback1 and not fallback2:
         return primary
 
     from vulnhuntr.llms import FallbackLLM
 
+    # Resolve default_provider from config for specs without explicit provider
+    default_provider = None
+    if config and getattr(config, "provider", None):
+        default_provider = config.provider
+
     fallbacks = []
     if fallback1:
-        fb1 = parse_fallback_spec(fallback1, system_prompt, cost_callback)
+        fb1 = parse_fallback_spec(fallback1, system_prompt, cost_callback, default_provider)
         fallbacks.append(fb1)
         log.info("Fallback 1 configured", spec=fallback1)
     if fallback2:
-        fb2 = parse_fallback_spec(fallback2, system_prompt, cost_callback)
+        fb2 = parse_fallback_spec(fallback2, system_prompt, cost_callback, default_provider)
         fallbacks.append(fb2)
         log.info("Fallback 2 configured", spec=fallback2)
 
@@ -249,7 +288,11 @@ def run_analysis(args: argparse.Namespace) -> int:
     )
 
     # Load configuration from .vulnhuntr.yaml (if present)
-    config = load_config(start_dir=Path(args.root))
+    # Search from CWD first (where user launched vulnhuntr), then target repo
+    config = load_config(start_dir=Path.cwd())
+    if config.provider is None and config.budget is None:
+        # CWD search found nothing useful, try target repo path
+        config = load_config(start_dir=Path(args.root))
     config = merge_config_with_args(config, args)
 
     # Apply config to args where config provides defaults
@@ -259,6 +302,10 @@ def run_analysis(args: argparse.Namespace) -> int:
         args.llm = config.provider
     if config.dry_run and not args.dry_run:
         args.dry_run = config.dry_run
+
+    # Default provider to 'claude' if neither CLI nor config specified
+    if not args.llm:
+        args.llm = "claude"
 
     # ---- MCP initialisation (no-op when mode == "off") ----
     mcp_helper: _MCPAnalysisHelper | None = None
@@ -369,8 +416,8 @@ def run_analysis(args: argparse.Namespace) -> int:
         )
 
     # Initialize LLM (without system prompt initially, for README summarization)
-    llm = initialize_llm(args.llm, cost_callback=cost_callback)
-    llm = wrap_with_fallbacks(llm, args, cost_callback)
+    llm = initialize_llm(args.llm, cost_callback=cost_callback, model_override=config.model)
+    llm = wrap_with_fallbacks(llm, args, cost_callback, config=config)
 
     # Get and summarize README
     readme_content = repo.get_readme_content()
@@ -405,8 +452,8 @@ def run_analysis(args: argparse.Namespace) -> int:
         if mcp_tool_section:
             system_prompt += "\n" + mcp_tool_section
 
-    llm = initialize_llm(args.llm, system_prompt, cost_callback)
-    llm = wrap_with_fallbacks(llm, args, cost_callback, system_prompt)
+    llm = initialize_llm(args.llm, system_prompt, cost_callback, model_override=config.model)
+    llm = wrap_with_fallbacks(llm, args, cost_callback, system_prompt, config=config)
 
     # Track analysis success for checkpoint finalization
     analysis_success = True
