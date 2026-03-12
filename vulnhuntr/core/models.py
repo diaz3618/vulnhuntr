@@ -11,12 +11,32 @@ and context information.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from enum import Enum
 
 import structlog
 from pydantic import BaseModel, Field, field_validator
 
 log = structlog.get_logger()
+
+
+# ---------------------------------------------------------------------------
+# Token usage dataclass (canonical definition, used by llms.py and cost_tracker.py)
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class LLMUsage:
+    """Token usage from an LLM API call."""
+
+    input_tokens: int
+    output_tokens: int
+    model: str
+
+    @property
+    def total_tokens(self) -> int:
+        """Total tokens for this call."""
+        return self.input_tokens + self.output_tokens
 
 
 class VulnType(str, Enum):

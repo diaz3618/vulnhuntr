@@ -2,7 +2,6 @@ import json
 import re
 import time
 from collections.abc import Callable
-from dataclasses import dataclass
 from typing import Any
 
 import anthropic
@@ -11,26 +10,9 @@ import requests
 import structlog
 from pydantic import BaseModel, ValidationError
 
+from vulnhuntr.core.models import LLMUsage
+
 log = structlog.get_logger()
-
-
-# =============================================================================
-# Token Usage Tracking
-# =============================================================================
-
-
-@dataclass
-class LLMUsage:
-    """Token usage from an LLM API call."""
-
-    input_tokens: int
-    output_tokens: int
-    model: str
-
-    @property
-    def total_tokens(self) -> int:
-        """Total tokens for this call."""
-        return self.input_tokens + self.output_tokens
 
 
 # Type alias for cost tracking callback
