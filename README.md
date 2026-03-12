@@ -9,7 +9,8 @@ A tool to identify remotely exploitable vulnerabilities using LLMs and static co
 </div>
 
 ## Description
-Vulnhuntr leverages the power of LLMs to automatically create and analyze entire code call chains starting from remote user input and ending at server output for detection of complex, multi-step, security-bypassing vulnerabilities that go far beyond what traditional static code analysis tools are capable of performing. See all the details including the Vulnhuntr output for all the 0-days here: [Protect AI Vulnhuntr Blog](https://protectai.com/threat-research/vulnhuntr-first-0-day-vulnerabilities)
+
+Vulnhuntr uses LLMs to analyze entire code call chains starting from remote user input and ending at server output, identifying complex, multi-step vulnerabilities that go beyond what traditional static code analysis tools can find. See the 0-day details including Vulnhuntr output here: [Protect AI Vulnhuntr Blog](https://protectai.com/threat-research/vulnhuntr-first-0-day-vulnerabilities)
 
 ## Vulnerabilities Found
 
@@ -24,11 +25,11 @@ Vulnhuntr leverages the power of LLMs to automatically create and analyze entire
 | [gpt_academic](https://github.com/binary-husky/gpt_academic) | 67k | [LFI](https://nvd.nist.gov/vuln/detail/CVE-2024-10100), [XSS](https://nvd.nist.gov/vuln/detail/CVE-2024-10101) |
 | [ComfyUI](https://github.com/comfyanonymous/ComfyUI) | 66k | [XSS](https://nvd.nist.gov/vuln/detail/CVE-2024-10099) |
 | [Langflow](https://github.com/langflow-ai/langflow) | 46k | RCE, IDOR |
-| [FastChat](https://github.com/lm-sys/FastChat) | 37k | [SSRF](https://nvd.nist.gov/vuln/detail/CVE-2024-10044) | 
+| [FastChat](https://github.com/lm-sys/FastChat) | 37k | [SSRF](https://nvd.nist.gov/vuln/detail/CVE-2024-10044) |
 | [Ragflow](https://github.com/infiniflow/ragflow) | 31k | [RCE](https://nvd.nist.gov/vuln/detail/CVE-2024-10131) |
 | [LLaVA](https://github.com/haotian-liu/LLaVA) | 21k | [SSRF](https://www.cve.org/CVERecord?id=CVE-2024-9309) |
 | [gpt-researcher](https://github.com/assafelovic/gpt-researcher) | 17k | [AFO](https://github.com/assafelovic/gpt-researcher/pull/935) |
-| [Letta](https://github.com/letta-ai/letta) | 14k | [AFO](https://github.com/letta-ai/letta/pull/2067) | 
+| [Letta](https://github.com/letta-ai/letta) | 14k | [AFO](https://github.com/letta-ai/letta/pull/2067) |
 
 ## Limitations
 
@@ -52,6 +53,7 @@ Vulnhuntr leverages the power of LLMs to automatically create and analyze entire
 We recommend installing in a virtual environment to isolate dependencies:
 
 **Using venv and pip:**
+
 ```bash
 python3.10 -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
@@ -59,6 +61,7 @@ pip install vulnhuntr
 ```
 
 **Using uv (faster):**
+
 ```bash
 uv venv --python 3.10
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
@@ -68,11 +71,13 @@ uv pip install vulnhuntr
 ### Alternative: pipx or Docker
 
 **Using pipx:**
+
 ```bash
 pipx install vulnhuntr --python python3.10
 ```
 
 **Using Docker:**
+
 ```bash
 docker build -t vulnhuntr https://github.com/diaz3618/vulnhuntr.git#main
 ```
@@ -80,6 +85,7 @@ docker build -t vulnhuntr https://github.com/diaz3618/vulnhuntr.git#main
 ### Development Installation
 
 Clone and install from source:
+
 ```bash
 git clone https://github.com/diaz3618/vulnhuntr
 cd vulnhuntr
@@ -94,28 +100,20 @@ This tool analyzes GitHub repositories for potential remotely exploitable vulner
 
 ### API Key Configuration
 
-You can provide API keys in two ways:
+Set API keys via environment variables or a `.env` file:
 
-**Option 1: Environment variables**
 ```bash
+# Environment variable
 export ANTHROPIC_API_KEY="sk-ant-..."
-export OPENAI_API_KEY="sk-..."
-```
 
-**Option 2: .env file (recommended for development)**
-
-Create a `.env` file in your project directory or working directory:
-```bash
-# .env
+# Or .env file (recommended for development)
 ANTHROPIC_API_KEY=sk-ant-...
 OPENAI_API_KEY=sk-...
 OPENROUTER_API_KEY=sk-or-...
 ```
 
-Vulnhuntr will automatically load environment variables from `.env` files.
-
 > [!CAUTION]
-> Always set spending limits or closely monitor costs with the LLM provider you use. This tool has the potential to rack up hefty bills as it tries to fit as much code in the LLMs context window as possible. 
+> Always set spending limits or closely monitor costs with the LLM provider you use. This tool has the potential to rack up hefty bills as it tries to fit as much code in the LLMs context window as possible.
 
 > [!TIP]
 > We recommend using Claude for the LLM. Through testing we have had better results with it over GPT. For **free** testing, try OpenRouter with free models like `qwen/qwen3-coder:free`.
@@ -165,16 +163,19 @@ Integrations:
 Vulnhuntr includes built-in cost tracking and budget controls:
 
 **Estimate costs before analysis:**
+
 ```bash
 vulnhuntr -r /path/to/repo --dry-run
 ```
 
 **Set a maximum budget:**
+
 ```bash
 vulnhuntr -r /path/to/repo --budget 5.0  # Stop at $5.00
 ```
 
 **Resume interrupted analysis:**
+
 ```bash
 # Analysis automatically checkpoints progress
 vulnhuntr -r /path/to/repo --resume
@@ -182,17 +183,20 @@ vulnhuntr -r /path/to/repo --resume
 # Continue with higher budget if needed
 vulnhuntr -r /path/to/repo --resume --budget 10.0
 ```
+
 ### Examples
 
 **Basic analysis with .env file:**
 
 Create `.env` file:
+
 ```bash
 # .env
 ANTHROPIC_API_KEY=sk-ant-...
 ```
 
 Run analysis:
+
 ```bash
 vulnhuntr -r /path/to/target/repo/
 ```
@@ -250,10 +254,12 @@ Ollama is included as an option, however we haven't had success with the open so
 export OLLAMA_BASE_URL=http://localhost:11434/api/generate
 export OLLAMA_MODEL=llama3.2
 vulnhuntr -r /path/to/target/repo/ -a server.py -l ollama
-``` 
+```
 
 ## Logic Flow
+
 ![VulnHuntr logic](https://github.com/user-attachments/assets/7757b053-36ff-425e-ab3d-ab0100c81d49)
+
 - LLM summarizes the README and includes this in the system prompt
 - LLM does initial analysis on an entire file and reports any potential vulnerabilities
 - Vulnhuntr then gives the LLM a vulnerability-specific prompt for secondary analysis
@@ -288,69 +294,38 @@ vulnhuntr -r /path/to/repo --export-all ./reports/
 
 ### Console Output
 
-The tool also outputs detailed findings to the console. Below is an example of a Vulnhuntr report describing a 0-day remote code execution vulnerability in [Ragflow](https://github.com/infiniflow/ragflow) (now fixed):
+Below is a truncated example from a vulnerability found in [Ragflow](https://github.com/infiniflow/ragflow):
 
 ```
-scratchpad:
-  1. Analyzing the add_llm function in llm_app.py. 2. Identified user input used as keys to access dictionaries: EmbeddingModel, ChatModel, RerankModel,
-CvModel, and TTSModel. 3. These dictionaries contain class references, which are instantiated with user-supplied parameters. 4. The factory variable is 
-directly used from user input (req['llm_factory']) without proper validation. 5. The llm_name is also derived from user input in most cases. 6. The 
-instantiation of these classes occurs in try-except blocks, but exceptions are only used for error messages, not preventing execution. 7. The api_key 
-and other sensitive information are passed directly to these instantiated classes. 8. There's no comprehensive input validation or sanitization for the 
-factory or llm_name variables. 9. The vulnerability is in a route decorated with @login_required, indicating it's accessible to authenticated users. 10.
-Reviewing the EmbeddingModel, ChatModel, RerankModel, CvModel, and TTSModel dictionaries to understand their contents and potential for exploitation.
-----------------------------------------
-
 analysis:
-  The add_llm function in llm_app.py contains a critical Remote Code Execution (RCE) vulnerability. The function uses user-supplied input 
-(req['llm_factory'] and req['llm_name']) to dynamically instantiate classes from the EmbeddingModel, ChatModel, RerankModel, CvModel, and TTSModel 
-dictionaries. This pattern of using user input as a key to access and instantiate classes is inherently dangerous, as it allows an attacker to 
-potentially execute arbitrary code. The vulnerability is exacerbated by the lack of comprehensive input validation or sanitization on these 
-user-supplied values. While there are some checks for specific factory types, they are not exhaustive and can be bypassed. An attacker could potentially
-provide a malicious value for 'llm_factory' that, when used as an index to these model dictionaries, results in the execution of arbitrary code. The 
-vulnerability is particularly severe because it occurs in a route decorated with @login_required, suggesting it's accessible to authenticated users, 
-which might give a false sense of security.
-----------------------------------------
+  The add_llm function uses user-supplied input (req['llm_factory']) to
+  dynamically instantiate classes from model dictionaries. This allows
+  arbitrary code execution via crafted factory values.
 
 poc:
   POST /add_llm HTTP/1.1
-  Host: target.com
-  Content-Type: application/json
-  Authorization: Bearer <valid_token>
-  
-  {
-      "llm_factory": "__import__('os').system",
-      "llm_name": "id",
-      "model_type": "EMBEDDING",
-      "api_key": "dummy_key"
-  }
-  
-  This payload attempts to exploit the vulnerability by setting 'llm_factory' to a string that, when evaluated, imports the os module and calls system. 
-The 'llm_name' is set to 'id', which would be executed as a system command if the exploit is successful.
-----------------------------------------
+  {"llm_factory": "__import__('os').system", "llm_name": "id", ...}
 
-confidence_score:
-  8
-----------------------------------------
-
-vulnerability_types:
-  - RCE
-----------------------------------------
+confidence_score: 8
+vulnerability_types: [RCE]
 ```
+
+Full output includes a `scratchpad` field with the LLM's reasoning chain.
 
 ## Logging
 
-The tool logs the analysis process and results in a file named `vulhuntr.log`. This file contains detailed information about each step of the analysis, including the initial and secondary assessments.
-
+The tool logs analysis steps and results to `vulhuntr.log`.
 
 ## Authors
 
 **Original Authors** ([Protect AI](https://protectai.com)):
-- Dan McInerney: dan@protectai.com, [@DanHMcinerney](https://x.com/DanHMcInerney)
-- Marcello Salvati: marcello@protectai.com, [@byt3bl33d3r](https://x.com/byt3bl33d3r)
+
+- Dan McInerney: <dan@protectai.com>, [@DanHMcinerney](https://x.com/DanHMcInerney)
+- Marcello Salvati: <marcello@protectai.com>, [@byt3bl33d3r](https://x.com/byt3bl33d3r)
 
 **Current Developer for this Fork**:
-- Daniel Diaz Santiago: daniel.diaz.stg@gmail.com
+
+- Daniel Diaz Santiago: <daniel.diaz.stg@gmail.com>
 
 ## License
 

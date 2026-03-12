@@ -333,7 +333,7 @@ class ChatGPT(LLM):
         params = {
             "model": self.model,
             "messages": messages,
-            "max_tokens": max_tokens,
+            "max_completion_tokens": max_tokens,
         }
 
         # Add response format configuration if a model is provided

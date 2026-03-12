@@ -1,44 +1,44 @@
-# Research Methodology for Vulnhuntr Analysis
+# Research Methodology
 
 ## Overview
 
-This document outlines the detailed research methodology for analyzing and enhancing Vulnhuntr, an LLM-based vulnerability detection tool. Our approach combines empirical software evaluation, security analysis, and AI trustworthiness assessment.
+This document describes the methodology for evaluating and enhancing Vulnhuntr. The approach combines empirical software evaluation with security analysis and AI trustworthiness assessment.
 
 ---
 
 ## Research Questions
 
 ### RQ1: Effectiveness
-**Can Vulnhuntr reliably detect known vulnerabilities?**
 
-**Sub-questions**:
+Can Vulnhuntr reliably detect known vulnerabilities?
+
 - RQ1.1: What is the true positive rate on known CVEs?
 - RQ1.2: What is the false positive rate on secure code?
 - RQ1.3: What is the false negative rate on vulnerable code?
 - RQ1.4: How does performance vary by vulnerability type?
 
 ### RQ2: Reliability
-**How consistent are Vulnhuntr's results?**
 
-**Sub-questions**:
+How consistent are Vulnhuntr's results?
+
 - RQ2.1: Does analysis vary between runs (stochastic behavior)?
 - RQ2.2: How does LLM choice (Claude vs GPT) affect results?
 - RQ2.3: Does confidence score correlate with actual exploitability?
 - RQ2.4: Are results reproducible across different environments?
 
 ### RQ3: Limitations
-**What are Vulnhuntr's failure modes?**
 
-**Sub-questions**:
+What are Vulnhuntr's failure modes?
+
 - RQ3.1: What vulnerability patterns does it miss?
 - RQ3.2: What causes false positives?
 - RQ3.3: How does code complexity affect accuracy?
 - RQ3.4: What are the computational and cost constraints?
 
 ### RQ4: Improvements
-**Can we enhance Vulnhuntr's trustworthiness?**
 
-**Sub-questions**:
+Can we enhance Vulnhuntr's trustworthiness?
+
 - RQ4.1: Can we reduce false positives without increasing false negatives?
 - RQ4.2: Can prompt engineering improve accuracy?
 - RQ4.3: Can we add verification layers to increase confidence?
@@ -52,28 +52,18 @@ This document outlines the detailed research methodology for analyzing and enhan
 
 #### 1.1 Known Vulnerable Code (Positive Cases)
 
-**Source 1: Vulnhuntr's Discovered CVEs**
-- Collect code from projects where Vulnhuntr found vulnerabilities
-- Use versions before patches were applied
-- Expected vulnerabilities are known (ground truth)
+Vulnerable samples will be drawn from four sources:
 
-**Source 2: Public CVE Databases**
-- NVD (National Vulnerability Database)
-- GitHub Security Advisories
-- Filter for Python projects with public code
-- Manually verify exploitability
+Vulnhuntr's Discovered CVEs — code from projects where Vulnhuntr originally found vulnerabilities, using pre-patch versions where the expected vulnerability is known ground truth.
 
-**Source 3: OWASP Benchmark**
-- OWASP's test suite for security tools
-- Known vulnerable patterns
-- https://github.com/OWASP/Benchmark
+Public CVE Databases — NVD, GitHub Security Advisories, filtered for Python projects with available source and manually verified exploitability.
 
-**Source 4: Synthetic Vulnerable Code**
-- Create minimalist examples of each vulnerability type
-- Gradually increase complexity
-- Ensure exploitability is clear
+OWASP Benchmark — the standardized test suite for security tools at <https://github.com/OWASP/Benchmark>.
 
-**Target Distribution**:
+Synthetic Vulnerable Code — minimalist examples of each vulnerability type, with gradually increasing complexity and clear exploitability.
+
+Target Distribution:
+
 ```
 RCE:   20 examples
 LFI:   20 examples
@@ -87,36 +77,20 @@ Total: 100 vulnerable code samples
 
 #### 1.2 Secure Code (Negative Cases)
 
-**Source 1: Popular Python Projects**
-- Well-maintained projects with security reviews
-- Flask, Django, FastAPI core code
-- Known to have security controls
+Secure samples will come from well-maintained projects with security reviews (Flask, Django, FastAPI core code), patched versions of the same files used in the positive set (enabling direct comparison), and synthetic implementations following security best practices.
 
-**Source 2: Patched Versions**
-- Same code as vulnerable set, but after security fixes
-- Direct comparison opportunity
-
-**Source 3: Synthetic Secure Code**
-- Secure implementations of common patterns
-- Proper input validation examples
-- Security best practices
-
-**Target**: 100 secure code samples
+Target: 100 secure code samples.
 
 #### 1.3 Ambiguous Cases
 
-**Purpose**: Test edge cases and near-misses
-- Code with partial vulnerabilities
-- Defense-in-depth scenarios
-- Context-dependent issues
-
-**Target**: 25 ambiguous samples with expert annotations
+A set of 25 edge-case samples (partial vulnerabilities, defense-in-depth scenarios, context-dependent issues) with expert annotations, to test borderline classification behavior.
 
 ---
 
 ### 2. Baseline Measurement Protocol
 
 #### 2.1 Configuration
+
 ```bash
 # Standard configuration
 LLM: Claude Sonnet 4.5
@@ -126,7 +100,9 @@ Verbosity: -vv (maximum detail)
 ```
 
 #### 2.2 Execution
+
 For each file in benchmark:
+
 1. Record start time
 2. Run Vulnhuntr analysis
 3. Capture all output (console + logs)
@@ -135,7 +111,9 @@ For each file in benchmark:
 6. Calculate cost
 
 #### 2.3 Result Recording
+
 Create structured record for each analysis:
+
 ```json
 {
   "file_id": "CVE-2024-10100",
@@ -158,7 +136,8 @@ Create structured record for each analysis:
 
 #### 2.4 Metrics Calculation
 
-**Accuracy Metrics**:
+Accuracy Metrics:
+
 ```
 Precision = TP / (TP + FP)
 Recall = TP / (TP + FN)
@@ -168,14 +147,16 @@ Per-vulnerability-type metrics
 Overall aggregate metrics
 ```
 
-**Confidence Calibration**:
+Confidence Calibration:
+
 ```
 For each confidence score bucket [0-2, 3-4, 5-6, 7-8, 9-10]:
   Calculate actual accuracy in that bucket
   Compare with expected accuracy
 ```
 
-**Cost Analysis**:
+Cost Analysis:
+
 ```
 Average cost per file
 Cost per true positive
@@ -189,22 +170,24 @@ Total cost for repository scan
 
 #### Experiment 1: LLM Comparison
 
-**Hypothesis**: Different LLMs have different accuracy profiles
+Hypothesis: Different LLMs have different accuracy profiles
 
-**Method**:
+Method:
+
 - Run same benchmark with:
   - Claude Sonnet 4.5
   - GPT-4o
   - Ollama Llama 3.2 (if functional)
 - Compare accuracy, cost, time
 
-**Metrics**: Precision, Recall, F1, Cost, Time
+Metrics: Precision, Recall, F1, Cost, Time
 
 #### Experiment 2: Prompt Engineering
 
-**Hypothesis**: Modified prompts can improve accuracy
+Hypothesis: Modified prompts can improve accuracy
 
-**Method**:
+Method:
+
 - Create variations:
   1. Baseline (current prompts)
   2. More explicit bypass instructions
@@ -213,24 +196,26 @@ Total cost for repository scan
   5. Conservative bias (reduce FP)
 - Test subset of benchmark (25 files)
 
-**Metrics**: Change in TP, FP, FN rates
+Metrics: Change in TP, FP, FN rates
 
 #### Experiment 3: Confidence Threshold
 
-**Hypothesis**: Filtering by confidence score can optimize precision/recall tradeoff
+Hypothesis: Filtering by confidence score can optimize precision/recall tradeoff
 
-**Method**:
+Method:
+
 - Analyze results with different confidence cutoffs:
   - ≥4, ≥5, ≥6, ≥7, ≥8, ≥9
 - Plot precision-recall curve
 
-**Metrics**: Precision, Recall at each threshold
+Metrics: Precision, Recall at each threshold
 
 #### Experiment 4: Code Complexity
 
-**Hypothesis**: More complex code leads to worse performance
+Hypothesis: More complex code leads to worse performance
 
-**Method**:
+Method:
+
 - Measure code complexity:
   - Lines of code
   - Cyclomatic complexity
@@ -238,71 +223,76 @@ Total cost for repository scan
   - Number of files involved
 - Correlate with accuracy
 
-**Metrics**: Correlation coefficients, scatter plots
+Metrics: Correlation coefficients, scatter plots
 
 #### Experiment 5: Reproducibility
 
-**Hypothesis**: Results are reproducible despite LLM non-determinism
+Hypothesis: Results are reproducible despite LLM non-determinism
 
-**Method**:
+Method:
+
 - Run same 20 files 10 times each
 - Measure variance in:
   - Detected vulnerabilities
   - Confidence scores
   - Analysis reasoning
 
-**Metrics**: Standard deviation, coefficient of variation
+Metrics: Standard deviation, coefficient of variation
 
 ---
 
 ### 4. Enhancement Implementation
 
-Based on findings, implement improvements. Planned enhancements:
+Based on findings, implement improvements in the following areas:
 
-#### Enhancement 1: Taint Analysis Validator
+#### Taint Analysis Validator
 
-**Goal**: Verify LLM findings with traditional taint analysis
+Goal: Verify LLM findings with traditional taint analysis
 
-**Method**:
+Method:
+
 - Implement lightweight taint tracker
 - Trace user input to dangerous sinks
 - Confirm or reject LLM findings
 - Use as confidence booster/reducer
 
-**Evaluation**: Measure change in FP rate
+Evaluation: Measure change in FP rate
 
-#### Enhancement 2: Confidence Calibration
+#### Confidence Calibration
 
-**Goal**: Make confidence scores more accurate
+Goal: Make confidence scores more accurate
 
-**Method**:
+Method:
+
 - Train calibration model on benchmark results
 - Map LLM confidence + code features → actual probability
 - Use logistic regression or similar
 
-**Evaluation**: Calibration curve before/after
+Evaluation: Calibration curve before/after
 
-#### Enhancement 3: Iterative Refinement
+#### Iterative Refinement
 
-**Goal**: Reduce FP through clarifying questions
+Goal: Reduce FP through clarifying questions
 
-**Method**:
+Method:
+
 - When confidence is medium (5-7), ask LLM to verify
 - Provide additional context or constraints
 - Re-analyze with refined prompt
 
-**Evaluation**: FP reduction, cost increase
+Evaluation: FP reduction, cost increase
 
-#### Enhancement 4: Caching Layer
+#### Caching Layer
 
-**Goal**: Reduce cost without affecting accuracy
+Goal: Reduce cost without affecting accuracy
 
-**Method**:
+Method:
+
 - Cache symbol definitions
 - Cache LLM responses for identical inputs
 - Implement smart context reuse
 
-**Evaluation**: Cost reduction, time savings
+Evaluation: Cost reduction, time savings
 
 ---
 
@@ -311,17 +301,20 @@ Based on findings, implement improvements. Planned enhancements:
 #### Comparison with Traditional Tools
 
 Run same benchmark with:
+
 - **Bandit**: Python security linter
 - **Semgrep**: Pattern-based static analysis
 - **CodeQL**: Semantic code analysis
 
-**Metrics to Compare**:
+Metrics to compare:
+
 - True/False Positives/Negatives
 - Vulnerability types detected
 - Time to analyze
 - Ease of use
 
-**Analysis**:
+Analysis:
+
 - Venn diagrams of detected vulnerabilities
 - Unique findings per tool
 - Complementary strengths/weaknesses
@@ -339,6 +332,7 @@ Select 5-10 interesting cases for deep analysis:
 5. **Novel Finding**: Previously unknown vulnerability
 
 For each case study:
+
 - Detailed code walkthrough
 - LLM's reasoning analysis
 - Expert security assessment
@@ -410,30 +404,32 @@ CREATE TABLE results (
 ### Descriptive Statistics
 
 For each experiment:
+
 - Mean, median, standard deviation of metrics
 - Distribution plots (histograms, box plots)
 - Summary tables
 
 ### Inferential Statistics
 
-**Hypothesis Tests**:
+Hypothesis tests:
 
-1. **LLM Comparison** (Experiment 1)
+1. LLM Comparison (Experiment 1)
    - H₀: No significant difference in F1 scores
    - Test: Paired t-test or Wilcoxon signed-rank
    - α = 0.05
 
-2. **Prompt Engineering** (Experiment 2)
+2. Prompt Engineering (Experiment 2)
    - H₀: Prompt modifications don't improve accuracy
    - Test: ANOVA with post-hoc tests
    - α = 0.05
 
-3. **Code Complexity** (Experiment 4)
+3. Code Complexity (Experiment 4)
    - H₀: No correlation between complexity and accuracy
    - Test: Pearson or Spearman correlation
    - α = 0.05
 
-**Effect Sizes**:
+Effect sizes:
+
 - Cohen's d for mean differences
 - R² for correlations
 - Report confidence intervals
@@ -441,6 +437,7 @@ For each experiment:
 ### Reproducibility
 
 All analysis in Jupyter notebooks with:
+
 - Clear documentation
 - Reproducible random seeds
 - Versioned dependencies
@@ -502,22 +499,22 @@ All analysis in Jupyter notebooks with:
 
 ### Risk 1: Benchmark Creation Difficulty
 
-**Mitigation**: Start with existing CVEs, expand gradually
+Start with existing CVEs, expand gradually
 
 ### Risk 2: API Cost Overruns
 
-**Mitigation**: Budget tracking, caching, smaller initial experiments
+Budget tracking, caching, smaller initial experiments
 
 ### Risk 3: Non-Reproducibility
 
-**Mitigation**: Version control, detailed logging, environment specification
+Version control, detailed logging, environment specification
 
 ### Risk 4: Time Constraints
 
-**Mitigation**: Prioritized objectives, MVP approach, parallel work where possible
+Prioritized objectives, MVP approach, parallel work where possible
 
 ---
 
 ## Conclusion
 
-This methodology provides a rigorous, reproducible approach to evaluating and enhancing Vulnhuntr. By combining quantitative experiments with qualitative case studies, we'll gain comprehensive understanding of the tool's trustworthiness and contribute practical improvements to the security analysis community.
+This methodology provides a reproducible framework for evaluating Vulnhuntr. By combining quantitative experiments with qualitative case studies, it should yield an adequate understanding of the tool's trustworthiness while also producing practical improvements.

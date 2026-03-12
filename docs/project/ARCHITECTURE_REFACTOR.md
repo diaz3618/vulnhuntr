@@ -1,18 +1,12 @@
-# Vulnhuntr Modular Architecture Refactor
+# Vulnhuntr Architecture Refactor
 
-## Problem Statement
+## Motivation
 
-The current codebase suffers from several architectural issues:
-- `__main__.py` is 900+ lines with mixed concerns (CLI parsing, analysis logic, reporting)
-- Poor separation of concerns makes testing difficult
-- Tight coupling between components
-- Difficult to extend or maintain
+The original codebase concentrates most logic in a single `__main__.py` (900+ lines), mixing CLI parsing, analysis orchestration, and reporting. This makes isolated testing difficult, couples components unnecessarily, and increases the cost of adding new features or providers.
 
-## Proposed New Structure
+## Proposed Structure
 
-Based on Python best practices from:
-- [The Hitchhiker's Guide to Python - Structure](https://docs.python-guide.org/writing/structure/)
-- [Real Python - Application Layouts](https://realpython.com/python-application-layouts/)
+Following standard Python packaging conventions (see [The Hitchhiker's Guide to Python](https://docs.python-guide.org/writing/structure/), [Real Python Application Layouts](https://realpython.com/python-application-layouts/)):
 
 ### Package Layout
 
@@ -87,23 +81,29 @@ vulnhuntr/
 ## Key Design Principles
 
 ### 1. Single Responsibility Principle
+
 Each module has one clear purpose:
+
 - `core/analysis.py` - Orchestrates vulnerability analysis
 - `cli/parser.py` - Parses CLI arguments
 - `cli/runner.py` - Executes CLI commands
 - `reporters/orchestrator.py` - Coordinates report generation
 
 ### 2. Dependency Inversion
+
 - Core modules don't depend on CLI or reporters
 - CLI and reporters depend on core
 - Use dependency injection for LLM clients
 
 ### 3. Interface Segregation
+
 - Define clear interfaces for LLM clients
 - Use protocols or ABCs where appropriate
 
 ### 4. Clean Entry Point
+
 `__main__.py` should be minimal:
+
 ```python
 from vulnhuntr.cli.runner import main
 
@@ -113,42 +113,48 @@ if __name__ == "__main__":
 
 ## Migration Plan
 
-### Phase 1: Create Core Module
-1. Create `core/models.py` - Move VulnType, ContextCode, Response
-2. Create `core/xml_models.py` - Move XML/Pydantic models
-3. Create `core/repo.py` - Move RepoOps class
-4. Create `core/analysis.py` - Extract analysis logic
+### Extract Core Domain Logic
 
-### Phase 2: Create CLI Module
-1. Create `cli/parser.py` - Extract argument parsing
-2. Create `cli/output.py` - Extract print_readable and console output
-3. Create `cli/runner.py` - Main execution logic
+1. Create `core/models.py` — move VulnType, ContextCode, Response
+2. Create `core/xml_models.py` — move XML/Pydantic models
+3. Create `core/repo.py` — move RepoOps class
+4. Create `core/analysis.py` — extract analysis orchestration
 
-### Phase 3: Refactor LLM Module
+### Separate CLI Layer
+
+1. Create `cli/parser.py` — extract argument parsing
+2. Create `cli/output.py` — extract print_readable and console output
+3. Create `cli/runner.py` — main execution logic
+
+### Split LLM Clients into Package
+
 1. Split `LLMs.py` into `llm/` package
 2. Create base class in `llm/base.py`
-3. Move each provider to separate file
+3. Move each provider to its own module
 
-### Phase 4: Refactor Cost Module
+### Decompose Cost Management
+
 1. Split `cost_tracker.py` into `cost/` package
-2. Separate tracker, budget, and estimation
+2. Separate tracker, budget, and estimation concerns
 
-### Phase 5: Create Reporters Orchestrator
+### Add Report Orchestration
+
 1. Add `reporters/orchestrator.py`
 2. Centralize all report generation logic
 
-### Phase 6: Update Entry Point
-1. Slim down `__main__.py`
+### Simplify Entry Point
+
+1. Reduce `__main__.py` to minimal bootstrap
 2. Update all imports
-3. Test everything
+3. Verify test suite passes
 
 ## Benefits
 
-1. **Testability**: Each module can be tested in isolation
-2. **Maintainability**: Changes are localized to specific modules
-3. **Extensibility**: Easy to add new reporters, LLM providers, etc.
-4. **Readability**: Clear structure makes navigation easy
-5. **Reusability**: Core components can be used programmatically
+- **Testability**: Each module can be tested in isolation
+- **Maintainability**: Changes are localized to specific modules
+- **Extensibility**: Easy to add new reporters, LLM providers, etc.
+- **Readability**: Clear structure makes navigation easy
+- **Reusability**: Core components can be used programmatically
 
 ## Backward Compatibility
 

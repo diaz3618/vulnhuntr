@@ -2,28 +2,31 @@
 
 ## Overview
 
-Vulnhuntr is an innovative security analysis tool that leverages Large Language Models (LLMs) to automatically discover complex, multi-step security vulnerabilities in Python codebases. Unlike traditional static analysis tools that rely on pattern matching, Vulnhuntr uses AI to understand code semantics and trace data flow from user input to potentially dangerous operations.
+Vulnhuntr is a static analysis tool that uses Large Language Models to discover multi-step security vulnerabilities in Python codebases. Rather than relying on pattern matching like conventional static analyzers, it sends source code to an LLM along with structured prompts, then iteratively requests additional code context until it can trace data flow from user input to potentially dangerous operations.
+
+This document describes the codebase as inspected during the course of this project.
 
 ---
 
-## How It Works: The Big Picture
+## How It Works
 
 ### Core Concept
 
-Vulnhuntr analyzes your code by:
-1. **Finding Entry Points**: Identifies where user input enters the application (HTTP routes, API endpoints, etc.)
-2. **Following the Data**: Traces how user-controlled data flows through the codebase
-3. **Detecting Sinks**: Identifies dangerous operations where untrusted data could cause harm
-4. **Building Context**: Requests additional code context iteratively to complete the analysis
-5. **Generating Reports**: Produces detailed vulnerability reports with proof-of-concept exploits
+1. **Entry point identification**: locates where user input enters the application (HTTP routes, API endpoints, etc.)
+2. **Data flow tracing**: follows how user-controlled data moves through the codebase
+3. **Sink detection**: identifies dangerous operations where untrusted data could cause harm
+4. **Context expansion**: iteratively requests additional code definitions to complete the call chain
+5. **Report generation**: produces vulnerability reports with proof-of-concept exploits
 
-### The Innovation
+### Distinguishing Characteristic
 
-Traditional static analysis tools look for patterns like `eval(user_input)`. Vulnhuntr understands that even if `eval()` isn't directly called with user input, a chain like:
+Conventional static analysis tools look for patterns like `eval(user_input)`. Vulnhuntr can reason about indirect chains:
+
 ```
 user_input → sanitize() → transform() → wrapper_function() → eval()
 ```
-might still be exploitable if the sanitization is bypassable.
+
+might still be exploitable if the sanitization is bypassable. The LLM can reason about whether intermediate functions actually neutralize the threat.
 
 ---
 
@@ -66,13 +69,11 @@ Generate Report
 
 ---
 
-## Key Components Explained
+## Key Components
 
 ### 1. Main Orchestrator (`__main__.py`)
 
-**Purpose**: Coordinates the entire analysis workflow
-
-**Key Classes**:
+Coordinates the analysis workflow.
 
 - **`VulnType`**: Enum defining supported vulnerability types (RCE, LFI, XSS, SQLI, SSRF, AFO, IDOR)
 - **`Response`**: Pydantic model for structured LLM responses containing:
@@ -89,25 +90,18 @@ Generate Report
   - Identifies network-related files (files with HTTP endpoints)
   - Uses regex patterns to detect web frameworks (Flask, FastAPI, Django, etc.)
 
-**Main Workflow**:
+Main workflow:
 
-```python
-def run():
-    1. Parse command-line arguments
-    2. Initialize repository operations
-    3. Get README summary (for context)
-    4. Get files to analyze
-    5. For each file:
-        a. Initial analysis (scan for all vulnerability types)
-        b. If vulnerabilities found:
-            For each vulnerability type:
-                - Deep dive analysis
-                - Request additional context code
-                - Iteratively refine understanding (up to 7 iterations)
-    6. Output results
 ```
-
-**Key Functions**:
+parse_args → init_repo → summarize_readme → get_files
+↓
+for file in files:
+    initial_analysis(file)
+    if vulns_found:
+        for vuln_type in vulns:
+            secondary_analysis(vuln_type, max_iterations=7)
+output_results
+```
 
 - `initialize_llm()`: Creates appropriate LLM client based on config
 - `extract_between_tags()`: Parses XML-tagged responses
@@ -117,17 +111,17 @@ def run():
 
 ### 2. LLM Abstraction (`LLMs.py`)
 
-**Purpose**: Provides unified interface for different LLM providers
+Provides a unified interface for different LLM providers.
 
-**Base Class: `LLM`**
+Base class: `LLM`
 
-Common functionality for all LLM implementations:
+Common functionality across all implementations:
+
 - Message history management
 - Response validation with Pydantic models
 - Error handling
 - Logging
 
-**Key Method**:
 ```python
 def chat(user_prompt, response_model=None, max_tokens=4096):
     """
@@ -143,35 +137,39 @@ def chat(user_prompt, response_model=None, max_tokens=4096):
     """
 ```
 
-**Implementation: `Claude`**
+Implementation: `Claude`
 
 - Uses Anthropic's Claude API
 - Implements "prefilling" technique to force JSON output:
+
   ```python
   # Sends partial JSON to force Claude to complete it
   {"role": "assistant", "content": "{    \"scratchpad\": \"1."}
   ```
+
 - Strips newlines from responses for cleaner parsing
 
-**Implementation: `ChatGPT`**
+Implementation: `ChatGPT`
 
 - Uses OpenAI's GPT-4 API
 - Utilizes native JSON mode: `response_format={"type": "json_object"}`
 - Includes system prompt in message format
 
-**Implementation: `Ollama`**
+Implementation: `Ollama`
 
 - For local LLM inference
 - Uses HTTP POST to Ollama API
 - Currently experimental with mixed results
 
-**Error Handling**:
+Error handling:
+
 - `RateLimitError`: When API rate limits are hit
 - `APIConnectionError`: Network/server issues
 - `APIStatusError`: HTTP error codes
 - `LLMError`: General LLM failures
 
-**Response Validation Fix** (Recently Added):
+Response validation fix (recently added):
+
 ```python
 # Strips markdown code blocks from responses
 import re
@@ -184,15 +182,15 @@ if match:
 
 ### 3. Prompt Engineering (`prompts.py`)
 
-**Purpose**: Contains carefully crafted prompts for vulnerability detection
-
-**Structure**:
+Contains the prompt templates used for vulnerability detection.
 
 Each vulnerability type has:
-1. **Prompt Template**: Instructions for analyzing that specific vulnerability
-2. **Bypass Techniques**: Common ways security controls are evaded
 
-**Example Structure**:
+1. Prompt Template: Instructions for analyzing that specific vulnerability
+2. Bypass Techniques: Common ways security controls are evaded
+
+Example structure:
+
 ```python
 RCE_TEMPLATE = """
 Combine code in <file_code> and <context_code> then analyze for RCE...
@@ -212,9 +210,9 @@ RCE_BYPASSES = [
 ]
 ```
 
-**Supported Vulnerability Types**:
+Supported vulnerability types:
 
-1. **RCE (Remote Code Execution)**
+1. RCE (Remote Code Execution)
    - Focus: eval(), exec(), subprocess, pickle, yaml
    - Bypasses: Base64 encoding, string concatenation, reflection
 
@@ -242,7 +240,7 @@ RCE_BYPASSES = [
    - Focus: Authorization checks, ID handling
    - Bypasses: Parameter tampering, enumeration
 
-**Common Prompt Components**:
+Common prompt components:
 
 - `INITIAL_ANALYSIS_PROMPT_TEMPLATE`: First-pass analysis instructions
 - `ANALYSIS_APPROACH_TEMPLATE`: Methodology for tracing data flow
@@ -253,33 +251,30 @@ RCE_BYPASSES = [
 
 ### 4. Symbol Extraction (`symbol_finder.py`)
 
-**Purpose**: Resolves code symbols (functions, classes, variables) to their definitions
+Resolves code symbols (functions, classes, variables) to their definitions. When the LLM sees:
 
-**Why This Matters**:
-
-When the LLM sees:
 ```python
 result = process_user_input(data)
 ```
 
 It needs to see the definition of `process_user_input()` to understand if it's safe. The `SymbolExtractor` finds and retrieves that code.
 
-**Main Class: `SymbolExtractor`**
+Main class: `SymbolExtractor`
 
 ```python
 def __init__(self, repo_path):
     self.project = jedi.Project(repo_path)  # Jedi for Python parsing
 ```
 
-**Core Method: `extract(symbol_name, code_line, filtered_files)`**
+Core method: `extract(symbol_name, code_line, filtered_files)`
 
 Finds the definition of a symbol using multiple strategies:
 
-1. **File Search**: Searches in files matching the code_line
-2. **Project Search**: Uses Jedi's project-wide search
-3. **All Names Search**: Examines all names in relevant files
+1. File Search: Searches in files matching the code_line
+2. Project Search: Uses Jedi's project-wide search
+3. All Names Search: Examines all names in relevant files
 
-**Edge Cases Handled**:
+Edge cases handled:
 
 ```python
 # 1. Method call on variable
@@ -299,7 +294,7 @@ from api.apps import app
 DocumentService.update_progress.d
 ```
 
-**Search Strategies**:
+Search strategies:
 
 ```python
 def file_search(symbol_name, scripts):
@@ -315,7 +310,7 @@ def all_names_search(symbol_name, symbol_parts, scripts, code_line):
     # Handles method calls on variables
 ```
 
-**Return Format**:
+Return format:
 
 ```python
 {
@@ -326,9 +321,10 @@ def all_names_search(symbol_name, symbol_parts, scripts, code_line):
 }
 ```
 
-**Jedi Integration**:
+Jedi integration:
 
 Jedi is a Python static analysis library that:
+
 - Parses Python code into AST
 - Resolves imports and references
 - Infers types
@@ -336,13 +332,14 @@ Jedi is a Python static analysis library that:
 
 ---
 
-## Analysis Workflow in Detail
+## Analysis Workflow
 
-### Phase 1: Initial Analysis
+### Initial Analysis
 
-**Goal**: Get a broad overview of potential vulnerabilities
+The first pass gets a broad overview of potential vulnerabilities.
 
-**Input to LLM**:
+Input to LLM:
+
 ```xml
 <file_code>
     <file_path>/path/to/file.py</file_path>
@@ -378,7 +375,8 @@ Jedi is a Python static analysis library that:
 </response_format>
 ```
 
-**LLM Output**:
+LLM output:
+
 ```json
 {
     "scratchpad": "1. Found route /api/upload accepting file parameter...",
@@ -396,14 +394,14 @@ Jedi is a Python static analysis library that:
 }
 ```
 
-### Phase 2: Secondary Analysis
+### Secondary Analysis (Context Expansion)
 
-**Goal**: Deep dive into specific vulnerability types with additional context
+The secondary analysis dives deeper into each detected vulnerability type with additional context.
 
-**For each detected vulnerability type**:
+For each detected vulnerability type:
 
 1. **Iteration 1**: Analyze with vulnerability-specific prompt
-2. **Iterations 2-7**: 
+2. **Iterations 2-7**:
    - LLM requests more context (functions/classes it needs to see)
    - SymbolExtractor retrieves the requested code
    - LLM analyzes with growing context
@@ -412,7 +410,7 @@ Jedi is a Python static analysis library that:
      - Maximum iterations reached
      - Complete call chain established
 
-**Context Accumulation**:
+Context accumulation:
 
 ```python
 stored_code_definitions = {}
@@ -429,7 +427,8 @@ for context_item in llm_response.context_code:
             stored_code_definitions[context_item.name] = match
 ```
 
-**Secondary Analysis Input**:
+Secondary analysis input:
+
 ```xml
 <file_code>Original file</file_code>
 
@@ -464,19 +463,21 @@ for context_item in llm_response.context_code:
 </previous_analysis>
 ```
 
-**Why Multiple Iterations?**
+Why multiple iterations?
 
 The LLM might see:
+
 1. First iteration: "Calls `sanitize_path(user_input)`"
 2. Second iteration: "Sees `sanitize_path()` removes `../` but not `..\` (Windows)"
 3. Third iteration: "Confirms no Windows path handling"
 4. Conclusion: Vulnerable to Windows path traversal
 
-### Phase 3: Reporting
+### Reporting
 
-**Output Formats**:
+Output formats:
 
-1. **Console Output** (Rich formatting):
+1. Console Output (Rich formatting):
+
    ```
    Analyzing /path/to/file.py
    ----------------------------------------
@@ -498,6 +499,7 @@ The LLM might see:
    ```
 
 2. **Log File** (`vulnhuntr.log`):
+
    ```json
    {
        "event": "Initial analysis complete",
@@ -531,6 +533,7 @@ OLLAMA_BASE_URL=http://127.0.0.1:11434/api/generate  # Default
 ### `.env` File Support
 
 Create `.env` in project root:
+
 ```bash
 ANTHROPIC_API_KEY=your-key-here
 ANTHROPIC_MODEL=claude-sonnet-4-5
@@ -582,16 +585,18 @@ vulnhuntr -r /path/to/repo -vv    # Show context code details
 ### Scratchpad Section
 
 The LLM's "thinking out loud":
+
 - Entry point identification
 - Data flow tracing
 - Security control analysis
 - Decision-making process
 
-**Purpose**: Helps you understand how the tool reached its conclusion
+Helps you understand how the tool reached its conclusion
 
 ### Analysis Section
 
 The final verdict:
+
 - Is there a vulnerability?
 - What type is it?
 - How severe is it?
@@ -600,6 +605,7 @@ The final verdict:
 ### PoC (Proof of Concept)
 
 Concrete exploit demonstration:
+
 ```python
 # HTTP request
 POST /api/upload HTTP/1.1
@@ -618,6 +624,7 @@ response = requests.post(
 ### Context Code
 
 Functions and classes the LLM examined:
+
 ```
 Name: secure_filename
 Context search: secure_filename
@@ -687,29 +694,35 @@ First two lines from source: def secure_filename(filename):
 ### Common Issues
 
 #### "ValidationError: Invalid JSON"
+
 - **Cause**: LLM returned malformed JSON
 - **Fix**: ✅ Already fixed with regex extraction
 - **Manual fix**: Check `vulnhuntr.log` for raw response
 
 #### "No such file or directory: .../grammar313.txt"
+
 - **Cause**: Jedi/Parso don't support Python 3.13
 - **Fix**: Upgrade to jedi>=0.19.2, parso>=0.8.5
 
 #### "404 Error: model not found"
+
 - **Cause**: Invalid model name
 - **Fix**: Set `ANTHROPIC_MODEL=claude-sonnet-4-5`
 
 #### "RateLimitError"
+
 - **Cause**: Exceeded API rate limits
 - **Fix**: Add delays, reduce parallelization, increase tier
 
 #### High costs
+
 - **Cause**: Analyzing large files with many iterations
 - **Fix**: Use `-a` to focus on specific files, reduce max iterations
 
 ### Debug Mode
 
 Enable detailed logging:
+
 ```python
 # In code
 import structlog
@@ -721,6 +734,7 @@ structlog.configure(
 ```
 
 Check `vulnhuntr.log` for structured logs:
+
 ```json
 {
     "event": "Initial analysis complete",
@@ -769,11 +783,13 @@ Check `vulnhuntr.log` for structured logs:
 ### API Usage
 
 Average per file analysis:
+
 - Initial analysis: 1 API call (~2000-8000 tokens)
 - Secondary analysis: n × m API calls (~4000-16000 tokens each)
 - Total: 1 + (n × m) API calls
 
 Example for file with 2 vulnerabilities, 4 iterations each:
+
 - API calls: 1 + (2 × 4) = 9 calls
 - Estimated cost (Claude): ~$0.50-2.00
 
@@ -815,11 +831,13 @@ Vulnhuntr has found 0-days in major projects:
 See [AREAS_OF_IMPROVEMENT.md](AREAS_OF_IMPROVEMENT.md) for detailed roadmap.
 
 ### Short Term
+
 - Multi-language support
 - Better performance and caching
 - Enhanced reporting (SARIF, HTML)
 
 ### Long Term
+
 - Local LLM optimization
 - Automated PoC verification
 - IDE integration
@@ -866,8 +884,6 @@ pip install pytest black mypy ruff
 
 ## Conclusion
 
-Vulnhuntr represents a paradigm shift in static security analysis by leveraging LLM reasoning capabilities to detect complex vulnerabilities that traditional tools miss. By understanding code semantics and tracing data flow through multiple files and function calls, it achieves results comparable to expert security researchers.
+Vulnhuntr uses LLM reasoning in combination with Jedi-based static analysis to trace data flow through multi-file call chains. Its iterative context expansion loop (up to 7 rounds) lets the model progressively build a complete picture of how user input reaches dangerous sinks. The approach has demonstrated practical value through its discovery of real CVEs in widely-used open-source projects, though it remains limited to Python and subject to the usual constraints of LLM-based analysis (non-determinism, cost, false positives).
 
-While it has limitations (Python-only, API costs, false positives), its ability to find real 0-day vulnerabilities in popular open-source projects demonstrates its effectiveness as a security tool.
-
-For questions, issues, or contributions, visit: https://github.com/protectai/vulnhuntr
+For questions, issues, or contributions, visit: <https://github.com/protectai/vulnhuntr>
