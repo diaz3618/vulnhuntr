@@ -12,6 +12,8 @@ References:
 - Webhook Best Practices: https://docs.github.com/en/webhooks
 """
 
+from __future__ import annotations
+
 import hashlib
 import hmac
 import json

@@ -8,6 +8,8 @@ These models serialize to XML format which helps structure the
 prompts in a way that LLMs can parse more reliably than plain text.
 """
 
+from __future__ import annotations
+
 from pydantic_xml import BaseXmlModel, element
 
 

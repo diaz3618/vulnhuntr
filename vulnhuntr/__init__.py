@@ -30,6 +30,8 @@ Usage:
     from vulnhuntr.cli import initialize_llm
 """
 
+from __future__ import annotations
+
 __version__ = "1.1.4"
 __author__ = "Protect AI"
 

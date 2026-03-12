@@ -12,6 +12,8 @@ Supported formats:
 - Markdown (Documentation-friendly format)
 """
 
+from __future__ import annotations
+
 from .base import (
     CWE_MAPPINGS,
     Finding,

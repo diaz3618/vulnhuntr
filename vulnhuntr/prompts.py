@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 LFI_TEMPLATE = """
 Combine the code in <file_code> and <context_code> then analyze the code for remotely-exploitable Local File Inclusion (LFI) vulnerabilities by following the remote user-input call chain of code.
 

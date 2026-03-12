@@ -19,6 +19,8 @@ Usage:
     vulnhuntr -r /path/to/project --help
 """
 
+from __future__ import annotations
+
 import logging
 import sys
 

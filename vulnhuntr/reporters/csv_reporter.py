@@ -5,6 +5,8 @@ CSV Reporter
 Generates CSV reports for spreadsheet applications.
 """
 
+from __future__ import annotations
+
 import csv
 import io
 from pathlib import Path

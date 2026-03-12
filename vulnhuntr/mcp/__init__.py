@@ -10,6 +10,8 @@ Supported transports:
 - sse: Server-Sent Events endpoint (legacy)
 """
 
+from __future__ import annotations
+
 from vulnhuntr.mcp.analysis import (
     MCPAnalysisHelper,
     run_async,

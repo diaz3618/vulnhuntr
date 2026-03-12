@@ -10,6 +10,8 @@ Submodules:
 - runner: Main execution orchestration
 """
 
+from __future__ import annotations
+
 from vulnhuntr.cli.output import (
     print_analysis_progress,
     print_cost_summary,

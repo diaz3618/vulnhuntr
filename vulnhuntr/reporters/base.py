@@ -5,6 +5,8 @@ Base Reporter Classes
 Provides the base classes and data models for all reporter implementations.
 """
 
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -27,7 +29,7 @@ class FindingSeverity(str, Enum):
     INFO = "info"
 
     @classmethod
-    def from_confidence_score(cls, score: int) -> "FindingSeverity":
+    def from_confidence_score(cls, score: int) -> FindingSeverity:
         """Map confidence score (0-10) to severity level.
 
         Higher confidence means more certain the vulnerability exists,

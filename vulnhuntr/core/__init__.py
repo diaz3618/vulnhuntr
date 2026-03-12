@@ -11,6 +11,8 @@ Submodules:
 - analysis: Vulnerability analysis orchestrator
 """
 
+from __future__ import annotations
+
 from vulnhuntr.core.analysis import (
     AnalysisConfig,
     AnalysisResult,

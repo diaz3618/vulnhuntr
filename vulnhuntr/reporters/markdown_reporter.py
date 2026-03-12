@@ -5,6 +5,8 @@ Markdown Reporter
 Generates Markdown reports for documentation and README files.
 """
 
+from __future__ import annotations
+
 from datetime import datetime, timezone
 from pathlib import Path
 

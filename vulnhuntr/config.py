@@ -13,6 +13,8 @@ Configuration Options:
 - dry_run: Enable dry-run mode by default
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -75,7 +77,7 @@ class VulnhuntrConfig:
     confidence_threshold: int = 1
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "VulnhuntrConfig":
+    def from_dict(cls, data: dict[str, Any]) -> VulnhuntrConfig:
         """Create config from dictionary.
 
         Handles nested 'cost', 'llm', 'analysis' sections from YAML.

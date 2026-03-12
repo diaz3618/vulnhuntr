@@ -14,6 +14,8 @@ Features:
 - Dark mode support
 """
 
+from __future__ import annotations
+
 import html
 from datetime import datetime, timezone
 from pathlib import Path

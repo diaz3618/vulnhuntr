@@ -14,6 +14,8 @@ References:
 - GitHub SARIF Support: https://docs.github.com/en/code-security/code-scanning/integrating-with-code-scanning/sarif-support-for-code-scanning
 """
 
+from __future__ import annotations
+
 import hashlib
 import json
 from datetime import datetime, timezone

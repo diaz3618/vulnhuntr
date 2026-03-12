@@ -11,6 +11,8 @@ The RepoOps class provides methods for:
 - Filtering out test files, documentation, etc.
 """
 
+from __future__ import annotations
+
 import re
 from collections.abc import Generator
 from pathlib import Path

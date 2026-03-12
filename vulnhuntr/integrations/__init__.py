@@ -10,6 +10,8 @@ Integrations:
 - Webhooks: Send findings to custom endpoints
 """
 
+from __future__ import annotations
+
 from .github_issues import GitHubConfig, GitHubIssueCreator, IssueResult
 from .webhook import PayloadFormat, WebhookConfig, WebhookNotifier
 
