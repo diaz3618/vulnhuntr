@@ -1,4 +1,4 @@
-import logging
+import json
 import re
 import time
 from collections.abc import Callable
@@ -6,14 +6,12 @@ from dataclasses import dataclass
 from typing import Any
 
 import anthropic
-import dotenv
 import openai
 import requests
+import structlog
 from pydantic import BaseModel, ValidationError
 
-dotenv.load_dotenv()
-
-log = logging.getLogger(__name__)
+log = structlog.get_logger()
 
 
 # =============================================================================
@@ -119,49 +117,37 @@ class LLM:
             if match:
                 response_text = match.group(0)
 
-            # Fix common JSON issues from LLM responses
-            # 1. Fix invalid escape sequences (e.g., \' from SQL/code snippets)
-            #    Valid JSON escapes: \" \\ \/ \b \f \n \r \t \uXXXX
-            #    Remove backslash from any other escape sequence
-            response_text = re.sub(r'(?<!\\)\\(?!["\\/bfnrtu\\])', "", response_text)
+            # Try parsing JSON directly first — only apply fixes on failure
+            try:
+                return response_model.model_validate_json(response_text)
+            except ValidationError:
+                pass  # Fall through to repair logic
 
-            # 2. Replace Python None with JSON null
-            response_text = re.sub(r"\b(None)\b", "null", response_text)
+            # Apply targeted fixes for common LLM JSON issues
+            # 1. Replace Python None/True/False with JSON null/true/false
+            response_text = re.sub(r"\bNone\b", "null", response_text)
+            response_text = re.sub(r"\bTrue\b", "true", response_text)
+            response_text = re.sub(r"\bFalse\b", "false", response_text)
 
-            # 3. Replace Python True/False with JSON true/false (if needed)
-            response_text = re.sub(r"\b(True)\b", "true", response_text)
-            response_text = re.sub(r"\b(False)\b", "false", response_text)
+            # 2. Try parsing again after Python-literal fixes
+            try:
+                return response_model.model_validate_json(response_text)
+            except ValidationError:
+                pass  # Fall through to escape repair
+
+            # 3. Fix invalid JSON escape sequences only as a last resort.
+            #    Use json.loads to detect the error position rather than
+            #    blindly stripping backslashes (which can corrupt code snippets).
+            try:
+                json.loads(response_text)
+            except json.JSONDecodeError as je:
+                if "escape" in str(je).lower() or "invalid" in str(je).lower():
+                    response_text = re.sub(r'(?<!\\)\\(?!["\\/bfnrtu])', "", response_text)
 
             return response_model.model_validate_json(response_text)
         except ValidationError as e:
-            log.warning("[-] Response validation failed\n", exc_info=e)
-
-            # Save failed response for debugging
-            import os
-            import tempfile
-
-            debug_file = os.path.join(
-                tempfile.gettempdir(),
-                f"vulnhuntr_failed_response_{int(time.time())}.json",
-            )
-            try:
-                with open(debug_file, "w") as f:
-                    f.write(response_text)
-                log.error(f"Failed response saved to: {debug_file}")
-            except OSError as debug_err:
-                # Don't let debug logging break the error flow
-                log.debug(f"Failed to save debug file: {debug_err}")
-
-            # Try to provide helpful error message
-            error_msg = str(e)
-            if "invalid escape" in error_msg.lower():
-                log.error("JSON contains invalid escape sequences (likely from code snippets)")
-                log.error("This is a known issue when LLMs include code with backslashes")
-                log.error("Try re-running the analysis - LLM responses can vary")
-            elif "None" in response_text or "True" in response_text or "False" in response_text:
-                log.error("JSON contains Python syntax (None/True/False instead of null/true/false)")
-                log.error("Applied automatic fixes but still failed - check saved response")
-
+            log.warning("Response validation failed", error=str(e))
+            log.debug("Failed response text (first 500 chars)", text=response_text[:500])
             raise LLMError("Validation failed") from e
 
     def _add_to_history(self, role: str, content: str) -> None:
@@ -204,7 +190,7 @@ class LLM:
             )
 
     def chat(
-        self, user_prompt: str, response_model: type[BaseModel] | None = None, max_tokens: int = 4096
+        self, user_prompt: str, response_model: type[BaseModel] | None = None, max_tokens: int = 8192
     ) -> BaseModel | str:
         self._add_to_history("user", user_prompt)
         messages = self.create_messages(user_prompt)
@@ -284,7 +270,7 @@ class Claude(LLM):
             raise APIStatusError(e.status_code, e.response) from e
 
     def get_response(self, response: Any) -> str:
-        return response.content[0].text.replace("\n", "")
+        return response.content[0].text
 
     def _extract_usage(self, response: Any) -> LLMUsage:
         """Extract token usage from Claude response."""
@@ -557,7 +543,7 @@ class FallbackLLM:
             llm.set_context(file_path, call_type)
 
     def chat(
-        self, user_prompt: str, response_model: type[BaseModel] | None = None, max_tokens: int = 4096
+        self, user_prompt: str, response_model: type[BaseModel] | None = None, max_tokens: int = 8192
     ) -> BaseModel | str:
         """Send chat request with automatic fallback on failure.
 
@@ -584,7 +570,7 @@ class FallbackLLM:
                 self._active = llm
                 return result
 
-            except (LLMError, Exception) as e:
+            except LLMError as e:
                 log.error(
                     f"LLM {llm.model} failed: {e}",
                     extra={"model": llm.model, "fallback_index": i},

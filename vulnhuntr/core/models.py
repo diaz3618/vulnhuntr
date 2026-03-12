@@ -11,12 +11,12 @@ and context information.
 
 from __future__ import annotations
 
-import logging
 from enum import Enum
 
+import structlog
 from pydantic import BaseModel, Field, field_validator
 
-log = logging.getLogger(__name__)
+log = structlog.get_logger()
 
 
 class VulnType(str, Enum):
