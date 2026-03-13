@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import time
 from collections.abc import Callable
@@ -42,12 +43,6 @@ class APIStatusError(LLMError):
         super().__init__(f"Received non-200 status code: {status_code}")
 
 
-# =============================================================================
-# Base LLM Class
-# =============================================================================
-
-
-# Base LLM class to handle common functionality
 class LLM:
     def __init__(
         self,
@@ -200,11 +195,6 @@ class LLM:
         raise NotImplementedError
 
 
-# =============================================================================
-# Claude (Anthropic)
-# =============================================================================
-
-
 class Claude(LLM):
     def __init__(
         self,
@@ -214,7 +204,6 @@ class Claude(LLM):
         cost_callback: CostCallback | None = None,
     ) -> None:
         super().__init__(system_prompt, cost_callback)
-        import os
 
         api_key = os.getenv("ANTHROPIC_API_KEY")
         # Initialize client without base_url initially to avoid httpx issues
@@ -235,9 +224,7 @@ class Claude(LLM):
             ]
         return messages
 
-    def send_message(
-        self, messages: list[dict[str, str]], max_tokens: int, response_model: BaseModel
-    ) -> dict[str, Any]:
+    def send_message(self, messages: list[dict[str, str]], max_tokens: int, response_model: BaseModel) -> Any:
         try:
             # response_model is not used here, only in ChatGPT
             return self.client.messages.create(
@@ -265,11 +252,6 @@ class Claude(LLM):
         )
 
 
-# =============================================================================
-# ChatGPT (OpenAI)
-# =============================================================================
-
-
 class ChatGPT(LLM):
     def __init__(
         self,
@@ -279,7 +261,6 @@ class ChatGPT(LLM):
         cost_callback: CostCallback | None = None,
     ) -> None:
         super().__init__(system_prompt, cost_callback)
-        import os
 
         self.client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"), base_url=base_url)
         self.model = model
@@ -299,7 +280,7 @@ class ChatGPT(LLM):
         *,
         _max_retries: int = 3,
         _base_delay: float = 2.0,
-    ) -> dict[str, Any]:
+    ) -> Any:
         params = {
             "model": self.model,
             "messages": messages,
@@ -345,11 +326,6 @@ class ChatGPT(LLM):
         )
 
 
-# =============================================================================
-# OpenRouter (Multi-provider)
-# =============================================================================
-
-
 class OpenRouter(LLM):
     """OpenRouter client - access multiple LLM providers via single API.
 
@@ -376,7 +352,6 @@ class OpenRouter(LLM):
         cost_callback: CostCallback | None = None,
     ) -> None:
         super().__init__(system_prompt, cost_callback)
-        import os
 
         api_key = os.getenv("OPENROUTER_API_KEY")
         if not api_key:
@@ -386,7 +361,7 @@ class OpenRouter(LLM):
             api_key=api_key,
             base_url=base_url,
             default_headers={
-                "HTTP-Referer": "https://github.com/protectai/vulnhuntr",
+                "HTTP-Referer": "https://github.com/diaz3618/vulnhuntr",
                 "X-Title": "Vulnhuntr Security Scanner",
             },
         )
@@ -407,7 +382,7 @@ class OpenRouter(LLM):
         *,
         _max_retries: int = 3,
         _base_delay: float = 2.0,
-    ) -> dict[str, Any]:
+    ) -> Any:
         params: dict[str, Any] = {
             "model": self.model,
             "messages": messages,
@@ -479,16 +454,6 @@ class OpenRouter(LLM):
             output_tokens=response.usage.completion_tokens,
             model=self.model,
         )
-
-
-# =============================================================================
-# Ollama (Local)
-# =============================================================================
-
-
-# =============================================================================
-# Fallback LLM Wrapper
-# =============================================================================
 
 
 class FallbackLLM:

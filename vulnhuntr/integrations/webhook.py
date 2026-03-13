@@ -1,16 +1,4 @@
-"""
-Webhook Notifier
-================
-
-Send vulnerability findings to custom webhook endpoints.
-
-Supports HMAC-SHA256 signatures for payload verification,
-configurable retry logic, and multiple payload formats.
-
-References:
-- HMAC: https://docs.python.org/3/library/hmac.html
-- Webhook Best Practices: https://docs.github.com/en/webhooks
-"""
+"""Webhook notifier with HMAC signing and retry logic."""
 
 from __future__ import annotations
 

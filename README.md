@@ -56,7 +56,7 @@ We recommend installing in a virtual environment to isolate dependencies:
 
 ```bash
 python3.10 -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+source venv/bin/activate
 pip install vulnhuntr
 ```
 
@@ -64,7 +64,7 @@ pip install vulnhuntr
 
 ```bash
 uv venv --python 3.10
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+source .venv/bin/activate
 uv pip install vulnhuntr
 ```
 

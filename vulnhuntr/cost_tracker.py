@@ -1,15 +1,4 @@
-"""
-Cost Tracker for Vulnhuntr
-==========================
-
-Token usage tracking, cost calculation, budget enforcement, and cost reporting
-for LLM API calls.
-
-This module provides:
-- TokenUsage: Dataclass for individual API call metrics
-- CostTracker: Tracks cumulative token usage and costs
-- BudgetEnforcer: Enforces budget limits with warnings and hard stops
-"""
+"""Token usage tracking, cost calculation, and budget enforcement."""
 
 from __future__ import annotations
 
@@ -19,12 +8,10 @@ from pathlib import Path
 
 import structlog
 
+from vulnhuntr.core.models import LLMUsage
+
 log = structlog.get_logger()
 
-
-# =============================================================================
-# Pricing Configuration
-# =============================================================================
 
 # Prices per 1,000 tokens (USD)
 # Updated: 2024-12 - Check provider pricing pages for current rates
@@ -103,30 +90,19 @@ def get_model_pricing(model: str) -> dict[str, float]:
     return DEFAULT_PRICING
 
 
-# =============================================================================
-# Token Usage Dataclass
-# =============================================================================
-
-
 @dataclass
-class TokenUsage:
-    """Records token usage and cost for a single LLM API call."""
+class TokenUsage(LLMUsage):
+    """Records token usage and cost for a single LLM API call.
 
-    input_tokens: int
-    output_tokens: int
-    model: str
-    cost_usd: float
+    Extends LLMUsage with cost calculation, timestamps, and call metadata.
+    """
+
+    cost_usd: float = 0.0
     timestamp: datetime = field(default_factory=datetime.now)
     file_path: str | None = None
-    call_type: str = "analysis"  # 'readme', 'initial', 'secondary'
-
-    @property
-    def total_tokens(self) -> int:
-        """Total tokens for this call."""
-        return self.input_tokens + self.output_tokens
+    call_type: str = "analysis"
 
     def to_dict(self) -> dict:
-        """Convert to dictionary for JSON serialization."""
         return {
             "input_tokens": self.input_tokens,
             "output_tokens": self.output_tokens,
@@ -140,7 +116,6 @@ class TokenUsage:
 
     @classmethod
     def from_dict(cls, data: dict) -> TokenUsage:
-        """Create from dictionary (for checkpoint loading)."""
         return cls(
             input_tokens=data["input_tokens"],
             output_tokens=data["output_tokens"],
@@ -150,11 +125,6 @@ class TokenUsage:
             file_path=data.get("file_path"),
             call_type=data.get("call_type", "analysis"),
         )
-
-
-# =============================================================================
-# Cost Tracker
-# =============================================================================
 
 
 class CostTracker:
@@ -343,11 +313,6 @@ class CostTracker:
         return tracker
 
 
-# =============================================================================
-# Budget Enforcer
-# =============================================================================
-
-
 class BudgetEnforcer:
     """Enforces budget limits with warnings and hard stops.
 
@@ -503,11 +468,6 @@ class BudgetEnforcer:
             return False
 
         return True
-
-
-# =============================================================================
-# Cost Estimation (for Dry Run)
-# =============================================================================
 
 
 def estimate_tokens(text: str) -> int:

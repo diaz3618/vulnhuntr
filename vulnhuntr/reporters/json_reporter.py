@@ -1,9 +1,4 @@
-"""
-JSON Reporter
-=============
-
-Generates machine-readable JSON reports for programmatic processing.
-"""
+"""JSON report generation."""
 
 from __future__ import annotations
 

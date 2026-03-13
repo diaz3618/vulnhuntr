@@ -1,11 +1,4 @@
-"""
-CLI Output Formatting
-=====================
-
-Handles console output, progress display, and formatted reporting.
-
-Uses Rich library for styled console output.
-"""
+"""Console output and progress display (uses Rich)."""
 
 from __future__ import annotations
 

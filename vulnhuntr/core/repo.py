@@ -1,15 +1,4 @@
-"""
-Repository Operations
-=====================
-
-Handles repository scanning, file discovery, and content extraction.
-
-The RepoOps class provides methods for:
-- Finding Python files in a repository
-- Detecting network-related files (potential entry points)
-- Reading README content
-- Filtering out test files, documentation, etc.
-"""
+"""Repository scanning, file filtering, and content extraction."""
 
 from __future__ import annotations
 

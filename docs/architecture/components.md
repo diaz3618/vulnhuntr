@@ -2,38 +2,15 @@
 
 ## Entry Point (`__main__.py`)
 
-Orchestrates the entire vulnerability scanning pipeline.
+The main pipeline: parse args → init RepoOps → filter files → summarize README → initial analysis → iterative secondary analysis → report.
 
-**Key Functions**:
-
-- `run()`: Main entry point that coordinates the analysis pipeline
-- `initialize_llm()`: Factory function to create the appropriate LLM client
-- `print_readable()`: Format and display analysis results
-- `extract_between_tags()`: Parse XML-tagged content from responses
-
-**Key Classes**:
-
-- `VulnType`: Enum defining supported vulnerability types
-- `Response`: Pydantic model for LLM responses
-- `ContextCode`: Model for requested context code
-- Various XML models for structured prompts (`FileCode`, `Instructions`, etc.)
-- `RepoOps`: Repository operations handler
-
-**Flow**:
-
-1. Parse CLI arguments
-2. Initialize repository operations
-3. Filter files (network-related or user-specified)
-4. Generate README summary
-5. Perform initial analysis on each file
-6. Conduct iterative secondary analysis with context expansion
-7. Generate final report
+`run()` coordinates everything. `initialize_llm()` is a factory for Claude/GPT/Ollama/OpenRouter clients. `print_readable()` formats output for the terminal.
 
 ---
 
-## LLM Integration (`LLMs.py`)
+## LLM Clients (`llms.py`)
 
-Implements LLM client abstractions and handles API communication for all supported providers.
+Abstracts the LLM providers behind a common interface.
 
 ### Base Class: `LLM`
 
@@ -46,12 +23,7 @@ class LLM:
     prefill: Union[str, None]
 ```
 
-**Methods**:
-
-- `chat()`: Main interface for LLM interaction
-- `_validate_response()`: Validate and parse JSON responses
-- `_add_to_history()`: Track conversation history
-- `_log_response()`: Log API usage information
+`chat()` is the main interface. Under the hood, `_validate_response()` strips markdown code fences, parses JSON, and validates against a Pydantic model.
 
 **Response Validation Flow**:
 
@@ -187,9 +159,9 @@ All clients raise standardized exceptions:
 
 ## Symbol Resolution (`symbol_finder.py`)
 
-Uses Jedi static analysis to locate and extract Python symbol definitions across the target codebase.
+Uses Jedi to locate Python symbol definitions across the target codebase.
 
-### SymbolExtractor Class
+### SymbolExtractor
 
 ```python
 class SymbolExtractor:
@@ -199,9 +171,7 @@ class SymbolExtractor:
     ignore: List[str] = ['/test', '_test/', '/docs', '/example']
 ```
 
-**Core Method**: `extract(symbol_name, code_line, filtered_files)`
-
-**Search Strategy** (executed in order):
+The main method is `extract(symbol_name, code_line, filtered_files)`. It tries three search strategies in order:
 
 1. **File Search** (`file_search()`):
    - Grep for `code_line` in files to narrow scope
@@ -279,18 +249,13 @@ Structure in `VULN_SPECIFIC_BYPASSES_AND_PROMPTS`:
 }
 ```
 
-Each template includes:
-
-1. High-risk functions/methods for that vulnerability type
-2. Common exploitation vectors
-3. Security control considerations
-4. Bypass technique examples
+Each vulnerability-specific template lists high-risk functions, common exploitation vectors, security controls to look for, and bypass examples.
 
 ---
 
 ## Repository Operations (`RepoOps`)
 
-Handles file discovery and filtering for the target repository.
+Scans the target repo, excludes tests/docs/venv, and identifies network entry points for analysis.
 
 ### File Filtering
 
@@ -314,9 +279,4 @@ file_names_to_exclude = ['test_', 'conftest', '_test.py']
 - **Cloud Functions**: AWS Lambda, Azure Functions, Google Cloud Functions
 - **Server Startup**: uvicorn, gunicorn, hypercorn, daphne, waitress, gevent, grpc
 
-**Key Methods**:
-
-- `get_readme_content()`: Locate README (case-insensitive, .md/.rst)
-- `get_relevant_py_files()`: Get all non-excluded Python files
-- `get_network_related_files()`: Filter for network entry points
-- `get_files_to_analyze()`: Handle file vs directory analysis
+Main methods: `get_readme_content()`, `get_relevant_py_files()`, `get_network_related_files()`, `get_files_to_analyze()`.

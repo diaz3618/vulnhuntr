@@ -2,7 +2,7 @@
 
 ## Requirements
 
-- Python 3.12 or 3.13
+- Python 3.10-3.13
 - API key from Anthropic, OpenAI, or OpenRouter
 
 ## Setup

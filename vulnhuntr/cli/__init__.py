@@ -1,14 +1,4 @@
-"""
-Command Line Interface Module
-=============================
-
-Provides CLI parsing, output formatting, and execution orchestration.
-
-Submodules:
-- parser: Argument parsing and validation
-- output: Console output formatting and display
-- runner: Main execution orchestration
-"""
+"""CLI parsing, output formatting, and execution."""
 
 from __future__ import annotations
 

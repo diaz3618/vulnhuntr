@@ -1,13 +1,4 @@
-"""
-MCP Analysis Integration
-========================
-
-Bridges the MCP client with the vulnerability analysis pipeline.
-Handles tool discovery, prompt context generation, tool call execution
-with safety guardrails, and result formatting.
-
-This module is the *only* place where the analysis loop touches MCP.
-"""
+"""Bridge MCP client to the vulnerability analysis pipeline."""
 
 from __future__ import annotations
 
@@ -25,10 +16,6 @@ from vulnhuntr.core.models import (
 from vulnhuntr.mcp.config import MCPAnalysisMode, MCPAnalysisPolicy, MCPSettings
 
 log = structlog.get_logger(__name__)
-
-# ---------------------------------------------------------------------------
-# Tool descriptor (lightweight, no MCP SDK dependency at import time)
-# ---------------------------------------------------------------------------
 
 
 class ToolDescriptor:
@@ -65,11 +52,6 @@ class ToolDescriptor:
                 schema_str = "\n" + "\n".join(parts)
 
         return f"  [{self.server}] {self.name}: {self.description}{schema_str}"
-
-
-# ---------------------------------------------------------------------------
-# MCPAnalysisHelper — main integration helper
-# ---------------------------------------------------------------------------
 
 
 class MCPAnalysisHelper:
@@ -311,11 +293,6 @@ class MCPAnalysisHelper:
             lines.append("  </tool_result>")
         lines.append("</mcp_tool_results>")
         return "\n".join(lines)
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 
 
 def _extract_text(raw: Any) -> str:

@@ -1,18 +1,4 @@
-"""
-SARIF 2.1.0 Reporter
-====================
-
-Generates Static Analysis Results Interchange Format (SARIF) reports
-compliant with the SARIF 2.1.0 specification.
-
-SARIF is the industry standard for static analysis tool output and is
-supported by GitHub Code Scanning, Azure DevOps, and other platforms.
-
-References:
-- SARIF Spec: https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html
-- JSON Schema: https://json.schemastore.org/sarif-2.1.0.json
-- GitHub SARIF Support: https://docs.github.com/en/code-security/code-scanning/integrating-with-code-scanning/sarif-support-for-code-scanning
-"""
+"""SARIF 2.1.0 report generation for GitHub Code Scanning and similar tools."""
 
 from __future__ import annotations
 
@@ -323,7 +309,7 @@ class SARIFReporter(ReporterBase):
         tool = {
             "driver": {
                 "name": "Vulnhuntr",
-                "informationUri": "https://github.com/protectai/vulnhuntr",
+                "informationUri": "https://github.com/diaz3618/vulnhuntr",
                 "version": self.metadata.get("tool_version", "1.0.0"),
                 "semanticVersion": self.metadata.get("tool_version", "1.0.0"),
                 "rules": [],

@@ -1,16 +1,4 @@
-"""
-CLI Runner
-==========
-
-Main execution orchestration for Vulnhuntr CLI.
-
-This module ties together all components:
-- Repository scanning
-- LLM initialization
-- Vulnerability analysis
-- Report generation
-- Cost tracking
-"""
+"""Main execution orchestration."""
 
 from __future__ import annotations
 

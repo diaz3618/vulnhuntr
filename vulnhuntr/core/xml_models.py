@@ -1,12 +1,4 @@
-"""
-XML Models for LLM Prompts
-==========================
-
-Pydantic-XML models used for structuring prompts sent to LLMs.
-
-These models serialize to XML format which helps structure the
-prompts in a way that LLMs can parse more reliably than plain text.
-"""
+"""Pydantic-XML models for structuring LLM prompts."""
 
 from __future__ import annotations
 

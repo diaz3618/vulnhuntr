@@ -1,17 +1,4 @@
-"""
-Configuration file support for Vulnhuntr.
-
-Loads settings from .vulnhuntr.yaml (project root) or ~/.vulnhuntr.yaml (user home).
-Project-level config takes precedence over user-level config.
-
-Configuration Options:
-- budget: Maximum USD to spend on analysis
-- checkpoint: Enable/disable checkpointing
-- provider: LLM provider (claude, gpt, ollama)
-- model: Model name override
-- verbosity: Output verbosity level (0-3)
-- dry_run: Enable dry-run mode by default
-"""
+"""Load .vulnhuntr.yaml config from project root or ~/.vulnhuntr.yaml."""
 
 from __future__ import annotations
 

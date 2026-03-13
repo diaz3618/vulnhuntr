@@ -91,9 +91,7 @@ class MCPClientManager:
         if self._exit_stack:
             await self._exit_stack.__aexit__(exc_type, exc_val, exc_tb)
 
-    # ------------------------------------------------------------------
     # Connection management
-    # ------------------------------------------------------------------
 
     async def connect_all(self) -> dict[str, bool]:
         """Connect to all enabled servers concurrently.
@@ -279,9 +277,7 @@ class MCPClientManager:
                 conn.session = None
         self._connections.clear()
 
-    # ------------------------------------------------------------------
     # Tool discovery
-    # ------------------------------------------------------------------
 
     async def list_all_tools(self) -> dict[str, list[dict[str, Any]]]:
         """List all tools from all connected servers.
@@ -329,9 +325,7 @@ class MCPClientManager:
                         return server_name, tool
         return None
 
-    # ------------------------------------------------------------------
     # Tool invocation
-    # ------------------------------------------------------------------
 
     async def call_tool(
         self,
@@ -399,9 +393,7 @@ class MCPClientManager:
         server_name, _ = found
         return await self.call_tool(server_name, tool_name, arguments)
 
-    # ------------------------------------------------------------------
     # Resource access
-    # ------------------------------------------------------------------
 
     async def list_resources(self, server_name: str) -> list[dict[str, Any]]:
         """List resources from a specific server.
@@ -461,9 +453,7 @@ class MCPClientManager:
 
         return await conn.session.read_resource(AnyUrl(uri))
 
-    # ------------------------------------------------------------------
     # Status & diagnostics
-    # ------------------------------------------------------------------
 
     def get_status(self) -> dict[str, dict[str, Any]]:
         """Get status of all configured servers.

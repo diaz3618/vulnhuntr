@@ -1,9 +1,4 @@
-"""
-Base Reporter Classes
-=====================
-
-Provides the base classes and data models for all reporter implementations.
-"""
+"""Base classes and data models for reporters."""
 
 from __future__ import annotations
 
