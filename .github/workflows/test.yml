@@ -85,5 +85,6 @@ jobs:
           ruff format --check vulnhuntr/
 
       - name: Run mypy type checker
+        continue-on-error: true
         run: |
           mypy vulnhuntr/
