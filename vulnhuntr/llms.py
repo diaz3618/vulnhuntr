@@ -1,38 +1,21 @@
-import logging
+from __future__ import annotations
+
+import json
+import os
 import re
 import time
 from collections.abc import Callable
-from dataclasses import dataclass
 from typing import Any
 
 import anthropic
-import dotenv
 import openai
 import requests
+import structlog
 from pydantic import BaseModel, ValidationError
 
-dotenv.load_dotenv()
+from vulnhuntr.core.models import LLMUsage
 
-log = logging.getLogger(__name__)
-
-
-# =============================================================================
-# Token Usage Tracking
-# =============================================================================
-
-
-@dataclass
-class LLMUsage:
-    """Token usage from an LLM API call."""
-
-    input_tokens: int
-    output_tokens: int
-    model: str
-
-    @property
-    def total_tokens(self) -> int:
-        """Total tokens for this call."""
-        return self.input_tokens + self.output_tokens
+log = structlog.get_logger()
 
 
 # Type alias for cost tracking callback
@@ -60,12 +43,6 @@ class APIStatusError(LLMError):
         super().__init__(f"Received non-200 status code: {status_code}")
 
 
-# =============================================================================
-# Base LLM Class
-# =============================================================================
-
-
-# Base LLM class to handle common functionality
 class LLM:
     def __init__(
         self,
@@ -119,49 +96,37 @@ class LLM:
             if match:
                 response_text = match.group(0)
 
-            # Fix common JSON issues from LLM responses
-            # 1. Fix invalid escape sequences (e.g., \' from SQL/code snippets)
-            #    Valid JSON escapes: \" \\ \/ \b \f \n \r \t \uXXXX
-            #    Remove backslash from any other escape sequence
-            response_text = re.sub(r'(?<!\\)\\(?!["\\/bfnrtu\\])', "", response_text)
+            # Try parsing JSON directly first — only apply fixes on failure
+            try:
+                return response_model.model_validate_json(response_text)
+            except ValidationError:
+                pass  # Fall through to repair logic
 
-            # 2. Replace Python None with JSON null
-            response_text = re.sub(r"\b(None)\b", "null", response_text)
+            # Apply targeted fixes for common LLM JSON issues
+            # 1. Replace Python None/True/False with JSON null/true/false
+            response_text = re.sub(r"\bNone\b", "null", response_text)
+            response_text = re.sub(r"\bTrue\b", "true", response_text)
+            response_text = re.sub(r"\bFalse\b", "false", response_text)
 
-            # 3. Replace Python True/False with JSON true/false (if needed)
-            response_text = re.sub(r"\b(True)\b", "true", response_text)
-            response_text = re.sub(r"\b(False)\b", "false", response_text)
+            # 2. Try parsing again after Python-literal fixes
+            try:
+                return response_model.model_validate_json(response_text)
+            except ValidationError:
+                pass  # Fall through to escape repair
+
+            # 3. Fix invalid JSON escape sequences only as a last resort.
+            #    Use json.loads to detect the error position rather than
+            #    blindly stripping backslashes (which can corrupt code snippets).
+            try:
+                json.loads(response_text)
+            except json.JSONDecodeError as je:
+                if "escape" in str(je).lower() or "invalid" in str(je).lower():
+                    response_text = re.sub(r'(?<!\\)\\(?!["\\/bfnrtu])', "", response_text)
 
             return response_model.model_validate_json(response_text)
         except ValidationError as e:
-            log.warning("[-] Response validation failed\n", exc_info=e)
-
-            # Save failed response for debugging
-            import os
-            import tempfile
-
-            debug_file = os.path.join(
-                tempfile.gettempdir(),
-                f"vulnhuntr_failed_response_{int(time.time())}.json",
-            )
-            try:
-                with open(debug_file, "w") as f:
-                    f.write(response_text)
-                log.error(f"Failed response saved to: {debug_file}")
-            except OSError as debug_err:
-                # Don't let debug logging break the error flow
-                log.debug(f"Failed to save debug file: {debug_err}")
-
-            # Try to provide helpful error message
-            error_msg = str(e)
-            if "invalid escape" in error_msg.lower():
-                log.error("JSON contains invalid escape sequences (likely from code snippets)")
-                log.error("This is a known issue when LLMs include code with backslashes")
-                log.error("Try re-running the analysis - LLM responses can vary")
-            elif "None" in response_text or "True" in response_text or "False" in response_text:
-                log.error("JSON contains Python syntax (None/True/False instead of null/true/false)")
-                log.error("Applied automatic fixes but still failed - check saved response")
-
+            log.warning("Response validation failed", error=str(e))
+            log.debug("Failed response text (first 500 chars)", text=response_text[:500])
             raise LLMError("Validation failed") from e
 
     def _add_to_history(self, role: str, content: str) -> None:
@@ -204,7 +169,7 @@ class LLM:
             )
 
     def chat(
-        self, user_prompt: str, response_model: type[BaseModel] | None = None, max_tokens: int = 4096
+        self, user_prompt: str, response_model: type[BaseModel] | None = None, max_tokens: int = 8192
     ) -> BaseModel | str:
         self._add_to_history("user", user_prompt)
         messages = self.create_messages(user_prompt)
@@ -230,11 +195,6 @@ class LLM:
         raise NotImplementedError
 
 
-# =============================================================================
-# Claude (Anthropic)
-# =============================================================================
-
-
 class Claude(LLM):
     def __init__(
         self,
@@ -244,7 +204,6 @@ class Claude(LLM):
         cost_callback: CostCallback | None = None,
     ) -> None:
         super().__init__(system_prompt, cost_callback)
-        import os
 
         api_key = os.getenv("ANTHROPIC_API_KEY")
         # Initialize client without base_url initially to avoid httpx issues
@@ -265,9 +224,7 @@ class Claude(LLM):
             ]
         return messages
 
-    def send_message(
-        self, messages: list[dict[str, str]], max_tokens: int, response_model: BaseModel
-    ) -> dict[str, Any]:
+    def send_message(self, messages: list[dict[str, str]], max_tokens: int, response_model: BaseModel) -> Any:
         try:
             # response_model is not used here, only in ChatGPT
             return self.client.messages.create(
@@ -284,7 +241,7 @@ class Claude(LLM):
             raise APIStatusError(e.status_code, e.response) from e
 
     def get_response(self, response: Any) -> str:
-        return response.content[0].text.replace("\n", "")
+        return response.content[0].text
 
     def _extract_usage(self, response: Any) -> LLMUsage:
         """Extract token usage from Claude response."""
@@ -293,11 +250,6 @@ class Claude(LLM):
             output_tokens=response.usage.output_tokens,
             model=self.model,
         )
-
-
-# =============================================================================
-# ChatGPT (OpenAI)
-# =============================================================================
 
 
 class ChatGPT(LLM):
@@ -309,7 +261,6 @@ class ChatGPT(LLM):
         cost_callback: CostCallback | None = None,
     ) -> None:
         super().__init__(system_prompt, cost_callback)
-        import os
 
         self.client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"), base_url=base_url)
         self.model = model
@@ -329,7 +280,7 @@ class ChatGPT(LLM):
         *,
         _max_retries: int = 3,
         _base_delay: float = 2.0,
-    ) -> dict[str, Any]:
+    ) -> Any:
         params = {
             "model": self.model,
             "messages": messages,
@@ -375,11 +326,6 @@ class ChatGPT(LLM):
         )
 
 
-# =============================================================================
-# OpenRouter (Multi-provider)
-# =============================================================================
-
-
 class OpenRouter(LLM):
     """OpenRouter client - access multiple LLM providers via single API.
 
@@ -406,7 +352,6 @@ class OpenRouter(LLM):
         cost_callback: CostCallback | None = None,
     ) -> None:
         super().__init__(system_prompt, cost_callback)
-        import os
 
         api_key = os.getenv("OPENROUTER_API_KEY")
         if not api_key:
@@ -416,7 +361,7 @@ class OpenRouter(LLM):
             api_key=api_key,
             base_url=base_url,
             default_headers={
-                "HTTP-Referer": "https://github.com/protectai/vulnhuntr",
+                "HTTP-Referer": "https://github.com/diaz3618/vulnhuntr",
                 "X-Title": "Vulnhuntr Security Scanner",
             },
         )
@@ -437,7 +382,7 @@ class OpenRouter(LLM):
         *,
         _max_retries: int = 3,
         _base_delay: float = 2.0,
-    ) -> dict[str, Any]:
+    ) -> Any:
         params: dict[str, Any] = {
             "model": self.model,
             "messages": messages,
@@ -511,16 +456,6 @@ class OpenRouter(LLM):
         )
 
 
-# =============================================================================
-# Ollama (Local)
-# =============================================================================
-
-
-# =============================================================================
-# Fallback LLM Wrapper
-# =============================================================================
-
-
 class FallbackLLM:
     """Wraps a primary LLM with up to 2 fallback LLMs for resilience.
 
@@ -557,7 +492,7 @@ class FallbackLLM:
             llm.set_context(file_path, call_type)
 
     def chat(
-        self, user_prompt: str, response_model: type[BaseModel] | None = None, max_tokens: int = 4096
+        self, user_prompt: str, response_model: type[BaseModel] | None = None, max_tokens: int = 8192
     ) -> BaseModel | str:
         """Send chat request with automatic fallback on failure.
 
@@ -584,7 +519,7 @@ class FallbackLLM:
                 self._active = llm
                 return result
 
-            except (LLMError, Exception) as e:
+            except LLMError as e:
                 log.error(
                     f"LLM {llm.model} failed: {e}",
                     extra={"model": llm.model, "fallback_index": i},

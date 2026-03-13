@@ -165,11 +165,7 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 .idea/
 
-# Test files (local only)
-tests/
-
-#tests/test_results
-test_*.py
+# test results
 test_results.*
 integration_test.log
 
@@ -187,3 +183,6 @@ reports/*
 
 tests/test_results/*
 !tests/test_results/.gitkeep
+
+# Lock files (library, not app)
+uv.lock

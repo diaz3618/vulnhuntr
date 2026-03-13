@@ -1,23 +1,6 @@
-"""
-Vulnhuntr - AI-Powered Vulnerability Detection
-==============================================
+"""CLI entry point. Loads .env, configures logging, runs analysis."""
 
-Entry point for the Vulnhuntr CLI application.
-
-This module serves as the minimal entry point that:
-1. Loads environment variables
-2. Configures logging
-3. Delegates to the CLI runner
-
-For the main analysis logic, see:
-- vulnhuntr.cli.runner: Main execution orchestration
-- vulnhuntr.core.analysis: Vulnerability analysis engine
-- vulnhuntr.core.repo: Repository scanning
-
-Usage:
-    python -m vulnhuntr -r /path/to/project
-    vulnhuntr -r /path/to/project --help
-"""
+from __future__ import annotations
 
 import logging
 import sys

@@ -1,17 +1,6 @@
-"""
-Configuration file support for Vulnhuntr.
+"""Load .vulnhuntr.yaml config from project root or ~/.vulnhuntr.yaml."""
 
-Loads settings from .vulnhuntr.yaml (project root) or ~/.vulnhuntr.yaml (user home).
-Project-level config takes precedence over user-level config.
-
-Configuration Options:
-- budget: Maximum USD to spend on analysis
-- checkpoint: Enable/disable checkpointing
-- provider: LLM provider (claude, gpt, ollama)
-- model: Model name override
-- verbosity: Output verbosity level (0-3)
-- dry_run: Enable dry-run mode by default
-"""
+from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -75,7 +64,7 @@ class VulnhuntrConfig:
     confidence_threshold: int = 1
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "VulnhuntrConfig":
+    def from_dict(cls, data: dict[str, Any]) -> VulnhuntrConfig:
         """Create config from dictionary.
 
         Handles nested 'cost', 'llm', 'analysis' sections from YAML.

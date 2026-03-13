@@ -1,16 +1,6 @@
-"""
-GitHub Issues Integration
-=========================
+"""Create GitHub issues from vulnerability findings via REST API."""
 
-Automatically create GitHub issues from vulnerability findings.
-
-Uses the GitHub REST API to create issues with proper labels,
-assignees, and formatted descriptions.
-
-References:
-- GitHub API: https://docs.github.com/en/rest/issues/issues
-- Authentication: https://docs.github.com/en/authentication
-"""
+from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
@@ -178,7 +168,7 @@ class GitHubIssueCreator:
             [
                 "---",
                 "",
-                "*This issue was automatically created by [Vulnhuntr](https://github.com/protectai/vulnhuntr), an LLM-powered vulnerability scanner.*",
+                "*This issue was automatically created by [Vulnhuntr](https://github.com/diaz3618/vulnhuntr), an LLM-powered vulnerability scanner.*",
             ]
         )
 

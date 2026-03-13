@@ -1,14 +1,6 @@
-"""
-MCP (Model Context Protocol) integration for Vulnhuntr.
+"""MCP (Model Context Protocol) client integration."""
 
-Users configure MCP servers in .vulnhuntr.yaml and the client manager handles
-connection lifecycle, tool discovery, and tool invocation.
-
-Supported transports:
-- stdio: Subprocess-based (npx, uvx, python, any local binary)
-- streamable-http: HTTP endpoint (recommended for production)
-- sse: Server-Sent Events endpoint (legacy)
-"""
+from __future__ import annotations
 
 from vulnhuntr.mcp.analysis import (
     MCPAnalysisHelper,

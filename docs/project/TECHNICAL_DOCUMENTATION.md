@@ -851,7 +851,7 @@ See [AREAS_OF_IMPROVEMENT.md](AREAS_OF_IMPROVEMENT.md) for detailed roadmap.
 
 ```bash
 # Clone repository
-git clone https://github.com/protectai/vulnhuntr
+git clone https://github.com/diaz3618/vulnhuntr
 cd vulnhuntr
 
 # Create virtual environment
@@ -886,4 +886,4 @@ pip install pytest black mypy ruff
 
 Vulnhuntr uses LLM reasoning in combination with Jedi-based static analysis to trace data flow through multi-file call chains. Its iterative context expansion loop (up to 7 rounds) lets the model progressively build a complete picture of how user input reaches dangerous sinks. The approach has demonstrated practical value through its discovery of real CVEs in widely-used open-source projects, though it remains limited to Python and subject to the usual constraints of LLM-based analysis (non-determinism, cost, false positives).
 
-For questions, issues, or contributions, visit: <https://github.com/protectai/vulnhuntr>
+For questions, issues, or contributions, visit: <https://github.com/diaz3618/vulnhuntr>

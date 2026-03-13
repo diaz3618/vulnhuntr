@@ -1,37 +1,17 @@
 """
 Vulnhuntr - AI-Powered Vulnerability Detection
-==============================================
 
-Vulnhuntr uses Large Language Models to identify potential security
-vulnerabilities in Python source code repositories.
+Uses LLMs to identify security vulnerabilities in Python source code
+repositories via iterative analysis with context expansion.
 
-Key Features:
-- Multi-LLM support (Claude, GPT-4, Ollama, OpenRouter)
-- Iterative analysis with context expansion
-- Support for common web frameworks
-- Multiple output formats (SARIF, HTML, JSON, CSV, Markdown)
-- Cost tracking and budget management
-- Checkpoint/resume for long analyses
-
-Modules:
-- core: Core domain logic (models, analysis, repository scanning)
-- cli: Command-line interface
-- reporters: Report generation in various formats
-- integrations: External service integrations (GitHub, webhooks)
-- LLMs: LLM client implementations
-- prompts: Prompt templates for vulnerability detection
-
-Usage:
-    # CLI
     python -m vulnhuntr -r /path/to/project
-
-    # Programmatic
-    from vulnhuntr.core import RepoOps, VulnerabilityAnalyzer
-    from vulnhuntr.cli import initialize_llm
 """
+
+from __future__ import annotations
 
 __version__ = "1.1.4"
 __author__ = "Protect AI"
+__maintainer__ = "Daniel Diaz Santiago"
 
 # Re-export key classes for convenience
 from vulnhuntr.cli import get_model_name, initialize_llm, run_analysis
@@ -59,6 +39,7 @@ __all__ = [
     # Version info
     "__version__",
     "__author__",
+    "__maintainer__",
     # Core
     "VulnType",
     "Response",

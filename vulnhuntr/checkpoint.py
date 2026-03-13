@@ -1,15 +1,4 @@
-"""
-Checkpoint System for Vulnhuntr
-===============================
-
-Provides checkpointing and resume functionality for interrupted analyses.
-Saves progress periodically and on errors/interrupts, allowing analysis
-to resume from where it left off.
-
-This module provides:
-- AnalysisCheckpoint: Save/load/resume analysis state
-- Signal handlers for graceful shutdown on Ctrl+C
-"""
+"""Checkpoint and resume for interrupted analyses."""
 
 from __future__ import annotations
 
@@ -26,11 +15,6 @@ import structlog
 from vulnhuntr.cost_tracker import CostTracker
 
 log = structlog.get_logger()
-
-
-# =============================================================================
-# Checkpoint Data Structures
-# =============================================================================
 
 
 @dataclass
@@ -98,11 +82,6 @@ class CheckpointData:
             last_updated=data.get("last_updated"),
             vulnhuntr_version=data.get("vulnhuntr_version", "0.1.0"),
         )
-
-
-# =============================================================================
-# Analysis Checkpoint
-# =============================================================================
 
 
 class AnalysisCheckpoint:
@@ -403,7 +382,7 @@ class AnalysisCheckpoint:
         """Install signal handler for graceful shutdown on Ctrl+C."""
         self._original_sigint_handler = signal.getsignal(signal.SIGINT)
 
-        def _handle_sigint(signum: int, frame: Any) -> None:
+        def _handle_sigint(_signum: int, _frame: Any) -> None:
             log.warning("Interrupt received, saving checkpoint...")
             self._save()
             print("\n\nInterrupted! Progress saved to checkpoint.")

@@ -1,14 +1,6 @@
-"""
-CLI Argument Parser
-===================
+"""Argument parsing and validation."""
 
-Handles command-line argument parsing and validation for Vulnhuntr.
-
-This module provides:
-- Argument parser creation with all supported options
-- Argument validation and normalization
-- Help text and usage documentation
-"""
+from __future__ import annotations
 
 import argparse
 from pathlib import Path

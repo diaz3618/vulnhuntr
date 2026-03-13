@@ -1,14 +1,6 @@
-"""
-Command Line Interface Module
-=============================
+"""CLI parsing, output formatting, and execution."""
 
-Provides CLI parsing, output formatting, and execution orchestration.
-
-Submodules:
-- parser: Argument parsing and validation
-- output: Console output formatting and display
-- runner: Main execution orchestration
-"""
+from __future__ import annotations
 
 from vulnhuntr.cli.output import (
     print_analysis_progress,

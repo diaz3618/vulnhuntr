@@ -1,9 +1,6 @@
-"""
-CSV Reporter
-============
+"""CSV report generation for spreadsheet applications."""
 
-Generates CSV reports for spreadsheet applications.
-"""
+from __future__ import annotations
 
 import csv
 import io

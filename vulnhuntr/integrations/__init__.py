@@ -1,14 +1,6 @@
-"""
-Vulnhuntr Integrations Package
-==============================
+"""External service integrations for findings (GitHub Issues, webhooks)."""
 
-This package provides integrations with external services for
-reporting and notification of vulnerability findings.
-
-Integrations:
-- GitHub Issues: Automatically create issues from findings
-- Webhooks: Send findings to custom endpoints
-"""
+from __future__ import annotations
 
 from .github_issues import GitHubConfig, GitHubIssueCreator, IssueResult
 from .webhook import PayloadFormat, WebhookConfig, WebhookNotifier

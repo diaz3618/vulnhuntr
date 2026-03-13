@@ -1,15 +1,4 @@
-"""
-Vulnerability Analysis Engine
-=============================
-
-Core analysis logic for detecting security vulnerabilities in Python code.
-
-The VulnerabilityAnalyzer class orchestrates:
-- Initial file analysis with LLM
-- Secondary vulnerability-specific analysis
-- Context expansion via symbol extraction
-- Iterative refinement of findings
-"""
+"""Core analysis logic — iterative LLM analysis with Jedi context expansion."""
 
 from __future__ import annotations
 

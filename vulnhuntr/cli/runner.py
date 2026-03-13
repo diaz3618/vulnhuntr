@@ -1,16 +1,4 @@
-"""
-CLI Runner
-==========
-
-Main execution orchestration for Vulnhuntr CLI.
-
-This module ties together all components:
-- Repository scanning
-- LLM initialization
-- Vulnerability analysis
-- Report generation
-- Cost tracking
-"""
+"""Main execution orchestration."""
 
 from __future__ import annotations
 
@@ -18,13 +6,12 @@ import os
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 import structlog
 
 from vulnhuntr.checkpoint import AnalysisCheckpoint
 from vulnhuntr.config import load_config, merge_config_with_args
-from vulnhuntr.core.models import Response
 from vulnhuntr.core.repo import RepoOps
 from vulnhuntr.cost_tracker import (
     BudgetEnforcer,
@@ -253,7 +240,7 @@ def run_analysis(args: argparse.Namespace) -> int:
     2. Repository scanning
     3. Cost estimation (if dry-run)
     4. Checkpoint management
-    5. LLM analysis
+    5. LLM analysis via VulnerabilityAnalyzer
     6. Report generation
 
     Args:
@@ -262,29 +249,14 @@ def run_analysis(args: argparse.Namespace) -> int:
     Returns:
         Exit code (0 for success, non-zero for errors)
     """
-    import json
-    import re
-
+    from vulnhuntr.core.analysis import AnalysisConfig, VulnerabilityAnalyzer
     from vulnhuntr.core.xml_models import (
-        AnalysisApproach,
-        CodeDefinitions,
-        ExampleBypasses,
-        FileCode,
-        Guidelines,
         Instructions,
-        PreviousAnalysis,
-        ReadmeContent,
         ReadmeSummary,
-        ResponseFormat,
         to_xml_bytes,
     )
     from vulnhuntr.prompts import (
-        ANALYSIS_APPROACH_TEMPLATE,
-        GUIDELINES_TEMPLATE,
-        INITIAL_ANALYSIS_PROMPT_TEMPLATE,
-        README_SUMMARY_PROMPT_TEMPLATE,
         SYS_PROMPT_TEMPLATE,
-        VULN_SPECIFIC_BYPASSES_AND_PROMPTS,
     )
 
     # Load configuration from .vulnhuntr.yaml (if present)
@@ -419,22 +391,13 @@ def run_analysis(args: argparse.Namespace) -> int:
     llm = initialize_llm(args.llm, cost_callback=cost_callback, model_override=config.model)
     llm = wrap_with_fallbacks(llm, args, cost_callback, config=config)
 
+    # Create analyzer for README summarization
+    analyzer = VulnerabilityAnalyzer(llm, code_extractor, AnalysisConfig(verbosity=getattr(args, "verbosity", 0)))
+
     # Get and summarize README
     readme_content = repo.get_readme_content()
     if readme_content:
-        log.info("Summarizing project README")
-        llm.set_context(file_path=None, call_type="readme")
-        summary_response = llm.chat(
-            (
-                to_xml_bytes(ReadmeContent(content=readme_content))
-                + b"\n"
-                + to_xml_bytes(Instructions(instructions=README_SUMMARY_PROMPT_TEMPLATE))
-            ).decode()
-        )
-        summary_text = str(summary_response)
-        summary_match = re.findall(r"<summary>(.+?)</summary>", summary_text, re.DOTALL)
-        summary = summary_match[0] if summary_match else ""
-        log.info("README summary complete", summary=summary)
+        summary = analyzer.summarize_readme(readme_content)
     else:
         log.warning("No README summary found")
         summary = ""
@@ -455,13 +418,29 @@ def run_analysis(args: argparse.Namespace) -> int:
     llm = initialize_llm(args.llm, system_prompt, cost_callback, model_override=config.model)
     llm = wrap_with_fallbacks(llm, args, cost_callback, system_prompt, config=config)
 
+    # Create analyzer with system-prompt-configured LLM
+    analysis_config = AnalysisConfig(
+        max_iterations=7,
+        min_confidence_for_finding=5,
+        verbosity=getattr(args, "verbosity", 0),
+    )
+    analyzer = VulnerabilityAnalyzer(llm, code_extractor, analysis_config)
+
+    # Wire budget checking into analyzer callbacks
+    if budget_enforcer:
+        analyzer.set_continue_check(lambda: budget_enforcer.check(cost_tracker.total_cost))
+
+    # Wire verbosity output into iteration callback
+    if getattr(args, "verbosity", 0) > 0:
+        analyzer.set_iteration_callback(lambda _iteration, report: print_readable(report))
+
     # Track analysis success for checkpoint finalization
     analysis_success = True
 
     # Collect findings for reporting
     all_findings: list[Finding] = []
 
-    # Main analysis loop
+    # Main analysis loop — delegates to VulnerabilityAnalyzer
     for py_f in files_to_analyze:
         # Check budget before starting file analysis
         if budget_enforcer and not budget_enforcer.check(cost_tracker.total_cost):
@@ -473,208 +452,57 @@ def run_analysis(args: argparse.Namespace) -> int:
         # Set checkpoint current file
         checkpoint.set_current_file(py_f)
 
-        log.info("Performing initial analysis", file=str(py_f))
-        llm.set_context(file_path=str(py_f), call_type="initial")
-
-        # Read file content
-        try:
-            with py_f.open(encoding="utf-8") as f:
-                content = f.read()
-        except (OSError, UnicodeDecodeError) as e:
-            log.error("Failed to read file", file=str(py_f), error=str(e))
-            continue
-
-        if not content:
-            continue
-
         print(f"\nAnalyzing {py_f}")
         print("-" * 40 + "\n")
 
-        # Initial analysis
-        user_prompt = (
-            to_xml_bytes(FileCode(file_path=str(py_f), file_source=content))
-            + b"\n"
-            + to_xml_bytes(Instructions(instructions=INITIAL_ANALYSIS_PROMPT_TEMPLATE))
-            + b"\n"
-            + to_xml_bytes(AnalysisApproach(analysis_approach=ANALYSIS_APPROACH_TEMPLATE))
-            + b"\n"
-            + to_xml_bytes(PreviousAnalysis(previous_analysis=""))
-            + b"\n"
-            + to_xml_bytes(Guidelines(guidelines=GUIDELINES_TEMPLATE))
-            + b"\n"
-            + to_xml_bytes(ResponseFormat(response_format=json.dumps(Response.model_json_schema(), indent=4)))
-        ).decode()
+        try:
+            result = analyzer.analyze_file(py_f, files)
+        except (OSError, UnicodeDecodeError, ValueError) as e:
+            log.error("Failed to analyze file", file=str(py_f), error=str(e))
+            continue
 
-        initial_analysis_report = cast(Response, llm.chat(user_prompt, response_model=Response, max_tokens=8192))
-        log.info("Initial analysis complete", report=initial_analysis_report.model_dump())
+        # Print initial analysis report
+        print_readable(result.initial_report)
 
         # Execute MCP tool calls from initial analysis (if any)
-        mcp_results_context = ""
-        if mcp_helper is not None and mcp_helper.is_active and initial_analysis_report.mcp_tool_calls:
+        if mcp_helper is not None and mcp_helper.is_active and result.initial_report.mcp_tool_calls:
             try:
-                mcp_results = run_async(mcp_helper.execute_tool_calls(initial_analysis_report.mcp_tool_calls))
-                mcp_results_context = mcp_helper.format_results_for_prompt(mcp_results)
+                mcp_results = run_async(mcp_helper.execute_tool_calls(result.initial_report.mcp_tool_calls))
                 log.info("MCP tool calls executed (initial)", count=len(mcp_results))
             except Exception as e:
                 log.error("MCP tool execution failed (initial)", error=str(e))
 
-        print_readable(initial_analysis_report)
+        # Collect findings from secondary analysis
+        for vuln_type, report in result.findings.items():
+            if getattr(args, "verbosity", 0) == 0:
+                print_readable(report)
 
-        # Secondary analysis for each vulnerability type
-        if initial_analysis_report.confidence_score > 0 and initial_analysis_report.vulnerability_types:
-            for vuln_type in initial_analysis_report.vulnerability_types:
-                stored_code_definitions = {}
-                definitions = CodeDefinitions(definitions=[])
-                same_context = False
-                previous_analysis = ""
-                previous_context_amount = 0
-                secondary_analysis_report: Response | None = None
+            # Execute MCP tool calls from final report (if any)
+            if mcp_helper is not None and mcp_helper.is_active and report.mcp_tool_calls:
+                try:
+                    mcp_results = run_async(mcp_helper.execute_tool_calls(report.mcp_tool_calls))
+                    log.info("MCP tool calls executed (secondary)", count=len(mcp_results))
+                except Exception as e:
+                    log.error("MCP tool execution failed (secondary)", error=str(e))
 
-                for i in range(7):
-                    # Check budget during iterations
-                    if budget_enforcer and not budget_enforcer.check(
-                        cost_tracker.total_cost, cost_tracker.get_file_cost(str(py_f))
-                    ):
-                        console.print("\n[bold yellow]Budget limit reached during secondary analysis.[/bold yellow]")
-                        break
-
-                    cost_before_iteration = cost_tracker.total_cost
-
-                    log.info(
-                        "Performing vuln-specific analysis",
-                        iteration=i,
-                        vuln_type=vuln_type,
-                        file=py_f,
-                    )
-                    llm.set_context(file_path=str(py_f), call_type="secondary")
-
-                    # Expand context after first iteration
-                    if i > 0 and secondary_analysis_report is not None:
-                        previous_context_amount = len(stored_code_definitions)
-                        previous_analysis = secondary_analysis_report.analysis
-
-                        for context_item in secondary_analysis_report.context_code:
-                            if context_item.name not in stored_code_definitions:
-                                match = code_extractor.extract(context_item.name, context_item.code_line, files)
-                                if match:
-                                    stored_code_definitions[context_item.name] = match
-
-                        # Pydantic-xml will convert dicts to CodeDefinition objects
-                        code_definitions = list(stored_code_definitions.values())
-                        definitions = CodeDefinitions(definitions=code_definitions)
-
-                        if args.verbosity > 1:
-                            for definition in definitions.definitions:
-                                snippet = definition.source.split("\n")[:2]
-                                snippet = "\n".join(snippet) if len(snippet) > 1 else definition.source[:75]
-                                print(f"Name: {definition.name}")
-                                print(f"Context search: {definition.context_name_requested}")
-                                print(f"File Path: {definition.file_path}")
-                                print(f"First two lines from source: {snippet}\n")
-
-                    vuln_data = VULN_SPECIFIC_BYPASSES_AND_PROMPTS.get(vuln_type, {"bypasses": [], "prompt": ""})
-
-                    vuln_specific_user_prompt = (
-                        to_xml_bytes(FileCode(file_path=str(py_f), file_source=content))
-                        + b"\n"
-                        + to_xml_bytes(definitions)
-                        + b"\n"
-                        + to_xml_bytes(ExampleBypasses(example_bypasses="\n".join(vuln_data["bypasses"])))
-                        + b"\n"
-                        + to_xml_bytes(Instructions(instructions=vuln_data["prompt"]))
-                        + b"\n"
-                        + to_xml_bytes(AnalysisApproach(analysis_approach=ANALYSIS_APPROACH_TEMPLATE))
-                        + b"\n"
-                        + to_xml_bytes(PreviousAnalysis(previous_analysis=previous_analysis))
-                        + b"\n"
-                        + to_xml_bytes(Guidelines(guidelines=GUIDELINES_TEMPLATE))
-                        + b"\n"
-                        + to_xml_bytes(
-                            ResponseFormat(response_format=json.dumps(Response.model_json_schema(), indent=4))
-                        )
-                    ).decode()
-
-                    # Append MCP tool results from previous iteration (if any)
-                    if mcp_results_context:
-                        vuln_specific_user_prompt += "\n" + mcp_results_context
-
-                    secondary_analysis_report = cast(
-                        Response,
-                        llm.chat(
-                            vuln_specific_user_prompt,
-                            response_model=Response,
-                            max_tokens=8192,
-                        ),
-                    )
-                    log.info(
-                        "Secondary analysis complete",
-                        secondary_analysis_report=secondary_analysis_report.model_dump(),
-                    )
-
-                    # Execute MCP tool calls from secondary analysis (if any)
-                    if mcp_helper is not None and mcp_helper.is_active and secondary_analysis_report.mcp_tool_calls:
-                        try:
-                            mcp_results = run_async(
-                                mcp_helper.execute_tool_calls(secondary_analysis_report.mcp_tool_calls)
-                            )
-                            mcp_results_context = mcp_helper.format_results_for_prompt(mcp_results)
-                            log.info("MCP tool calls executed (secondary)", count=len(mcp_results))
-                        except Exception as e:
-                            log.error("MCP tool execution failed (secondary)", error=str(e))
-                            mcp_results_context = ""
-
-                    # Check iteration costs
-                    if budget_enforcer:
-                        iteration_cost = cost_tracker.total_cost - cost_before_iteration
-                        if not budget_enforcer.should_continue_iteration(
-                            file_path=str(py_f),
-                            iteration=i,
-                            iteration_cost=iteration_cost,
-                            total_cost=cost_tracker.total_cost,
-                        ):
-                            if args.verbosity == 0:
-                                print_readable(secondary_analysis_report)
-                            console.print("\n[bold yellow]Stopping iterations - cost escalating.[/bold yellow]")
-                            break
-
-                    if args.verbosity > 0:
-                        print_readable(secondary_analysis_report)
-
-                    if not secondary_analysis_report.context_code:
-                        log.debug("No new context functions or classes found")
-                        if args.verbosity == 0:
-                            print_readable(secondary_analysis_report)
-                        break
-
-                    if previous_context_amount >= len(stored_code_definitions) and i > 0:
-                        if same_context:
-                            log.debug("No new context functions or classes requested")
-                            if args.verbosity == 0:
-                                print_readable(secondary_analysis_report)
-                            break
-                        same_context = True
-                        log.debug("No new context functions or classes requested")
-
-                # Collect finding if vulnerability confirmed
-                if secondary_analysis_report is not None and secondary_analysis_report.confidence_score >= 5:
-                    finding = response_to_finding(
-                        response=secondary_analysis_report,
-                        file_path=str(py_f),
-                        vuln_type=vuln_type,
-                        context_code=stored_code_definitions,
-                    )
-                    all_findings.append(finding)
-                    log.info(
-                        "Finding collected for reporting",
-                        vuln_type=vuln_type.value,
-                        file=str(py_f),
-                        confidence=secondary_analysis_report.confidence_score,
-                    )
+            finding = response_to_finding(
+                response=report,
+                file_path=str(py_f),
+                vuln_type=vuln_type,
+                context_code=result.context_code,
+            )
+            all_findings.append(finding)
+            log.info(
+                "Finding collected for reporting",
+                vuln_type=vuln_type.value,
+                file=str(py_f),
+                confidence=report.confidence_score,
+            )
 
         # Mark file as complete in checkpoint
         checkpoint.mark_file_complete(
             py_f,
-            initial_analysis_report.model_dump() if initial_analysis_report else None,
+            result.initial_report.model_dump(),
         )
 
     # Finalize checkpoint
@@ -726,78 +554,36 @@ def _generate_reports(
 
     print_findings_summary(all_findings, len(files_to_analyze))
 
-    # Ensure reports directory exists if any reports are being generated
-    reports_dir = Path(args.reports_dir) if hasattr(args, "reports_dir") else None
-    if reports_dir and (args.sarif or args.html or args.json or args.csv or args.markdown):
-        reports_dir.mkdir(parents=True, exist_ok=True)
-
-    # SARIF report
+    # Build list of (format_name, arg_value, reporter_factory) for requested reports
+    report_specs: list[tuple[str, str, Callable]] = []
     if args.sarif:
-        try:
-            sarif_path = Path(args.sarif)
-            sarif_path.parent.mkdir(parents=True, exist_ok=True)
-            reporter = SARIFReporter(output_path=sarif_path, repo_root=Path(args.root))
-            reporter.add_findings(all_findings)
-            reporter.write()
-            print_report_status("SARIF", args.sarif, True)
-        except Exception as e:
-            print_report_status("SARIF", args.sarif, False, str(e))
-            log.error("SARIF report failed", error=str(e))
-
-    # HTML report
+        report_specs.append(("SARIF", args.sarif, lambda p: SARIFReporter(output_path=p, repo_root=Path(args.root))))
     if args.html:
-        try:
-            html_path = Path(args.html)
-            html_path.parent.mkdir(parents=True, exist_ok=True)
-            reporter = HTMLReporter(output_path=html_path)
-            reporter.add_findings(all_findings)
-            reporter.write()
-            print_report_status("HTML", args.html, True)
-        except Exception as e:
-            print_report_status("HTML", args.html, False, str(e))
-            log.error("HTML report failed", error=str(e))
-
-    # JSON report
+        report_specs.append(("HTML", args.html, lambda p: HTMLReporter(output_path=p)))
     if args.json:
-        try:
-            json_path = Path(args.json)
-            json_path.parent.mkdir(parents=True, exist_ok=True)
-            reporter = JSONReporter(output_path=json_path)
-            reporter.add_findings(all_findings)
-            reporter.write()
-            print_report_status("JSON", args.json, True)
-        except Exception as e:
-            print_report_status("JSON", args.json, False, str(e))
-            log.error("JSON report failed", error=str(e))
-
-    # CSV report
+        report_specs.append(("JSON", args.json, lambda p: JSONReporter(output_path=p)))
     if args.csv:
-        try:
-            csv_path = Path(args.csv)
-            csv_path.parent.mkdir(parents=True, exist_ok=True)
-            reporter = CSVReporter(output_path=csv_path)
-            reporter.add_findings(all_findings)
-            reporter.write()
-            print_report_status("CSV", args.csv, True)
-        except Exception as e:
-            print_report_status("CSV", args.csv, False, str(e))
-            log.error("CSV report failed", error=str(e))
-
-    # Markdown report
+        report_specs.append(("CSV", args.csv, lambda p: CSVReporter(output_path=p)))
     if args.markdown:
-        try:
-            md_path = Path(args.markdown)
-            md_path.parent.mkdir(parents=True, exist_ok=True)
-            reporter = MarkdownReporter(
-                output_path=md_path,
-                title=f"Vulnhuntr Security Report - {Path(args.root).name}",
+        report_specs.append(
+            (
+                "Markdown",
+                args.markdown,
+                lambda p: MarkdownReporter(output_path=p, title=f"Vulnhuntr Security Report - {Path(args.root).name}"),
             )
+        )
+
+    for format_name, output_arg, factory in report_specs:
+        try:
+            output_path = Path(output_arg)
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            reporter = factory(output_path)
             reporter.add_findings(all_findings)
             reporter.write()
-            print_report_status("Markdown", args.markdown, True)
+            print_report_status(format_name, output_arg, True)
         except Exception as e:
-            print_report_status("Markdown", args.markdown, False, str(e))
-            log.error("Markdown report failed", error=str(e))
+            print_report_status(format_name, output_arg, False, str(e))
+            log.error("Report generation failed", format=format_name, error=str(e))
 
     # Export all formats
     if hasattr(args, "export_all") and args.export_all:

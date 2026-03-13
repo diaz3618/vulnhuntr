@@ -1,15 +1,6 @@
-"""
-Vulnhuntr Core Module
-=====================
+"""Core domain logic for vulnerability analysis."""
 
-Core domain logic for vulnerability analysis.
-
-Submodules:
-- models: Data models (VulnType, Response, ContextCode)
-- xml_models: XML/Pydantic models for LLM prompts
-- repo: Repository operations (RepoOps)
-- analysis: Vulnerability analysis orchestrator
-"""
+from __future__ import annotations
 
 from vulnhuntr.core.analysis import (
     AnalysisConfig,

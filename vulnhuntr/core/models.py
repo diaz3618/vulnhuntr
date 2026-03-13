@@ -1,22 +1,28 @@
-"""
-Core Data Models
-================
-
-Domain models for vulnerability analysis.
-
-These models represent the core data structures used throughout
-the application for representing vulnerabilities, analysis results,
-and context information.
-"""
+"""Domain models: VulnType, Response, ContextCode, LLMUsage."""
 
 from __future__ import annotations
 
-import logging
+from dataclasses import dataclass
 from enum import Enum
 
+import structlog
 from pydantic import BaseModel, Field, field_validator
 
-log = logging.getLogger(__name__)
+log = structlog.get_logger()
+
+
+@dataclass
+class LLMUsage:
+    """Token usage from an LLM API call."""
+
+    input_tokens: int
+    output_tokens: int
+    model: str
+
+    @property
+    def total_tokens(self) -> int:
+        """Total tokens for this call."""
+        return self.input_tokens + self.output_tokens
 
 
 class VulnType(str, Enum):
@@ -33,10 +39,6 @@ class VulnType(str, Enum):
     XSS = "XSS"  # Cross-Site Scripting (CWE-79)
     IDOR = "IDOR"  # Insecure Direct Object Reference (CWE-639)
 
-
-# ---------------------------------------------------------------------------
-# MCP tool-call models (used when analysis.mode != "off")
-# ---------------------------------------------------------------------------
 
 MAX_TOOL_RESULT_CHARS = 4096  # Truncation limit for tool output fed back to LLM
 

@@ -1,11 +1,6 @@
-"""
-CLI Output Formatting
-=====================
+"""Console output and progress display (uses Rich)."""
 
-Handles console output, progress display, and formatted reporting.
-
-Uses Rich library for styled console output.
-"""
+from __future__ import annotations
 
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -23,7 +18,7 @@ if TYPE_CHECKING:
 console = Console()
 
 
-def print_readable(report: "Response") -> None:
+def print_readable(report: Response) -> None:
     """Print a vulnerability report in a human-readable format.
 
     Args:
@@ -109,7 +104,7 @@ def print_dry_run_report(estimate: dict) -> None:
     console.print("[dim]Run without --dry-run to perform analysis.[/dim]\n")
 
 
-def print_resume_info(checkpoint: "AnalysisCheckpoint") -> None:
+def print_resume_info(checkpoint: AnalysisCheckpoint) -> None:
     """Print information about a checkpoint being resumed.
 
     Args:
