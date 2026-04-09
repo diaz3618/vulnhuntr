@@ -214,6 +214,63 @@ class TestValidateArgs:
         assert error is not None
         assert "positive" in error
 
+    def test_analyze_within_root_is_accepted(self, tmp_path):
+        target = tmp_path / "sub" / "module.py"
+        target.parent.mkdir()
+        target.write_text("x = 1")
+        args = argparse.Namespace(
+            root=str(tmp_path),
+            analyze=str(target),
+            budget=None,
+            sarif=None,
+            html=None,
+            json=None,
+            csv=None,
+            markdown=None,
+        )
+        error = validate_args(args)
+        assert error is None
+
+    def test_analyze_outside_root_is_rejected(self, tmp_path):
+        root = tmp_path / "project"
+        root.mkdir()
+        outside = tmp_path / "secret.py"
+        outside.write_text("password = 'hunter2'")
+        args = argparse.Namespace(
+            root=str(root),
+            analyze=str(outside),
+            budget=None,
+            sarif=None,
+            html=None,
+            json=None,
+            csv=None,
+            markdown=None,
+        )
+        error = validate_args(args)
+        assert error is not None
+        assert "outside" in error
+
+    def test_analyze_traversal_via_dotdot_is_rejected(self, tmp_path):
+        root = tmp_path / "project"
+        root.mkdir()
+        outside = tmp_path / "other.py"
+        outside.write_text("x = 1")
+        # Use a dotdot path that resolves outside root
+        traversal_path = str(root / ".." / "other.py")
+        args = argparse.Namespace(
+            root=str(root),
+            analyze=traversal_path,
+            budget=None,
+            sarif=None,
+            html=None,
+            json=None,
+            csv=None,
+            markdown=None,
+        )
+        error = validate_args(args)
+        assert error is not None
+        assert "outside" in error
+
 
 class TestNormalizeArgs:
     def test_root_absolute(self, tmp_path):

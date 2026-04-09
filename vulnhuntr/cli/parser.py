@@ -196,6 +196,11 @@ def validate_args(args: argparse.Namespace) -> str | None:
         if not analyze_path.exists():
             return f"Analyze path does not exist: {args.analyze}"
 
+        resolved_root = root_path.resolve()
+        resolved_analyze = analyze_path.resolve()
+        if not resolved_analyze.is_relative_to(resolved_root):
+            return f"--analyze path must be within --root: {resolved_analyze} is outside {resolved_root}"
+
     # Validate budget is positive
     if args.budget is not None and args.budget <= 0:
         return "Budget must be a positive number"
