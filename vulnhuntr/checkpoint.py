@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib.metadata
 import json
 import signal
 import sys
@@ -37,7 +38,7 @@ class CheckpointData:
     model: str | None = None
     started_at: str | None = None
     last_updated: str | None = None
-    vulnhuntr_version: str = "0.1.0"
+    vulnhuntr_version: str = field(default_factory=lambda: importlib.metadata.version("vulnhuntr"))
 
     @property
     def total_files(self) -> int:

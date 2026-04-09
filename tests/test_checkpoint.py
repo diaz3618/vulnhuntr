@@ -65,6 +65,20 @@ class TestCheckpointData:
         }
         assert set(d.keys()) == expected
 
+    def test_version_is_not_hardcoded_literal(self):
+        from importlib.metadata import version
+
+        cd = CheckpointData()
+        assert cd.vulnhuntr_version == version("vulnhuntr")
+
+    def test_from_dict_missing_version_falls_back(self):
+        cd = CheckpointData.from_dict({})
+        assert cd.vulnhuntr_version == "0.1.0"
+
+    def test_from_dict_explicit_version_preserved(self):
+        cd = CheckpointData.from_dict({"vulnhuntr_version": "9.9.9"})
+        assert cd.vulnhuntr_version == "9.9.9"
+
 
 class TestCheckpointLifecycle:
     def _make_checkpoint(self, tmp_path, **kwargs):
