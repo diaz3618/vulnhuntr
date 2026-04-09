@@ -36,7 +36,7 @@ jobs:
 
       - name: Run tests with pytest
         run: |
-          pytest tests/ -v --cov=vulnhuntr --cov-report=xml --cov-report=html --cov-report=term
+          pytest tests/ -v --cov=vulnhuntr --cov-report=xml --cov-report=html --cov-report=term --cov-fail-under=72
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v4

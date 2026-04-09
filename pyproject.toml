@@ -96,7 +96,7 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-addopts = "-m \"not live\" --strict-markers -v"
+addopts = "-m \"not live\" --strict-markers -v --cov-fail-under=72"
 asyncio_mode = "auto"
 markers = [
     "live: marks tests that hit real LLM APIs (deselect with '-m \"not live\"')",
