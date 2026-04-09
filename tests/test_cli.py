@@ -5,6 +5,7 @@ Covers CLI argument parsing, output formatting, and runner orchestration.
 """
 
 import argparse
+import json as json_mod
 from pathlib import Path
 from unittest.mock import patch
 
@@ -574,3 +575,89 @@ class TestParseFallbackSpec:
         """Provider prefix is case-insensitive."""
         parse_fallback_spec("OpenRouter:meta-llama/llama-3.3-70b-instruct:free", "sys")
         mock_or.assert_called_once()
+
+
+class TestRunAnalysisIntegration:
+    """End-to-end smoke test for run_analysis() with a fully mocked LLM.
+
+    Patches initialize_llm so no real API calls are made.
+    Uses a minimal Python fixture file as the analysis target.
+    """
+
+    def _make_args(self, tmp_path, *, json_report=None):
+        # Minimal fixture that exercises the LFI detection path
+        target = tmp_path / "vuln.py"
+        target.write_text("def read_file(name):\n    with open(name) as f:\n        return f.read()\n")
+        return argparse.Namespace(
+            root=str(tmp_path),
+            analyze=str(target),
+            llm="claude",
+            budget=None,
+            create_issues=False,
+            csv=None,
+            dry_run=False,
+            export_all=None,
+            fallback1=None,
+            fallback2=None,
+            html=None,
+            json=json_report,  # pass a path to capture JSON output for D-11 assertion
+            markdown=None,
+            no_checkpoint=True,
+            resume=False,
+            sarif=None,
+            webhook=None,
+            webhook_format="json",
+            webhook_secret=None,
+            reports_dir=None,
+            verbosity=0,
+        )
+
+    @patch("vulnhuntr.cli.runner.initialize_llm")
+    def test_run_analysis_produces_finding(self, mock_init_llm, tmp_path, mock_llm):
+        """D-11: verify a Finding is produced — not just exit code 0."""
+        mock_init_llm.return_value = mock_llm
+        from vulnhuntr.cli.runner import run_analysis
+
+        report_path = tmp_path / "report.json"
+        run_analysis(self._make_args(tmp_path, json_report=str(report_path)))
+
+        assert report_path.exists(), "JSON report file must be written by run_analysis()"
+        report = json_mod.loads(report_path.read_text())
+        # Report is either a list of findings or a dict with a "findings" key
+        findings = report if isinstance(report, list) else report.get("findings", [])
+        assert len(findings) >= 1, "At least one Finding must be present in the report"
+        first = findings[0]
+        score = first.get("confidence_score") if isinstance(first, dict) else getattr(first, "confidence_score", None)
+        assert score is not None and score >= 1, f"Finding must have confidence_score >= 1, got: {score}"
+
+    @patch("vulnhuntr.cli.runner.initialize_llm")
+    def test_run_analysis_returns_zero_exit_code(self, mock_init_llm, tmp_path, mock_llm):
+        mock_init_llm.return_value = mock_llm
+        from vulnhuntr.cli.runner import run_analysis
+
+        exit_code = run_analysis(self._make_args(tmp_path))
+
+        assert exit_code == 0
+
+    @patch("vulnhuntr.cli.runner.initialize_llm")
+    def test_run_analysis_does_not_call_real_api(self, mock_init_llm, tmp_path, mock_llm):
+        mock_init_llm.return_value = mock_llm
+        from vulnhuntr.cli.runner import run_analysis
+
+        run_analysis(self._make_args(tmp_path))
+
+        # initialize_llm must have been called (at least once for primary LLM)
+        assert mock_init_llm.called
+        # The mock LLM's chat() was called (pipeline ran)
+        assert mock_llm.chat.called
+
+    @patch("vulnhuntr.cli.runner.initialize_llm")
+    def test_run_analysis_no_checkpoint_file_created(self, mock_init_llm, tmp_path, mock_llm):
+        mock_init_llm.return_value = mock_llm
+        from vulnhuntr.cli.runner import run_analysis
+
+        run_analysis(self._make_args(tmp_path))
+
+        # no_checkpoint=True means no .vulnhuntr_checkpoint directory
+        checkpoint_dir = tmp_path / ".vulnhuntr_checkpoint"
+        assert not checkpoint_dir.exists()
