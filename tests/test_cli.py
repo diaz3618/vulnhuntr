@@ -271,6 +271,42 @@ class TestValidateArgs:
         assert error is not None
         assert "outside" in error
 
+    def test_analyze_inside_root(self, tmp_path):
+        target = tmp_path / "app.py"
+        target.write_text("x = 1\n")
+        args = argparse.Namespace(
+            root=str(tmp_path),
+            analyze=str(target),
+            budget=None,
+            sarif=None,
+            html=None,
+            json=None,
+            csv=None,
+            markdown=None,
+        )
+        error = validate_args(args)
+        assert error is None
+
+    def test_analyze_outside_root(self, tmp_path):
+        # Sibling directory that is NOT inside tmp_path
+        outside = tmp_path.parent / "outside_dir"
+        outside.mkdir(exist_ok=True)
+        target = outside / "evil.py"
+        target.write_text("x = 1\n")
+        args = argparse.Namespace(
+            root=str(tmp_path),
+            analyze=str(target),
+            budget=None,
+            sarif=None,
+            html=None,
+            json=None,
+            csv=None,
+            markdown=None,
+        )
+        error = validate_args(args)
+        assert error is not None
+        assert "outside" in error
+
 
 class TestNormalizeArgs:
     def test_root_absolute(self, tmp_path):
