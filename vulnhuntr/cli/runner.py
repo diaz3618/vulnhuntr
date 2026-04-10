@@ -473,76 +473,17 @@ def run_analysis(args: argparse.Namespace) -> int:
     if getattr(args, "verbosity", 0) > 0:
         analyzer.set_iteration_callback(lambda _iteration, report: print_readable(report))
 
-    # Track analysis success for checkpoint finalization
-    analysis_success = True
-
-    # Collect findings for reporting
-    all_findings: list[Finding] = []
-
-    # Main analysis loop — delegates to VulnerabilityAnalyzer
-    for py_f in files_to_analyze:
-        # Check budget before starting file analysis
-        if budget_enforcer and not budget_enforcer.check(cost_tracker.total_cost):
-            console.print(f"\n[bold red]Budget limit reached (${args.budget:.2f}). Stopping analysis.[/bold red]")
-            console.print("[dim]Progress saved to checkpoint. Use --resume to continue with higher budget.[/dim]")
-            analysis_success = False
-            break
-
-        # Set checkpoint current file
-        checkpoint.set_current_file(py_f)
-
-        print(f"\nAnalyzing {py_f}")
-        print("-" * 40 + "\n")
-
-        try:
-            result = analyzer.analyze_file(py_f, files)
-        except (OSError, UnicodeDecodeError, ValueError) as e:
-            log.error("Failed to analyze file", file=str(py_f), error=str(e))
-            continue
-
-        # Print initial analysis report
-        print_readable(result.initial_report)
-
-        # Execute MCP tool calls from initial analysis (if any)
-        if mcp_helper is not None and mcp_helper.is_active and result.initial_report.mcp_tool_calls:
-            try:
-                mcp_results = run_async(mcp_helper.execute_tool_calls(result.initial_report.mcp_tool_calls))
-                log.info("MCP tool calls executed (initial)", count=len(mcp_results))
-            except Exception as e:
-                log.error("MCP tool execution failed (initial)", error=str(e))
-
-        # Collect findings from secondary analysis
-        for vuln_type, report in result.findings.items():
-            if getattr(args, "verbosity", 0) == 0:
-                print_readable(report)
-
-            # Execute MCP tool calls from final report (if any)
-            if mcp_helper is not None and mcp_helper.is_active and report.mcp_tool_calls:
-                try:
-                    mcp_results = run_async(mcp_helper.execute_tool_calls(report.mcp_tool_calls))
-                    log.info("MCP tool calls executed (secondary)", count=len(mcp_results))
-                except Exception as e:
-                    log.error("MCP tool execution failed (secondary)", error=str(e))
-
-            finding = response_to_finding(
-                response=report,
-                file_path=str(py_f),
-                vuln_type=vuln_type,
-                context_code=result.context_code,
-            )
-            all_findings.append(finding)
-            log.info(
-                "Finding collected for reporting",
-                vuln_type=vuln_type.value,
-                file=str(py_f),
-                confidence=report.confidence_score,
-            )
-
-        # Mark file as complete in checkpoint
-        checkpoint.mark_file_complete(
-            py_f,
-            result.initial_report.model_dump(),
-        )
+    # Stage 3: analyze files
+    all_findings, analysis_success = _analyze_files(
+        files_to_analyze=files_to_analyze,
+        files=files,
+        analyzer=analyzer,
+        checkpoint=checkpoint,
+        budget_enforcer=budget_enforcer,
+        cost_tracker=cost_tracker,
+        mcp_helper=mcp_helper,
+        verbosity=getattr(args, "verbosity", 0),
+    )
 
     # Finalize checkpoint
     checkpoint.finalize(success=analysis_success and len(files_to_analyze) > 0)
@@ -563,6 +504,99 @@ def run_analysis(args: argparse.Namespace) -> int:
     _generate_reports(args, all_findings, cost_tracker, files_to_analyze)
 
     return 0
+
+
+def _analyze_files(
+    files_to_analyze: list[Path],
+    files: list[Path],
+    analyzer: Any,
+    checkpoint: Any,
+    budget_enforcer: Any | None,
+    cost_tracker: Any,
+    mcp_helper: Any | None = None,
+    verbosity: int = 0,
+) -> tuple[list[Finding], bool]:
+    """Run the per-file analysis loop.
+
+    Args:
+        files_to_analyze: Ordered list of files to analyze.
+        files:            Full repository file list (passed to analyzer.analyze_file).
+        analyzer:         VulnerabilityAnalyzer instance (already configured with LLM).
+        checkpoint:       AnalysisCheckpoint instance (must already be started).
+        budget_enforcer:  BudgetEnforcer or None if no budget limit.
+        cost_tracker:     CostTracker used by budget_enforcer and checkpoint.
+        mcp_helper:       Optional MCPAnalysisHelper; None disables MCP tool dispatch.
+        verbosity:        Output verbosity level; 0 means print each finding report.
+
+    Returns:
+        (all_findings, analysis_success) — findings collected so far and whether
+        the loop completed without a budget abort.
+    """
+    all_findings: list[Finding] = []
+    analysis_success = True
+
+    for py_f in files_to_analyze:
+        if budget_enforcer and not budget_enforcer.check(cost_tracker.total_cost):
+            console.print(
+                f"\n[bold red]Budget limit reached (${cost_tracker.total_cost:.2f}). Stopping analysis.[/bold red]"
+            )
+            console.print("[dim]Progress saved to checkpoint. Use --resume to continue with higher budget.[/dim]")
+            analysis_success = False
+            break
+
+        checkpoint.set_current_file(py_f)
+        print(f"\nAnalyzing {py_f}")
+        print("-" * 40 + "\n")
+
+        try:
+            result = analyzer.analyze_file(py_f, files)
+        except (OSError, UnicodeDecodeError, ValueError) as e:
+            log.error("Failed to analyze file", file=str(py_f), error=str(e))
+            continue
+
+        print_readable(result.initial_report)
+
+        # Execute MCP tool calls from initial analysis (if any)
+        if mcp_helper is not None and mcp_helper.is_active and result.initial_report.mcp_tool_calls:
+            try:
+                from vulnhuntr.mcp import run_async
+
+                mcp_results = run_async(mcp_helper.execute_tool_calls(result.initial_report.mcp_tool_calls))
+                log.info("MCP tool calls executed (initial)", count=len(mcp_results))
+            except Exception as e:
+                log.error("MCP tool execution failed (initial)", error=str(e))
+
+        for vuln_type, report in result.findings.items():
+            if verbosity == 0:
+                print_readable(report)
+
+            # Execute MCP tool calls from final report (if any)
+            if mcp_helper is not None and mcp_helper.is_active and report.mcp_tool_calls:
+                try:
+                    from vulnhuntr.mcp import run_async
+
+                    mcp_results = run_async(mcp_helper.execute_tool_calls(report.mcp_tool_calls))
+                    log.info("MCP tool calls executed (secondary)", count=len(mcp_results))
+                except Exception as e:
+                    log.error("MCP tool execution failed (secondary)", error=str(e))
+
+            finding = response_to_finding(
+                response=report,
+                file_path=str(py_f),
+                vuln_type=vuln_type,
+                context_code=result.context_code,
+            )
+            all_findings.append(finding)
+            log.info(
+                "Finding collected for reporting",
+                vuln_type=vuln_type.value,
+                file=str(py_f),
+                confidence=report.confidence_score,
+            )
+
+        checkpoint.mark_file_complete(py_f, result.initial_report.model_dump())
+
+    return all_findings, analysis_success
 
 
 def _generate_reports(
