@@ -267,23 +267,30 @@ def _init_providers(
     config: Any,
     cost_callback: Callable | None = None,
     system_prompt: str = "",
+    llm_factory: Callable | None = None,
 ) -> Any:
     """Initialize the primary LLM and wrap with fallbacks if configured.
 
     Args:
         args: Parsed CLI arguments (uses args.llm, args.fallback1, args.fallback2)
         config: VulnhuntrConfig (model override, fallback specs from config file)
-        cost_callback: Optional cost-tracking callback passed to initialize_llm
+        cost_callback: Optional cost-tracking callback passed to the LLM factory
         system_prompt: System prompt to inject; empty string for the README-summarization pass
+        llm_factory: Optional callable replacing initialize_llm; signature matches
+            initialize_llm(llm_arg, system_prompt, cost_callback, model_override).
+            When None, the default initialize_llm is used.
 
     Returns:
         Primary LLM, possibly wrapped in FallbackLLM
     """
-    llm = initialize_llm(args.llm, system_prompt, cost_callback, model_override=config.model)
+    if llm_factory is not None:
+        llm = llm_factory(args.llm, system_prompt, cost_callback, config.model)
+    else:
+        llm = initialize_llm(args.llm, system_prompt, cost_callback, model_override=config.model)
     return wrap_with_fallbacks(llm, args, cost_callback, system_prompt, config=config)
 
 
-def run_analysis(args: argparse.Namespace) -> int:
+def run_analysis(args: argparse.Namespace, llm_factory: Callable | None = None) -> int:
     """Run the vulnerability analysis.
 
     Main entry point for CLI execution. Orchestrates:
@@ -296,6 +303,9 @@ def run_analysis(args: argparse.Namespace) -> int:
 
     Args:
         args: Parsed CLI arguments
+        llm_factory: Optional callable replacing initialize_llm for LLM construction.
+            Intended for testing — pass a lambda returning a MagicMock to avoid
+            patching import paths. In production this is always None.
 
     Returns:
         Exit code (0 for success, non-zero for errors)
@@ -429,7 +439,7 @@ def run_analysis(args: argparse.Namespace) -> int:
         )
 
     # Stage 1: init providers (no system prompt — README summarization pass)
-    llm = _init_providers(args, config, cost_callback)
+    llm = _init_providers(args, config, cost_callback, llm_factory=llm_factory)
 
     # Create analyzer for README summarization
     analyzer = VulnerabilityAnalyzer(llm, code_extractor, AnalysisConfig(verbosity=getattr(args, "verbosity", 0)))
@@ -455,7 +465,7 @@ def run_analysis(args: argparse.Namespace) -> int:
         if mcp_tool_section:
             system_prompt += "\n" + mcp_tool_section
 
-    llm = _init_providers(args, config, cost_callback, system_prompt)
+    llm = _init_providers(args, config, cost_callback, system_prompt, llm_factory=llm_factory)
 
     # Create analyzer with system-prompt-configured LLM
     analysis_config = AnalysisConfig(
