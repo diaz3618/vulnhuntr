@@ -25,6 +25,7 @@ from vulnhuntr.cli.parser import (
     validate_args,
 )
 from vulnhuntr.cli.runner import (
+    _analyze_files,
     _collect_files,
     _init_providers,
     get_model_name,
@@ -793,3 +794,149 @@ class TestRunAnalysisIntegration:
         # no_checkpoint=True means no .vulnhuntr_checkpoint directory
         checkpoint_dir = tmp_path / ".vulnhuntr_checkpoint"
         assert not checkpoint_dir.exists()
+
+
+class TestAnalyzeFiles:
+    """Unit tests for _analyze_files() — RUNNER-03.
+
+    Exercises the per-file loop independently: empty input, error handling,
+    budget abort, and finding collection.
+    """
+
+    def _make_checkpoint(self):
+        from unittest.mock import MagicMock
+
+        cp = MagicMock()
+        cp.set_current_file = MagicMock()
+        cp.mark_file_complete = MagicMock()
+        return cp
+
+    def _make_analyzer(self, result=None):
+        from unittest.mock import MagicMock
+        from vulnhuntr.core.models import Response, VulnType
+
+        if result is None:
+            result = MagicMock()
+            result.initial_report = Response(
+                scratchpad="test",
+                analysis="possible LFI",
+                poc="curl ...",
+                confidence_score=7,
+                vulnerability_types=[VulnType.LFI],
+                context_code=[],
+            )
+            result.findings = {}
+            result.context_code = []
+
+        analyzer = MagicMock()
+        analyzer.analyze_file.return_value = result
+        return analyzer
+
+    def test_empty_list_returns_empty_success(self):
+        """No files → ([], True) with no iterations."""
+        from vulnhuntr.cli.runner import _analyze_files
+        from unittest.mock import MagicMock
+
+        findings, ok = _analyze_files(
+            files_to_analyze=[],
+            files=[],
+            analyzer=self._make_analyzer(),
+            checkpoint=self._make_checkpoint(),
+            budget_enforcer=None,
+            cost_tracker=MagicMock(),
+        )
+        assert findings == []
+        assert ok is True
+
+    def test_ioerror_logs_and_continues(self, tmp_path, capsys):
+        """analyze_file raising OSError is caught; loop continues; success=True."""
+        from vulnhuntr.cli.runner import _analyze_files
+        from unittest.mock import MagicMock
+
+        bad_file = tmp_path / "bad.py"
+        bad_file.touch()
+
+        analyzer = MagicMock()
+        analyzer.analyze_file.side_effect = OSError("file not found")
+
+        findings, ok = _analyze_files(
+            files_to_analyze=[bad_file],
+            files=[bad_file],
+            analyzer=analyzer,
+            checkpoint=self._make_checkpoint(),
+            budget_enforcer=None,
+            cost_tracker=MagicMock(),
+        )
+        assert findings == []
+        assert ok is True
+
+    def test_budget_abort_returns_false(self, tmp_path):
+        """budget_enforcer returning False on first check sets analysis_success=False."""
+        from vulnhuntr.cli.runner import _analyze_files
+        from unittest.mock import MagicMock
+
+        f = tmp_path / "a.py"
+        f.touch()
+
+        enforcer = MagicMock()
+        enforcer.check.return_value = False
+
+        cost_tracker = MagicMock()
+        cost_tracker.total_cost = 10.0
+
+        findings, ok = _analyze_files(
+            files_to_analyze=[f],
+            files=[f],
+            analyzer=self._make_analyzer(),
+            checkpoint=self._make_checkpoint(),
+            budget_enforcer=enforcer,
+            cost_tracker=cost_tracker,
+        )
+        assert findings == []
+        assert ok is False
+
+    def test_finding_appended(self, tmp_path):
+        """A file producing a finding adds it to the returned list."""
+        from vulnhuntr.cli.runner import _analyze_files
+        from unittest.mock import MagicMock
+        from vulnhuntr.core.models import Response, VulnType
+
+        f = tmp_path / "vuln.py"
+        f.touch()
+
+        report = Response(
+            scratchpad="traced input",
+            analysis="LFI via open(name)",
+            poc="curl ...",
+            confidence_score=8,
+            vulnerability_types=[VulnType.LFI],
+            context_code=[],
+        )
+        result = MagicMock()
+        result.initial_report = Response(
+            scratchpad="initial",
+            analysis="initial analysis",
+            poc=None,
+            confidence_score=3,
+            vulnerability_types=[],
+            context_code=[],
+        )
+        result.findings = {VulnType.LFI: report}
+        result.context_code = []
+
+        analyzer = MagicMock()
+        analyzer.analyze_file.return_value = result
+
+        cost_tracker = MagicMock()
+        cost_tracker.total_cost = 0.0
+
+        findings, ok = _analyze_files(
+            files_to_analyze=[f],
+            files=[f],
+            analyzer=analyzer,
+            checkpoint=self._make_checkpoint(),
+            budget_enforcer=None,
+            cost_tracker=cost_tracker,
+        )
+        assert len(findings) == 1
+        assert ok is True
