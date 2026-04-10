@@ -25,6 +25,7 @@ from vulnhuntr.cli.parser import (
     validate_args,
 )
 from vulnhuntr.cli.runner import (
+    _collect_files,
     _init_providers,
     get_model_name,
     initialize_llm,
@@ -576,6 +577,74 @@ class TestParseFallbackSpec:
         """Provider prefix is case-insensitive."""
         parse_fallback_spec("OpenRouter:meta-llama/llama-3.3-70b-instruct:free", "sys")
         mock_or.assert_called_once()
+
+
+class TestCollectFiles:
+    """Unit tests for _collect_files() — RUNNER-02.
+
+    Pure function: no checkpoint awareness. Exercises network-related,
+    absolute analyze, and relative analyze code paths.
+    """
+
+    def _make_args(self, root, analyze=None):
+        return argparse.Namespace(root=str(root), analyze=analyze)
+
+    def test_no_analyze_returns_network_related_files(self, tmp_path):
+        """When args.analyze is None, returns network-related files from repo."""
+        from unittest.mock import MagicMock
+
+        repo = MagicMock()
+        repo.get_relevant_py_files.return_value = [tmp_path / "a.py"]
+        network_files = [tmp_path / "net.py"]
+        repo.get_network_related_files.return_value = network_files
+
+        args = self._make_args(tmp_path, analyze=None)
+        files, files_to_analyze = _collect_files(args, repo)
+
+        assert files == [tmp_path / "a.py"]
+        assert files_to_analyze == network_files
+        repo.get_network_related_files.assert_called_once_with([tmp_path / "a.py"])
+
+    def test_absolute_analyze_path(self, tmp_path):
+        """Absolute --analyze path passed directly to get_files_to_analyze."""
+        from unittest.mock import MagicMock
+
+        repo = MagicMock()
+        repo.get_relevant_py_files.return_value = []
+        target = tmp_path / "module.py"
+        target.touch()
+        repo.get_files_to_analyze.return_value = [target]
+
+        args = self._make_args(tmp_path, analyze=str(target))
+        _, files_to_analyze = _collect_files(args, repo)
+
+        repo.get_files_to_analyze.assert_called_once_with(target)
+        assert files_to_analyze == [target]
+
+    def test_relative_analyze_path_resolved_against_root(self, tmp_path):
+        """Relative --analyze path is joined with args.root before calling get_files_to_analyze."""
+        from unittest.mock import MagicMock
+
+        repo = MagicMock()
+        repo.get_relevant_py_files.return_value = []
+        repo.get_files_to_analyze.return_value = []
+
+        args = self._make_args(tmp_path, analyze="subdir/mod.py")
+        _collect_files(args, repo)
+
+        expected_path = Path(str(tmp_path)) / "subdir/mod.py"
+        repo.get_files_to_analyze.assert_called_once_with(expected_path)
+
+    def test_returns_tuple_of_two_lists(self, tmp_path):
+        """Return type is always a 2-tuple (files, files_to_analyze)."""
+        from unittest.mock import MagicMock
+
+        repo = MagicMock()
+        repo.get_relevant_py_files.return_value = []
+        repo.get_network_related_files.return_value = []
+
+        result = _collect_files(self._make_args(tmp_path), repo)
+        assert isinstance(result, tuple) and len(result) == 2
 
 
 class TestInitProviders:

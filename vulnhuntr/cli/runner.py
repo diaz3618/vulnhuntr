@@ -232,6 +232,36 @@ def get_model_name(llm_arg: str) -> str:
     return "unknown"
 
 
+def _collect_files(
+    args: argparse.Namespace,
+    repo: Any,
+) -> tuple[list[Path], list[Path]]:
+    """Discover repository files and determine the analysis target list.
+
+    Per D-03: pure function — no checkpoint filtering. Checkpoint-based
+    filtering (removing already-completed files) is done in run_analysis()
+    after this call.
+
+    Args:
+        args: Parsed CLI arguments (uses args.root, args.analyze)
+        repo: RepoOps instance for the target repository
+
+    Returns:
+        (files, files_to_analyze) where files is the full py-file list and
+        files_to_analyze is the filtered subset based on args.analyze
+    """
+    files = list(repo.get_relevant_py_files())
+    if args.analyze:
+        analyze_path = Path(args.analyze)
+        if analyze_path.is_absolute():
+            files_to_analyze = list(repo.get_files_to_analyze(analyze_path))
+        else:
+            files_to_analyze = list(repo.get_files_to_analyze(Path(args.root) / analyze_path))
+    else:
+        files_to_analyze = list(repo.get_network_related_files(files))
+    return files, files_to_analyze
+
+
 def _init_providers(
     args: argparse.Namespace,
     config: Any,
@@ -330,18 +360,8 @@ def run_analysis(args: argparse.Namespace) -> int:
     repo = RepoOps(args.root)
     code_extractor = SymbolExtractor(args.root)
 
-    # Get relevant files
-    files = list(repo.get_relevant_py_files())
-
-    # Determine files to analyze
-    if args.analyze:
-        analyze_path = Path(args.analyze)
-        if analyze_path.is_absolute():
-            files_to_analyze = list(repo.get_files_to_analyze(analyze_path))
-        else:
-            files_to_analyze = list(repo.get_files_to_analyze(Path(args.root) / analyze_path))
-    else:
-        files_to_analyze = list(repo.get_network_related_files(files))
+    # Stage 2: collect files (pure — checkpoint filtering happens below if --resume)
+    files, files_to_analyze = _collect_files(args, repo)
 
     # Get model name for cost estimation
     model_name = get_model_name(args.llm)
