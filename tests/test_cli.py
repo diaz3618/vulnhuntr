@@ -720,8 +720,7 @@ class TestInitProviders:
 class TestRunAnalysisIntegration:
     """End-to-end smoke test for run_analysis() with a fully mocked LLM.
 
-    Patches initialize_llm so no real API calls are made.
-    Uses a minimal Python fixture file as the analysis target.
+    Uses llm_factory parameter (RUNNER-06) — no patch paths needed.
     """
 
     def _make_args(self, tmp_path, *, json_report=None):
@@ -740,7 +739,7 @@ class TestRunAnalysisIntegration:
             fallback1=None,
             fallback2=None,
             html=None,
-            json=json_report,  # pass a path to capture JSON output for D-11 assertion
+            json=json_report,
             markdown=None,
             no_checkpoint=True,
             resume=False,
@@ -752,53 +751,41 @@ class TestRunAnalysisIntegration:
             verbosity=0,
         )
 
-    @patch("vulnhuntr.cli.runner.initialize_llm")
-    def test_run_analysis_produces_finding(self, mock_init_llm, tmp_path, mock_llm):
+    def test_run_analysis_produces_finding(self, tmp_path, mock_llm):
         """D-11: verify a Finding is produced — not just exit code 0."""
-        mock_init_llm.return_value = mock_llm
-        from vulnhuntr.cli.runner import run_analysis
-
         report_path = tmp_path / "report.json"
-        run_analysis(self._make_args(tmp_path, json_report=str(report_path)))
-
+        run_analysis(
+            self._make_args(tmp_path, json_report=str(report_path)),
+            llm_factory=lambda *_: mock_llm,
+        )
         assert report_path.exists(), "JSON report file must be written by run_analysis()"
         report = json_mod.loads(report_path.read_text())
-        # Report is either a list of findings or a dict with a "findings" key
         findings = report if isinstance(report, list) else report.get("findings", [])
         assert len(findings) >= 1, "At least one Finding must be present in the report"
         first = findings[0]
         score = first.get("confidence_score") if isinstance(first, dict) else getattr(first, "confidence_score", None)
         assert score is not None and score >= 1, f"Finding must have confidence_score >= 1, got: {score}"
 
-    @patch("vulnhuntr.cli.runner.initialize_llm")
-    def test_run_analysis_returns_zero_exit_code(self, mock_init_llm, tmp_path, mock_llm):
-        mock_init_llm.return_value = mock_llm
-        from vulnhuntr.cli.runner import run_analysis
-
-        exit_code = run_analysis(self._make_args(tmp_path))
-
+    def test_run_analysis_returns_zero_exit_code(self, tmp_path, mock_llm):
+        exit_code = run_analysis(
+            self._make_args(tmp_path),
+            llm_factory=lambda *_: mock_llm,
+        )
         assert exit_code == 0
 
-    @patch("vulnhuntr.cli.runner.initialize_llm")
-    def test_run_analysis_does_not_call_real_api(self, mock_init_llm, tmp_path, mock_llm):
-        mock_init_llm.return_value = mock_llm
-        from vulnhuntr.cli.runner import run_analysis
-
-        run_analysis(self._make_args(tmp_path))
-
-        # initialize_llm must have been called (at least once for primary LLM)
-        assert mock_init_llm.called
+    def test_run_analysis_does_not_call_real_api(self, tmp_path, mock_llm):
+        run_analysis(
+            self._make_args(tmp_path),
+            llm_factory=lambda *_: mock_llm,
+        )
         # The mock LLM's chat() was called (pipeline ran)
         assert mock_llm.chat.called
 
-    @patch("vulnhuntr.cli.runner.initialize_llm")
-    def test_run_analysis_no_checkpoint_file_created(self, mock_init_llm, tmp_path, mock_llm):
-        mock_init_llm.return_value = mock_llm
-        from vulnhuntr.cli.runner import run_analysis
-
-        run_analysis(self._make_args(tmp_path))
-
-        # no_checkpoint=True means no .vulnhuntr_checkpoint directory
+    def test_run_analysis_no_checkpoint_file_created(self, tmp_path, mock_llm):
+        run_analysis(
+            self._make_args(tmp_path),
+            llm_factory=lambda *_: mock_llm,
+        )
         checkpoint_dir = tmp_path / ".vulnhuntr_checkpoint"
         assert not checkpoint_dir.exists()
 
@@ -987,3 +974,28 @@ class TestDispatchIntegrations:
             args = self._make_args(webhook="https://example.com/hook")
             _dispatch_integrations(args, multiple_findings, CostTracker(), [])
             assert mock_wh.called
+
+
+class TestDispatchReports:
+    """Unit tests for _dispatch_reports alias — RUNNER-04."""
+
+    def test_alias_is_generate_reports(self):
+        """_dispatch_reports must be the same callable as _generate_reports."""
+        assert _dispatch_reports is _generate_reports
+
+    def test_no_findings_does_not_raise(self, tmp_path):
+        """_dispatch_reports with empty findings list completes without error."""
+        args = argparse.Namespace(
+            root=str(tmp_path),
+            sarif=None,
+            html=None,
+            json=None,
+            csv=None,
+            markdown=None,
+            export_all=None,
+            create_issues=False,
+            webhook=None,
+            webhook_format="json",
+            webhook_secret=None,
+        )
+        _dispatch_reports(args, [], CostTracker(), [])  # should not raise
