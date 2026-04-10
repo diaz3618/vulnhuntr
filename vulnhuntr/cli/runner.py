@@ -681,6 +681,10 @@ def _generate_reports(
         _send_webhook(args, all_findings, cost_tracker, files_to_analyze)
 
 
+#: Stage alias — RUNNER-04 requires this name; implementation is _generate_reports.
+_dispatch_reports = _generate_reports
+
+
 def _export_all_reports(args: argparse.Namespace, findings: list[Finding]) -> None:
     """Export all report formats to a directory."""
     from vulnhuntr.reporters import (
