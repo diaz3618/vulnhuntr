@@ -38,7 +38,7 @@ from vulnhuntr.cli.runner import (
     parse_fallback_spec,
     run_analysis,
 )
-from vulnhuntr.core.cost import CostTracker
+from vulnhuntr.cost_tracker import CostTracker
 
 
 class TestCreateArgumentParser:

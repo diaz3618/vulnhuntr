@@ -672,17 +672,32 @@ def _generate_reports(
     if hasattr(args, "export_all") and args.export_all:
         _export_all_reports(args, all_findings)
 
-    # GitHub issues
-    if args.create_issues:
-        _create_github_issues(all_findings)
-
-    # Webhook notification
-    if args.webhook:
-        _send_webhook(args, all_findings, cost_tracker, files_to_analyze)
+    _dispatch_integrations(args, all_findings, cost_tracker, files_to_analyze)
 
 
 #: Stage alias — RUNNER-04 requires this name; implementation is _generate_reports.
 _dispatch_reports = _generate_reports
+
+
+def _dispatch_integrations(
+    args: argparse.Namespace,
+    findings: list[Finding],
+    cost_tracker: CostTracker,
+    files_to_analyze: list[Path],
+) -> None:
+    """Dispatch findings to external integrations (GitHub issues, webhook).
+
+    Args:
+        args:             Parsed CLI arguments (uses args.create_issues, args.webhook,
+                          args.webhook_format, args.webhook_secret).
+        findings:         All findings from the analysis run.
+        cost_tracker:     Cost tracker (passed through to _send_webhook for summary).
+        files_to_analyze: File list analyzed (passed through to _send_webhook).
+    """
+    if args.create_issues:
+        _create_github_issues(findings)
+    if args.webhook:
+        _send_webhook(args, findings, cost_tracker, files_to_analyze)
 
 
 def _export_all_reports(args: argparse.Namespace, findings: list[Finding]) -> None:
