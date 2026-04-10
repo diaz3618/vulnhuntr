@@ -25,6 +25,7 @@ from vulnhuntr.cli.parser import (
     validate_args,
 )
 from vulnhuntr.cli.runner import (
+    _init_providers,
     get_model_name,
     initialize_llm,
     parse_fallback_spec,
@@ -575,6 +576,68 @@ class TestParseFallbackSpec:
         """Provider prefix is case-insensitive."""
         parse_fallback_spec("OpenRouter:meta-llama/llama-3.3-70b-instruct:free", "sys")
         mock_or.assert_called_once()
+
+
+class TestInitProviders:
+    """Unit tests for _init_providers() — RUNNER-01.
+
+    Exercises the two call patterns: no system_prompt (README pass)
+    and with system_prompt (analysis pass).
+    """
+
+    def _make_args(self, **kwargs):
+        defaults = dict(llm="claude", fallback1=None, fallback2=None)
+        defaults.update(kwargs)
+        return argparse.Namespace(**defaults)
+
+    @patch("vulnhuntr.cli.runner.initialize_llm")
+    @patch("vulnhuntr.cli.runner.wrap_with_fallbacks")
+    def test_no_system_prompt_passes_empty_string(self, mock_wrap, mock_init):
+        """README-summarization pass: empty system_prompt forwarded to initialize_llm."""
+        from types import SimpleNamespace
+
+        config = SimpleNamespace(model=None, fallback1=None, fallback2=None, provider=None)
+        args = self._make_args()
+        _init_providers(args, config)
+        mock_init.assert_called_once_with("claude", "", None, model_override=None)
+
+    @patch("vulnhuntr.cli.runner.initialize_llm")
+    @patch("vulnhuntr.cli.runner.wrap_with_fallbacks")
+    def test_system_prompt_forwarded(self, mock_wrap, mock_init):
+        """Analysis pass: system_prompt forwarded to both initialize_llm and wrap_with_fallbacks."""
+        from types import SimpleNamespace
+
+        config = SimpleNamespace(model=None, fallback1=None, fallback2=None, provider=None)
+        args = self._make_args()
+        _init_providers(args, config, system_prompt="<instructions/>")
+        mock_init.assert_called_once_with("claude", "<instructions/>", None, model_override=None)
+        mock_wrap.assert_called_once()
+        # system_prompt is the 4th positional arg to wrap_with_fallbacks
+        assert mock_wrap.call_args[0][3] == "<instructions/>"
+
+    @patch("vulnhuntr.cli.runner.initialize_llm")
+    @patch("vulnhuntr.cli.runner.wrap_with_fallbacks")
+    def test_model_override_from_config(self, mock_wrap, mock_init):
+        """config.model is passed as model_override to initialize_llm."""
+        from types import SimpleNamespace
+
+        config = SimpleNamespace(model="claude-opus-4-5", fallback1=None, fallback2=None, provider=None)
+        args = self._make_args()
+        _init_providers(args, config)
+        mock_init.assert_called_once_with("claude", "", None, model_override="claude-opus-4-5")
+
+    @patch("vulnhuntr.cli.runner.initialize_llm")
+    @patch("vulnhuntr.cli.runner.wrap_with_fallbacks")
+    def test_returns_wrap_with_fallbacks_result(self, mock_wrap, mock_init):
+        """Return value is whatever wrap_with_fallbacks returns (may be FallbackLLM)."""
+        from types import SimpleNamespace
+        from unittest.mock import MagicMock
+
+        sentinel = MagicMock(name="fallback_llm")
+        mock_wrap.return_value = sentinel
+        config = SimpleNamespace(model=None, fallback1=None, fallback2=None, provider=None)
+        result = _init_providers(self._make_args(), config)
+        assert result is sentinel
 
 
 class TestRunAnalysisIntegration:

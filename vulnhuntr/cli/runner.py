@@ -232,6 +232,27 @@ def get_model_name(llm_arg: str) -> str:
     return "unknown"
 
 
+def _init_providers(
+    args: argparse.Namespace,
+    config: Any,
+    cost_callback: Callable | None = None,
+    system_prompt: str = "",
+) -> Any:
+    """Initialize the primary LLM and wrap with fallbacks if configured.
+
+    Args:
+        args: Parsed CLI arguments (uses args.llm, args.fallback1, args.fallback2)
+        config: VulnhuntrConfig (model override, fallback specs from config file)
+        cost_callback: Optional cost-tracking callback passed to initialize_llm
+        system_prompt: System prompt to inject; empty string for the README-summarization pass
+
+    Returns:
+        Primary LLM, possibly wrapped in FallbackLLM
+    """
+    llm = initialize_llm(args.llm, system_prompt, cost_callback, model_override=config.model)
+    return wrap_with_fallbacks(llm, args, cost_callback, system_prompt, config=config)
+
+
 def run_analysis(args: argparse.Namespace) -> int:
     """Run the vulnerability analysis.
 
@@ -387,9 +408,8 @@ def run_analysis(args: argparse.Namespace) -> int:
             cost_tracker=cost_tracker,
         )
 
-    # Initialize LLM (without system prompt initially, for README summarization)
-    llm = initialize_llm(args.llm, cost_callback=cost_callback, model_override=config.model)
-    llm = wrap_with_fallbacks(llm, args, cost_callback, config=config)
+    # Stage 1: init providers (no system prompt — README summarization pass)
+    llm = _init_providers(args, config, cost_callback)
 
     # Create analyzer for README summarization
     analyzer = VulnerabilityAnalyzer(llm, code_extractor, AnalysisConfig(verbosity=getattr(args, "verbosity", 0)))
@@ -415,8 +435,7 @@ def run_analysis(args: argparse.Namespace) -> int:
         if mcp_tool_section:
             system_prompt += "\n" + mcp_tool_section
 
-    llm = initialize_llm(args.llm, system_prompt, cost_callback, model_override=config.model)
-    llm = wrap_with_fallbacks(llm, args, cost_callback, system_prompt, config=config)
+    llm = _init_providers(args, config, cost_callback, system_prompt)
 
     # Create analyzer with system-prompt-configured LLM
     analysis_config = AnalysisConfig(
