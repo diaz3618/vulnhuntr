@@ -73,10 +73,10 @@ Plans:
 **Plans:** 4 plans
 
 Plans:
-- [ ] 02-01-PLAN.md — extract _init_providers() (RUNNER-01) and _collect_files() (RUNNER-02)
-- [ ] 02-02-PLAN.md — extract _analyze_files() (RUNNER-03) and add llm_factory param (RUNNER-06)
-- [ ] 02-03-PLAN.md — add _dispatch_reports alias (RUNNER-04) and _dispatch_integrations() (RUNNER-05)
-- [ ] 02-04-PLAN.md — per-stage unit tests and TestRunAnalysisIntegration refactor (RUNNER-01–06)
+- [x] 02-01-PLAN.md — extract _init_providers() (RUNNER-01) and _collect_files() (RUNNER-02)
+- [x] 02-02-PLAN.md — extract _analyze_files() (RUNNER-03) and add llm_factory param (RUNNER-06)
+- [x] 02-03-PLAN.md — add _dispatch_reports alias (RUNNER-04) and _dispatch_integrations() (RUNNER-05)
+- [x] 02-04-PLAN.md — per-stage unit tests and TestRunAnalysisIntegration refactor (RUNNER-01–06)
 
 **Success Criteria:**
 1. `runner.py` is ≤200 non-blank lines in the `run_analysis()` function itself
