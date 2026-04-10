@@ -24,14 +24,21 @@ from vulnhuntr.cli.parser import (
     normalize_args,
     validate_args,
 )
+from unittest.mock import MagicMock
+
 from vulnhuntr.cli.runner import (
     _analyze_files,
     _collect_files,
+    _dispatch_integrations,
+    _dispatch_reports,
+    _generate_reports,
     _init_providers,
     get_model_name,
     initialize_llm,
     parse_fallback_spec,
+    run_analysis,
 )
+from vulnhuntr.core.cost import CostTracker
 
 
 class TestCreateArgumentParser:
@@ -940,3 +947,43 @@ class TestAnalyzeFiles:
         )
         assert len(findings) == 1
         assert ok is True
+
+
+class TestDispatchIntegrations:
+    """Unit tests for _dispatch_integrations() — RUNNER-05."""
+
+    def _make_args(self, create_issues=False, webhook=None):
+        return argparse.Namespace(
+            create_issues=create_issues,
+            webhook=webhook,
+            webhook_format="json",
+            webhook_secret=None,
+        )
+
+    def test_no_flags_no_integration_calls(self, multiple_findings):
+        """Neither flag set — no external calls made."""
+        with (
+            patch("vulnhuntr.cli.runner._create_github_issues") as mock_gh,
+            patch("vulnhuntr.cli.runner._send_webhook") as mock_wh,
+        ):
+            _dispatch_integrations(self._make_args(), multiple_findings, CostTracker(), [])
+            mock_gh.assert_not_called()
+            mock_wh.assert_not_called()
+
+    def test_create_issues_calls_github(self, multiple_findings):
+        """create_issues=True — _create_github_issues called with findings."""
+        with patch("vulnhuntr.cli.runner._create_github_issues") as mock_gh:
+            _dispatch_integrations(
+                self._make_args(create_issues=True),
+                multiple_findings,
+                CostTracker(),
+                [],
+            )
+            mock_gh.assert_called_once_with(multiple_findings)
+
+    def test_webhook_calls_send_webhook(self, multiple_findings):
+        """webhook set — _send_webhook called."""
+        with patch("vulnhuntr.cli.runner._send_webhook") as mock_wh:
+            args = self._make_args(webhook="https://example.com/hook")
+            _dispatch_integrations(args, multiple_findings, CostTracker(), [])
+            assert mock_wh.called
