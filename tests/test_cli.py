@@ -7,7 +7,7 @@ Covers CLI argument parsing, output formatting, and runner orchestration.
 import argparse
 import json as json_mod
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -24,8 +24,6 @@ from vulnhuntr.cli.parser import (
     normalize_args,
     validate_args,
 )
-from unittest.mock import MagicMock
-
 from vulnhuntr.cli.runner import (
     _analyze_files,
     _collect_files,
@@ -807,6 +805,7 @@ class TestAnalyzeFiles:
 
     def _make_analyzer(self, result=None):
         from unittest.mock import MagicMock
+
         from vulnhuntr.core.models import Response, VulnType
 
         if result is None:
@@ -828,7 +827,6 @@ class TestAnalyzeFiles:
 
     def test_empty_list_returns_empty_success(self):
         """No files → ([], True) with no iterations."""
-        from vulnhuntr.cli.runner import _analyze_files
         from unittest.mock import MagicMock
 
         findings, ok = _analyze_files(
@@ -844,7 +842,6 @@ class TestAnalyzeFiles:
 
     def test_ioerror_logs_and_continues(self, tmp_path, capsys):
         """analyze_file raising OSError is caught; loop continues; success=True."""
-        from vulnhuntr.cli.runner import _analyze_files
         from unittest.mock import MagicMock
 
         bad_file = tmp_path / "bad.py"
@@ -866,7 +863,6 @@ class TestAnalyzeFiles:
 
     def test_budget_abort_returns_false(self, tmp_path):
         """budget_enforcer returning False on first check sets analysis_success=False."""
-        from vulnhuntr.cli.runner import _analyze_files
         from unittest.mock import MagicMock
 
         f = tmp_path / "a.py"
@@ -891,8 +887,8 @@ class TestAnalyzeFiles:
 
     def test_finding_appended(self, tmp_path):
         """A file producing a finding adds it to the returned list."""
-        from vulnhuntr.cli.runner import _analyze_files
         from unittest.mock import MagicMock
+
         from vulnhuntr.core.models import Response, VulnType
 
         f = tmp_path / "vuln.py"
@@ -999,3 +995,154 @@ class TestDispatchReports:
             webhook_secret=None,
         )
         _dispatch_reports(args, [], CostTracker(), [])  # should not raise
+
+
+# ---------------------------------------------------------------------------
+# New tests for Plan 03-03: probe wiring + CLI provider stubs
+# ---------------------------------------------------------------------------
+
+
+class TestInitProvidersProbewiring:
+    """Tests for probe() wiring in _init_providers() added in Plan 03-03.
+
+    Added to a new class to avoid touching the existing TestInitProviders.
+    """
+
+    def _make_args(self, **kwargs):
+        defaults = dict(llm="claude-code", fallback1=None, fallback2=None)
+        defaults.update(kwargs)
+        return argparse.Namespace(**defaults)
+
+    def test_probe_failure_exits(self):
+        """If probe().ok is False, _init_providers must raise SystemExit."""
+        from types import SimpleNamespace
+
+        from vulnhuntr.cli_providers import CapabilityResult
+
+        mock_llm = MagicMock()
+        mock_llm.probe.return_value = CapabilityResult(
+            ok=False,
+            binary_found=False,
+            version=None,
+            auth_valid=None,
+            diagnostic_message="binary not found",
+        )
+
+        def factory(llm_arg, system_prompt, cost_callback, model_override):
+            return mock_llm
+
+        config = SimpleNamespace(model=None, fallback1=None, fallback2=None, provider=None)
+        args = self._make_args(llm="claude-code")
+        with pytest.raises(SystemExit):
+            _init_providers(args, config, llm_factory=factory)
+
+    def test_probe_success_does_not_exit(self):
+        """If probe().ok is True, _init_providers must NOT raise SystemExit."""
+        from types import SimpleNamespace
+
+        from vulnhuntr.cli_providers import CapabilityResult
+
+        mock_llm = MagicMock()
+        mock_llm.probe.return_value = CapabilityResult(
+            ok=True,
+            binary_found=True,
+            version="1.0",
+            auth_valid=None,
+            diagnostic_message="ok",
+        )
+
+        def factory(llm_arg, system_prompt, cost_callback, model_override):
+            return mock_llm
+
+        config = SimpleNamespace(model=None, fallback1=None, fallback2=None, provider=None)
+        args = self._make_args(llm="claude-code")
+        # Must not raise
+        _init_providers(args, config, llm_factory=factory)
+
+    def test_probe_called_before_wrap_with_fallbacks(self):
+        """probe() must be called on the unwrapped LLM before wrap_with_fallbacks()."""
+        from types import SimpleNamespace
+
+        from vulnhuntr.cli_providers import CapabilityResult
+
+        call_order: list[str] = []
+
+        mock_llm = MagicMock()
+
+        def probe_side_effect():
+            call_order.append("probe")
+            return CapabilityResult(
+                ok=True,
+                binary_found=True,
+                version="1.0",
+                auth_valid=None,
+                diagnostic_message="ok",
+            )
+
+        mock_llm.probe.side_effect = probe_side_effect
+
+        def factory(llm_arg, system_prompt, cost_callback, model_override):
+            return mock_llm
+
+        config = SimpleNamespace(model=None, fallback1=None, fallback2=None, provider=None)
+        args = self._make_args(llm="claude-code")
+
+        with patch("vulnhuntr.cli.runner.wrap_with_fallbacks") as mock_wrap:
+
+            def wrap_side_effect(*a, **kw):
+                call_order.append("wrap")
+                return MagicMock()
+
+            mock_wrap.side_effect = wrap_side_effect
+            _init_providers(args, config, llm_factory=factory)
+
+        assert "probe" in call_order
+        assert "wrap" in call_order
+        assert call_order.index("probe") < call_order.index("wrap"), (
+            "probe() must be called before wrap_with_fallbacks()"
+        )
+
+    @patch("vulnhuntr.cli.runner.initialize_llm")
+    @patch("vulnhuntr.cli.runner.wrap_with_fallbacks")
+    def test_probe_not_called_on_api_providers(self, mock_wrap, mock_init):
+        """API providers without a probe attribute must not cause AttributeError."""
+        from types import SimpleNamespace
+
+        mock_llm = MagicMock(spec=[])  # no 'probe' attribute
+        mock_init.return_value = mock_llm
+        config = SimpleNamespace(model=None, fallback1=None, fallback2=None, provider=None)
+        # Must not raise — hasattr(llm, "probe") is False for spec=[]
+        _init_providers(self._make_args(llm="claude"), config)
+
+
+class TestInitializeLLMCLIStubs:
+    """CLI provider stub tests — initialize_llm should raise NotImplementedError
+    with a 'Phase' message for CLI providers and a descriptive ValueError for
+    totally unknown providers.
+    """
+
+    def test_claude_code_raises_not_implemented(self):
+        """initialize_llm('claude-code') raises NotImplementedError with 'Phase' in message."""
+        with pytest.raises(NotImplementedError, match="Phase"):
+            initialize_llm("claude-code")
+
+    def test_gemini_cli_raises_not_implemented(self):
+        """initialize_llm('gemini-cli') raises NotImplementedError with 'Phase' in message."""
+        with pytest.raises(NotImplementedError, match="Phase"):
+            initialize_llm("gemini-cli")
+
+    def test_codex_raises_not_implemented(self):
+        """initialize_llm('codex') raises NotImplementedError with 'Phase' in message."""
+        with pytest.raises(NotImplementedError, match="Phase"):
+            initialize_llm("codex")
+
+    def test_qwen_code_raises_not_implemented(self):
+        """initialize_llm('qwen-code') raises NotImplementedError with 'Phase' in message."""
+        with pytest.raises(NotImplementedError, match="Phase"):
+            initialize_llm("qwen-code")
+
+    def test_unknown_provider_mentions_cli_providers(self):
+        """initialize_llm('totally-unknown') raises ValueError listing claude-code."""
+        with pytest.raises(ValueError) as exc_info:
+            initialize_llm("totally-unknown")
+        assert "claude-code" in str(exc_info.value)
