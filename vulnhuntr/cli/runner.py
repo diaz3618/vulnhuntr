@@ -80,8 +80,21 @@ def initialize_llm(
         base_url = os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434/api/generate")
         return Ollama(model, base_url, system_prompt, cost_callback)
 
+    elif llm_arg in ("claude-code", "gemini-cli", "codex", "qwen-code"):
+        from vulnhuntr.cli_providers import CLIProviderLLM  # noqa: F401
+
+        raise NotImplementedError(
+            f"CLI provider '{llm_arg}' is not yet implemented. "
+            f"It will be available in Phase 4/5. "
+            f"For now, use an API provider: claude, gpt, openrouter, ollama."
+        )
+
     else:
-        raise ValueError(f"Invalid LLM argument: {llm_arg}\nValid options are: claude, gpt, ollama, openrouter")
+        raise ValueError(
+            f"Invalid LLM argument: {llm_arg}\n"
+            f"API providers (available now): claude, gpt, openrouter, ollama\n"
+            f"CLI providers (coming in Phase 4/5): claude-code, gemini-cli, codex, qwen-code"
+        )
 
 
 def parse_fallback_spec(
@@ -287,6 +300,25 @@ def _init_providers(
         llm = llm_factory(args.llm, system_prompt, cost_callback, config.model)
     else:
         llm = initialize_llm(args.llm, system_prompt, cost_callback, model_override=config.model)
+
+    # Probe CLI providers on the unwrapped instance — BEFORE FallbackLLM wrapping.
+    # Calling probe() after wrapping risks delegating to the wrong inner provider (Pitfall 2).
+    if hasattr(llm, "probe"):
+        result = llm.probe()
+        if not result.ok:
+            log.error(
+                "CLI provider capability check failed",
+                provider=args.llm,
+                binary_found=result.binary_found,
+                diagnostic=result.diagnostic_message,
+            )
+            raise SystemExit(1)
+        log.info(
+            "CLI provider capability check passed",
+            provider=args.llm,
+            binary_path=result.binary_found,
+            version=result.version,
+        )
     return wrap_with_fallbacks(llm, args, cost_callback, system_prompt, config=config)
 
 
