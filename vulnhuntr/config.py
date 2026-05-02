@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -9,6 +10,43 @@ from typing import Any
 import structlog
 
 log = structlog.get_logger(__name__)
+
+
+@dataclass
+class CLIPolicy:
+    """Runtime policy settings for CLI-backed LLM providers.
+
+    Applied to all CLI providers unless overridden per-provider via ``overrides``.
+
+    Attributes:
+        timeout: Subprocess timeout in seconds (default: 300).
+        workdir: Working directory for CLI provider subprocesses.
+        auth_mode: How the provider authenticates — ``"auto"`` lets the binary
+            decide; ``"env"`` forces environment-variable credentials.
+        session_mode: ``"stateless"`` (default) starts a fresh session each call;
+            ``"continue"`` reuses an existing session when the provider supports it.
+        approval_mode: Tool-use approval policy — ``"auto"`` accepts all; ``"manual"``
+            requires operator confirmation.
+        sandbox_mode: Sandbox isolation level — ``"none"`` (default) runs without
+            sandboxing; ``"docker"`` or ``"nsjail"`` enable provider-specific isolation.
+        max_turns: Maximum conversation turns per analysis call (default: 10).
+        mcp_mode: MCP server ownership — ``"none"`` disables MCP; ``"provider"``
+            lets the CLI binary manage its own MCP servers; ``"vulnhuntr"`` uses
+            Vulnhuntr-managed MCP.
+        overrides: Per-provider setting overrides keyed by provider name
+            (e.g., ``{"claude-code": {"timeout": 600}}``).
+    """
+
+    timeout: int = 300
+    workdir: str = "/tmp/vulnhuntr"
+    auth_mode: str = "auto"
+    session_mode: str = "stateless"
+    approval_mode: str = "auto"
+    sandbox_mode: str = "none"
+    max_turns: int = 10
+    mcp_mode: str = "none"
+    overrides: dict[str, dict] = field(default_factory=dict)
+
 
 # Try to import yaml, provide fallback if not available
 try:
@@ -62,6 +100,9 @@ class VulnhuntrConfig:
     # Tuning
     max_iterations: int = 7
     confidence_threshold: int = 1
+
+    # CLI provider policy
+    cli: CLIPolicy = field(default_factory=CLIPolicy)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> VulnhuntrConfig:
@@ -137,6 +178,29 @@ class VulnhuntrConfig:
             if "confidence_threshold" in analysis:
                 config.confidence_threshold = int(analysis["confidence_threshold"])
 
+        if "cli" in data and isinstance(data["cli"], dict):
+            cli_data = data["cli"]
+            cli = CLIPolicy()
+            if "timeout" in cli_data:
+                cli.timeout = int(cli_data["timeout"])
+            if "workdir" in cli_data:
+                cli.workdir = str(cli_data["workdir"])
+            if "auth_mode" in cli_data:
+                cli.auth_mode = str(cli_data["auth_mode"])
+            if "session_mode" in cli_data:
+                cli.session_mode = str(cli_data["session_mode"])
+            if "approval_mode" in cli_data:
+                cli.approval_mode = str(cli_data["approval_mode"])
+            if "sandbox_mode" in cli_data:
+                cli.sandbox_mode = str(cli_data["sandbox_mode"])
+            if "max_turns" in cli_data:
+                cli.max_turns = int(cli_data["max_turns"])
+            if "mcp_mode" in cli_data:
+                cli.mcp_mode = str(cli_data["mcp_mode"])
+            if "overrides" in cli_data and isinstance(cli_data["overrides"], dict):
+                cli.overrides = dict(cli_data["overrides"])
+            config.cli = cli
+
         return config
 
     def to_dict(self) -> dict[str, Any]:
@@ -156,6 +220,7 @@ class VulnhuntrConfig:
             "include_paths": self.include_paths,
             "max_iterations": self.max_iterations,
             "confidence_threshold": self.confidence_threshold,
+            "cli": dataclasses.asdict(self.cli),
         }
 
 

@@ -9,6 +9,7 @@ example config generation.
 from argparse import Namespace
 
 from vulnhuntr.config import (
+    CLIPolicy,
     VulnhuntrConfig,
     create_example_config,
     find_config_file,
@@ -69,6 +70,10 @@ class TestFromDictFlat:
         cfg = VulnhuntrConfig.from_dict({"vuln_types": ["sqli", "xss"]})
         assert cfg.vuln_types == ["sqli", "xss"]
 
+    def test_cli_provider_string(self):
+        cfg = VulnhuntrConfig.from_dict({"provider": "claude-code"})
+        assert cfg.provider == "claude-code"
+
 
 class TestFromDictNested:
     def test_cost_section(self):
@@ -102,6 +107,16 @@ class TestToDict:
         assert restored.budget == original.budget
         assert restored.provider == original.provider
         assert restored.max_iterations == original.max_iterations
+
+    def test_cli_key_present(self):
+        assert "cli" in VulnhuntrConfig().to_dict()
+
+    def test_cli_round_trip(self):
+        original = VulnhuntrConfig()
+        original.cli.timeout = 600
+        d = original.to_dict()
+        restored = VulnhuntrConfig.from_dict(d)
+        assert restored.cli.timeout == 600
 
 
 class TestFindConfigFile:
@@ -195,3 +210,82 @@ class TestCreateExampleConfig:
         content = out.read_text()
         for keyword in ("cost", "llm", "analysis"):
             assert keyword in content
+
+
+class TestCLIPolicyDefaults:
+    def test_timeout_default(self):
+        assert CLIPolicy().timeout == 300
+
+    def test_workdir_default(self):
+        assert CLIPolicy().workdir == "/tmp/vulnhuntr"
+
+    def test_auth_mode_default(self):
+        assert CLIPolicy().auth_mode == "auto"
+
+    def test_session_mode_default(self):
+        assert CLIPolicy().session_mode == "stateless"
+
+    def test_approval_mode_default(self):
+        assert CLIPolicy().approval_mode == "auto"
+
+    def test_sandbox_mode_default(self):
+        assert CLIPolicy().sandbox_mode == "none"
+
+    def test_max_turns_default(self):
+        assert CLIPolicy().max_turns == 10
+
+    def test_mcp_mode_default(self):
+        assert CLIPolicy().mcp_mode == "none"
+
+    def test_overrides_default(self):
+        assert CLIPolicy().overrides == {}
+
+
+class TestCLIPolicy:
+    def test_cli_section_timeout_parsed(self):
+        cfg = VulnhuntrConfig.from_dict({"cli": {"timeout": 600}})
+        assert cfg.cli.timeout == 600
+
+    def test_cli_section_workdir_parsed(self):
+        cfg = VulnhuntrConfig.from_dict({"cli": {"workdir": "/tmp/custom"}})
+        assert cfg.cli.workdir == "/tmp/custom"
+
+    def test_cli_section_auth_mode_parsed(self):
+        cfg = VulnhuntrConfig.from_dict({"cli": {"auth_mode": "oauth"}})
+        assert cfg.cli.auth_mode == "oauth"
+
+    def test_cli_section_max_turns_parsed(self):
+        cfg = VulnhuntrConfig.from_dict({"cli": {"max_turns": 20}})
+        assert cfg.cli.max_turns == 20
+
+    def test_cli_section_mcp_mode_parsed(self):
+        cfg = VulnhuntrConfig.from_dict({"cli": {"mcp_mode": "vulnhuntr"}})
+        assert cfg.cli.mcp_mode == "vulnhuntr"
+
+    def test_no_cli_section_gives_defaults(self):
+        cfg = VulnhuntrConfig.from_dict({"budget": 10.0})
+        assert cfg.cli.timeout == 300
+
+    def test_empty_dict_gives_defaults(self):
+        cfg = VulnhuntrConfig.from_dict({})
+        assert cfg.cli.workdir == "/tmp/vulnhuntr"
+
+
+class TestCLIPolicyOverrides:
+    def test_overrides_parsed(self):
+        cfg = VulnhuntrConfig.from_dict({"cli": {"overrides": {"claude-code": {"timeout": 900}}}})
+        assert cfg.cli.overrides == {"claude-code": {"timeout": 900}}
+
+    def test_overrides_accessible_per_provider(self):
+        cfg = VulnhuntrConfig.from_dict({"cli": {"overrides": {"claude-code": {"timeout": 900}}}})
+        assert cfg.cli.overrides.get("claude-code", {}) == {"timeout": 900}
+
+    def test_overrides_default_empty_when_missing(self):
+        cfg = VulnhuntrConfig.from_dict({"cli": {}})
+        assert cfg.cli.overrides == {}
+
+    def test_overrides_isolation(self):
+        p1 = CLIPolicy()
+        p2 = CLIPolicy()
+        p1.overrides["key"] = {"x": 1}
+        assert "key" not in p2.overrides
