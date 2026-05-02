@@ -2,7 +2,7 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: foundation-mcp-ai-cli-integration
-status: executing
+status: ready
 last_updated: "2026-05-02T23:06:28.770Z"
 last_activity: 2026-05-02
 progress:
@@ -70,15 +70,16 @@ Last activity: 2026-05-02
 
 - Phase 1: Quick Wins & Test Infrastructure
 - Phase 2: Runner Decomposition
+- Phase 3: CLI Provider Contract & Config Schema
 
 ---
 
 ## Next Command
 
-Start Phase 3:
+Start Phase 4:
 
 ```text
-/gsd-plan-phase 3
+/gsd-plan-phase 4
 ```
 
 ---
