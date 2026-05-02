@@ -25,7 +25,7 @@
 |---|-------|------|--------------|------------------|
 | 1 | Quick Wins & Test Infrastructure | Fix baseline bugs and create a test safety net | INFRA-01..04 | 5 |
 | 2 | Runner Decomposition | Break orchestration into testable stages | RUNNER-01..06 | 5 |
-| 3 | CLI Provider Contract & Config Schema | Add the common CLI transport layer, capability probing, and config/runtime policy | AICLI-01..04, CONFIG-01..03 | 5 |
+| 3 | CLI Provider Contract & Config Schema | 3/3 | Complete   | 2026-05-02 |
 | 4 | Claude Code & Gemini CLI | Implement and verify the first two account-capable CLI providers | CLAUDECLI-01, GEMINI-CLI-01 | 4 |
 | 5 | Codex & Qwen Code | Implement and verify the remaining CLI providers | CODEX-01, QWEN-01 | 4 |
 | 6 | Sessions, Native Tools, and MCP Policy | Make session handling and tool/MCP ownership explicit and testable | SESSION-01..04 | 4 |
@@ -97,12 +97,15 @@
 - CONFIG-02
 - CONFIG-03
 
-**Plans:** 3 plans
+**Plans:** 3/3 plans complete
 
 Plans:
-- [ ] 03-01-PLAN.md — CLIProviderLLM base class, CapabilityResult, CLI*Error classes, and full test suite
-- [ ] 03-02-PLAN.md — CLIPolicy dataclass, VulnhuntrConfig.cli field, from_dict/to_dict extensions and config tests
-- [ ] 03-03-PLAN.md — Probe wiring in _init_providers() and CLI provider stubs in initialize_llm()
+**Wave 1**
+- [x] 03-01-PLAN.md — CLIProviderLLM base class, CapabilityResult, CLI*Error classes, and full test suite
+- [x] 03-02-PLAN.md — CLIPolicy dataclass, VulnhuntrConfig.cli field, from_dict/to_dict extensions and config tests
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [x] 03-03-PLAN.md — Probe wiring in _init_providers() and CLI provider stubs in initialize_llm()
 
 **Success Criteria:**
 1. A new CLI provider can be added without editing unrelated HTTP-provider code paths
