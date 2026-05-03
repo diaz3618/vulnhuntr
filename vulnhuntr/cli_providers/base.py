@@ -20,6 +20,7 @@ from typing import Any
 
 import structlog
 
+from vulnhuntr.core.models import LLMUsage
 from vulnhuntr.llms import LLM, LLMError
 
 log = structlog.get_logger(__name__)
@@ -134,6 +135,35 @@ class CLIProviderLLM(LLM, ABC):
             Plain text content of the provider's reply.
         """
 
+    @abstractmethod
+    def send_message(
+        self,
+        user_prompt: str,
+        max_tokens: int,
+        response_model: Any = None,
+    ) -> dict[str, Any]:
+        """Build and execute the provider subprocess command.
+
+        Args:
+            user_prompt: The user message to send.
+            max_tokens: Token budget hint for the provider.
+            response_model: Optional Pydantic model hint (may be unused).
+
+        Returns:
+            Raw provider response dict for downstream parsing.
+        """
+
+    @abstractmethod
+    def _extract_usage(self, response: Any) -> LLMUsage:
+        """Extract token usage from the provider response envelope.
+
+        Args:
+            response: Raw provider response dict.
+
+        Returns:
+            LLMUsage with input_tokens, output_tokens, and model name.
+        """
+
     # ------------------------------------------------------------------
     # Subprocess transport
     # ------------------------------------------------------------------
@@ -178,22 +208,19 @@ class CLIProviderLLM(LLM, ABC):
                 cmd,
                 input=input_text,
                 stdin=stdin_mode,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                capture_output=True,
                 text=True,
                 timeout=self.timeout,
                 env=env,
                 shell=False,
+                cwd=self.workdir if self.workdir else None,
             )
         except FileNotFoundError as exc:
             raise CLIBinaryNotFoundError(
-                f"CLI binary not found: {cmd[0]!r}. "
-                "Ensure it is installed and available on PATH."
+                f"CLI binary not found: {cmd[0]!r}. Ensure it is installed and available on PATH."
             ) from exc
         except subprocess.TimeoutExpired as exc:
-            raise CLITimeoutError(
-                f"CLI provider subprocess timed out after {self.timeout}s: {cmd[0]!r}"
-            ) from exc
+            raise CLITimeoutError(f"CLI provider subprocess timed out after {self.timeout}s: {cmd[0]!r}") from exc
 
         if result.returncode != 0:
             log.warning(
@@ -203,8 +230,7 @@ class CLIProviderLLM(LLM, ABC):
                 stderr=result.stderr[:500],
             )
             raise CLIRuntimeError(
-                f"CLI provider {cmd[0]!r} exited with status {result.returncode}. "
-                f"stderr: {result.stderr[:200]}"
+                f"CLI provider {cmd[0]!r} exited with status {result.returncode}. stderr: {result.stderr[:200]}"
             )
 
         return result
