@@ -332,3 +332,157 @@ class TestChatCostTracking:
         provider = _FakeCLIProvider()
         with pytest.raises(NotImplementedError):
             provider.create_messages("anything")
+
+
+# ---------------------------------------------------------------------------
+# ClaudeCodeLLM tests (CLAUDECLI-01)
+# ---------------------------------------------------------------------------
+
+
+class TestClaudeCodeLLMImport:
+    def test_importable_from_cli_providers(self):
+        from vulnhuntr.cli_providers import ClaudeCodeLLM  # noqa: F401
+
+    def test_in_all(self):
+        from vulnhuntr import cli_providers
+        assert "ClaudeCodeLLM" in cli_providers.__all__
+
+    def test_subclass_of_cli_provider_llm(self):
+        from vulnhuntr.cli_providers import ClaudeCodeLLM
+        assert issubclass(ClaudeCodeLLM, CLIProviderLLM)
+
+    def test_strip_env_vars_contains_anthropic_api_key(self):
+        from vulnhuntr.cli_providers import ClaudeCodeLLM
+        assert "ANTHROPIC_API_KEY" in ClaudeCodeLLM._STRIP_ENV_VARS
+
+    def test_no_chat_override(self):
+        from vulnhuntr.cli_providers import ClaudeCodeLLM
+        from vulnhuntr.cli_providers.base import CLIProviderLLM as Base
+        assert ClaudeCodeLLM.chat is Base.chat
+
+
+class TestClaudeCodeLLMProbe:
+    def test_probe_missing_binary(self):
+        from vulnhuntr.cli_providers import ClaudeCodeLLM
+        with patch("shutil.which", return_value=None):
+            provider = ClaudeCodeLLM()
+            result = provider.probe()
+        assert result.ok is False
+        assert result.binary_found is False
+        assert result.auth_valid is None
+        assert "npm i -g @anthropic-ai/claude-code" in result.diagnostic_message
+
+    def test_probe_ok(self):
+        from vulnhuntr.cli_providers import ClaudeCodeLLM
+        mock_result = MagicMock()
+        mock_result.stdout = "2.1.126 (Claude Code)"
+        mock_result.returncode = 0
+        mock_result.stderr = ""
+        with patch("shutil.which", return_value="/usr/bin/claude"):
+            with patch("subprocess.run", return_value=mock_result):
+                provider = ClaudeCodeLLM()
+                result = provider.probe()
+        assert result.ok is True
+        assert result.binary_found is True
+        assert result.version == "2.1.126"
+        assert result.auth_valid is None
+
+
+class TestClaudeCodeLLMSendMessage:
+    def test_send_message_success(self):
+        from vulnhuntr.cli_providers import ClaudeCodeLLM
+        payload_json = '{"result":"hello","usage":{"input_tokens":10,"output_tokens":5},"modelUsage":{"claude-sonnet-4-6":{}}}'
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = payload_json
+        mock_result.stderr = ""
+        with patch("subprocess.run", return_value=mock_result):
+            provider = ClaudeCodeLLM()
+            response = provider.send_message("test prompt", 8192)
+        assert "result" in response
+        assert "usage" in response
+        assert provider.model == "claude-sonnet-4-6"
+
+    def test_send_message_empty_stdout_raises_cli_parse_error(self):
+        from vulnhuntr.cli_providers import ClaudeCodeLLM
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = ""
+        mock_result.stderr = ""
+        with patch("subprocess.run", return_value=mock_result):
+            provider = ClaudeCodeLLM()
+            with pytest.raises(CLIParseError):
+                provider.send_message("test", 8192)
+
+    def test_send_message_bad_json_raises_cli_parse_error(self):
+        from vulnhuntr.cli_providers import ClaudeCodeLLM
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = "not json"
+        mock_result.stderr = ""
+        with patch("subprocess.run", return_value=mock_result):
+            provider = ClaudeCodeLLM()
+            with pytest.raises(CLIParseError):
+                provider.send_message("test", 8192)
+
+
+class TestClaudeCodeLLMGetResponse:
+    def test_get_response_ok(self):
+        from vulnhuntr.cli_providers import ClaudeCodeLLM
+        provider = ClaudeCodeLLM()
+        result = provider.get_response({"result": "text"})
+        assert result == "text"
+
+    def test_get_response_missing_raises_cli_parse_error(self):
+        from vulnhuntr.cli_providers import ClaudeCodeLLM
+        provider = ClaudeCodeLLM()
+        with pytest.raises(CLIParseError):
+            provider.get_response({"other": "x"})
+
+
+class TestClaudeCodeLLMExtractUsage:
+    def test_extract_usage_sums_cache_tokens(self):
+        from vulnhuntr.cli_providers import ClaudeCodeLLM
+        from vulnhuntr.core.models import LLMUsage
+        provider = ClaudeCodeLLM()
+        payload = {
+            "usage": {
+                "input_tokens": 10,
+                "cache_creation_input_tokens": 5,
+                "cache_read_input_tokens": 3,
+                "output_tokens": 7,
+            },
+            "modelUsage": {"m": {}},
+        }
+        usage = provider._extract_usage(payload)
+        assert isinstance(usage, LLMUsage)
+        assert usage.input_tokens == 18
+        assert usage.output_tokens == 7
+        assert usage.model == "m"
+
+
+class TestClaudeCodeLLMBuildEnv:
+    def test_build_env_strips_anthropic_api_key(self):
+        import os
+        from vulnhuntr.cli_providers import ClaudeCodeLLM
+        os.environ["ANTHROPIC_API_KEY"] = "test-key-should-be-stripped"
+        try:
+            provider = ClaudeCodeLLM()
+            env = provider._build_env()
+            assert "ANTHROPIC_API_KEY" not in env
+        finally:
+            del os.environ["ANTHROPIC_API_KEY"]
+
+    def test_build_env_strips_policy_vars(self):
+        import os
+        from vulnhuntr.cli_providers import ClaudeCodeLLM
+        from vulnhuntr.config import CLIPolicy
+        os.environ["CUSTOM_SECRET"] = "should-also-be-stripped"
+        try:
+            policy = CLIPolicy()
+            policy.strip_env_vars = ["CUSTOM_SECRET"]
+            provider = ClaudeCodeLLM(policy=policy)
+            env = provider._build_env()
+            assert "CUSTOM_SECRET" not in env
+        finally:
+            del os.environ["CUSTOM_SECRET"]
