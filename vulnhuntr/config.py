@@ -46,6 +46,8 @@ class CLIPolicy:
     max_turns: int = 10
     mcp_mode: str = "none"
     overrides: dict[str, dict] = field(default_factory=dict)
+    tool_mode: str = "none"
+    strip_env_vars: list[str] = field(default_factory=list)
 
 
 # Try to import yaml, provide fallback if not available
@@ -199,6 +201,10 @@ class VulnhuntrConfig:
                 cli.mcp_mode = str(cli_data["mcp_mode"])
             if "overrides" in cli_data and isinstance(cli_data["overrides"], dict):
                 cli.overrides = dict(cli_data["overrides"])
+            if "tool_mode" in cli_data:
+                cli.tool_mode = str(cli_data["tool_mode"])
+            if "strip_env_vars" in cli_data and isinstance(cli_data["strip_env_vars"], list):
+                cli.strip_env_vars = list(cli_data["strip_env_vars"])
             config.cli = cli
 
         return config
