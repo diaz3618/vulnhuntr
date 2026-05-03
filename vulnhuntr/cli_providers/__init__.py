@@ -1,8 +1,7 @@
 """CLI provider package for Vulnhuntr.
 
-Exports the shared base class, capability probe result, and error taxonomy
-used by all CLI-backed LLM providers (Claude Code, Gemini CLI, Codex, Qwen Code).
-Individual provider implementations land in Phases 4 and 5.
+Exports the shared base class, capability probe result, error taxonomy,
+and concrete provider implementations for all CLI-backed LLM providers.
 """
 
 from vulnhuntr.cli_providers.base import (
@@ -16,6 +15,7 @@ from vulnhuntr.cli_providers.base import (
     CapabilityResult,
 )
 from vulnhuntr.cli_providers.claude_code import ClaudeCodeLLM
+from vulnhuntr.cli_providers.gemini_cli import GeminiCLILLM
 
 __all__ = [
     "CLIProviderLLM",
@@ -27,4 +27,5 @@ __all__ = [
     "CLISandboxError",
     "CLIRuntimeError",
     "ClaudeCodeLLM",
+    "GeminiCLILLM",
 ]

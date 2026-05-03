@@ -1,10 +1,11 @@
-"""Tests for vulnhuntr.cli_providers (AICLI-01..04).
+"""Tests for vulnhuntr.cli_providers (AICLI-01..04, GEMINI-CLI-01).
 
 Covers:
 - AICLI-01: CLIProviderLLM inherits from LLM; CapabilityResult dataclass shape
 - AICLI-02: probe() abstract; CapabilityResult fields; diagnostic_message present
 - AICLI-03: _run_subprocess uses list-form, shell=False, stdin=DEVNULL; error taxonomy
 - AICLI-04: chat() calls _log_response() for cost tracking; response normalization
+- GEMINI-CLI-01: GeminiCLILLM adapter — probe, send_message, get_response, _extract_usage
 """
 
 from __future__ import annotations
@@ -486,3 +487,384 @@ class TestClaudeCodeLLMBuildEnv:
             assert "CUSTOM_SECRET" not in env
         finally:
             del os.environ["CUSTOM_SECRET"]
+
+
+# ---------------------------------------------------------------------------
+# GeminiCLILLM tests (GEMINI-CLI-01)
+# ---------------------------------------------------------------------------
+
+
+class TestGeminiCLILLM:
+    """Tests for GeminiCLILLM (GEMINI-CLI-01).
+
+    All subprocess calls are mocked — no live binary required.
+    Live tests are marked @pytest.mark.live and excluded from CI.
+    """
+
+    @pytest.fixture
+    def gemini(self):
+        """Return a GeminiCLILLM instance with default policy."""
+        from vulnhuntr.cli_providers.gemini_cli import GeminiCLILLM
+
+        return GeminiCLILLM()
+
+    # Test 1: probe — binary missing
+    def test_probe_missing_binary(self):
+        """probe() returns ok=False, binary_found=False when gemini not on PATH."""
+        from vulnhuntr.cli_providers.gemini_cli import GeminiCLILLM
+
+        provider = GeminiCLILLM()
+        with patch("shutil.which", return_value=None):
+            result = provider.probe()
+        assert result.ok is False
+        assert result.binary_found is False
+        assert "npm i -g @google/gemini-cli" in result.diagnostic_message
+
+    # Test 2: probe — version too old
+    def test_probe_version_too_old(self):
+        """probe() rejects version < 0.6.0 with exact diagnostic message."""
+        from unittest.mock import MagicMock
+
+        from vulnhuntr.cli_providers.gemini_cli import GeminiCLILLM
+
+        provider = GeminiCLILLM()
+        mock_result = MagicMock()
+        mock_result.stdout = "0.5.9"
+        mock_result.returncode = 0
+        mock_result.stderr = ""
+
+        with patch("shutil.which", return_value="/usr/bin/gemini"), patch(
+            "subprocess.run", return_value=mock_result
+        ):
+            result = provider.probe()
+
+        assert result.ok is False
+        assert result.binary_found is True
+        assert result.version == "0.5.9"
+        assert result.diagnostic_message == (
+            "Gemini CLI 0.5.9 too old; --output-format json requires >= 0.6.0. "
+            "Run: npm i -g @google/gemini-cli"
+        )
+
+    # Test 3: probe — version 0.40.1 passes gate (0.40.1 >= 0.6.0 as tuples)
+    def test_probe_ok_version_0_40_1(self):
+        """probe() returns ok=True for gemini 0.40.1 (tuple comparison, not string)."""
+        from unittest.mock import MagicMock
+
+        from vulnhuntr.cli_providers.gemini_cli import GeminiCLILLM
+
+        provider = GeminiCLILLM()
+        mock_result = MagicMock()
+        mock_result.stdout = "0.40.1"
+        mock_result.returncode = 0
+        mock_result.stderr = ""
+
+        with patch("shutil.which", return_value="/usr/bin/gemini"), patch(
+            "subprocess.run", return_value=mock_result
+        ):
+            result = provider.probe()
+
+        assert result.ok is True
+        assert result.binary_found is True
+        assert result.version == "0.40.1"
+        assert result.auth_valid is None
+
+    # Test 4: semver tuple gate correctness
+    @pytest.mark.parametrize(
+        "version_str,expected_ok",
+        [
+            ("0.40.1", True),   # (0,40,1) >= (0,6,0) — string compare would fail
+            ("0.9.0", True),    # (0,9,0) >= (0,6,0)
+            ("0.5.9", False),   # (0,5,9) < (0,6,0)
+            ("0.6.0", True),    # exactly at minimum
+            ("1.0.0", True),    # major version bump
+        ],
+    )
+    def test_probe_semver_tuple_comparison(self, version_str, expected_ok):
+        """Semver gate must use tuple integers, not string comparison."""
+        from unittest.mock import MagicMock
+
+        from vulnhuntr.cli_providers.gemini_cli import GeminiCLILLM
+
+        provider = GeminiCLILLM()
+        mock_result = MagicMock()
+        mock_result.stdout = version_str
+        mock_result.returncode = 0
+        mock_result.stderr = ""
+
+        with patch("shutil.which", return_value="/usr/bin/gemini"), patch(
+            "subprocess.run", return_value=mock_result
+        ):
+            result = provider.probe()
+
+        assert result.ok is expected_ok
+
+    # Test 5: send_message success
+    def test_send_message_success(self):
+        """send_message() returns parsed JSON dict and sets self.model."""
+        from unittest.mock import MagicMock
+
+        from vulnhuntr.cli_providers.gemini_cli import GeminiCLILLM
+
+        provider = GeminiCLILLM()
+        stdout_payload = (
+            '{"response":"hello",'
+            '"stats":{"models":{"gemini-2.5-flash":{"tokens":{"input":100,"candidates":20}}}}}'
+        )
+        mock_result = MagicMock()
+        mock_result.stdout = stdout_payload
+        mock_result.returncode = 0
+        mock_result.stderr = ""
+
+        with patch("subprocess.run", return_value=mock_result):
+            payload = provider.send_message("test prompt", 8192, None)
+
+        assert isinstance(payload, dict)
+        assert payload["response"] == "hello"
+
+    # Test 6: send_message — empty stdout raises CLIParseError
+    def test_send_message_empty_stdout_raises(self):
+        """send_message() raises CLIParseError when subprocess returns empty stdout."""
+        from unittest.mock import MagicMock
+
+        from vulnhuntr.cli_providers.base import CLIParseError
+        from vulnhuntr.cli_providers.gemini_cli import GeminiCLILLM
+
+        provider = GeminiCLILLM()
+        mock_result = MagicMock()
+        mock_result.stdout = ""
+        mock_result.returncode = 0
+        mock_result.stderr = ""
+
+        with patch("subprocess.run", return_value=mock_result):
+            with pytest.raises(CLIParseError):
+                provider.send_message("test", 8192, None)
+
+    # Test 7: send_message — invalid JSON raises CLIParseError
+    def test_send_message_invalid_json_raises(self):
+        """send_message() raises CLIParseError when stdout is not valid JSON."""
+        from unittest.mock import MagicMock
+
+        from vulnhuntr.cli_providers.base import CLIParseError
+        from vulnhuntr.cli_providers.gemini_cli import GeminiCLILLM
+
+        provider = GeminiCLILLM()
+        mock_result = MagicMock()
+        mock_result.stdout = "not json"
+        mock_result.returncode = 0
+        mock_result.stderr = ""
+
+        with patch("subprocess.run", return_value=mock_result):
+            with pytest.raises(CLIParseError):
+                provider.send_message("test", 8192, None)
+
+    # Test 8: get_response — ok path
+    def test_get_response_ok(self, gemini):
+        """get_response() returns value of 'response' key."""
+        result = gemini.get_response({"response": "text"})
+        assert result == "text"
+
+    # Test 9: get_response — missing 'response' field raises CLIParseError
+    def test_get_response_missing_field_raises(self, gemini):
+        """get_response() raises CLIParseError when 'response' key absent (NOT 'result')."""
+        from vulnhuntr.cli_providers.base import CLIParseError
+
+        with pytest.raises(CLIParseError):
+            gemini.get_response({"result": "wrong-field"})
+
+    # Test 10: _extract_usage — single model
+    def test_extract_usage_single_model(self, gemini):
+        """_extract_usage() returns correct token counts for single model."""
+        from vulnhuntr.core.models import LLMUsage
+
+        payload = {
+            "stats": {
+                "models": {
+                    "gemini-2.5-flash": {
+                        "tokens": {"input": 100, "candidates": 20}
+                    }
+                }
+            }
+        }
+        usage = gemini._extract_usage(payload)
+        assert isinstance(usage, LLMUsage)
+        assert usage.input_tokens == 100
+        assert usage.output_tokens == 20
+
+    # Test 11: _extract_usage — multi-model summing
+    def test_extract_usage_multi_model_sums(self, gemini):
+        """_extract_usage() sums tokens across ALL model entries."""
+        from vulnhuntr.core.models import LLMUsage
+
+        payload = {
+            "stats": {
+                "models": {
+                    "gemini-2.5-flash-lite": {
+                        "tokens": {"input": 100, "candidates": 20}
+                    },
+                    "gemini-2.5-flash": {
+                        "tokens": {"input": 50, "candidates": 10}
+                    },
+                }
+            }
+        }
+        usage = gemini._extract_usage(payload)
+        assert usage.input_tokens == 150
+        assert usage.output_tokens == 30
+
+    # Test 12: _extract_usage — missing stats
+    def test_extract_usage_missing_stats(self, gemini):
+        """_extract_usage() returns zero tokens when stats absent."""
+        from vulnhuntr.core.models import LLMUsage
+
+        usage = gemini._extract_usage({})
+        assert isinstance(usage, LLMUsage)
+        assert usage.input_tokens == 0
+        assert usage.output_tokens == 0
+
+    # Test 13: _build_env strips all three Gemini-specific env vars
+    def test_build_env_strips_gemini_vars(self, gemini):
+        """_build_env() removes GEMINI_API_KEY, GOOGLE_API_KEY, GOOGLE_GENAI_USE_VERTEXAI."""
+        import os
+
+        os.environ["GEMINI_API_KEY"] = "key1"
+        os.environ["GOOGLE_API_KEY"] = "key2"
+        os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "true"
+
+        env = gemini._build_env()
+
+        assert "GEMINI_API_KEY" not in env
+        assert "GOOGLE_API_KEY" not in env
+        assert "GOOGLE_GENAI_USE_VERTEXAI" not in env
+
+        # Clean up
+        del os.environ["GEMINI_API_KEY"]
+        del os.environ["GOOGLE_API_KEY"]
+        del os.environ["GOOGLE_GENAI_USE_VERTEXAI"]
+
+    # Test 14: approval-mode plan for tool_mode none
+    def test_send_message_approval_mode_plan_for_none(self):
+        """send_message() uses --approval-mode plan when tool_mode is 'none'."""
+        from unittest.mock import MagicMock, call
+
+        from vulnhuntr.cli_providers.gemini_cli import GeminiCLILLM
+
+        provider = GeminiCLILLM()
+        mock_result = MagicMock()
+        mock_result.stdout = '{"response":"ok","stats":{"models":{}}}'
+        mock_result.returncode = 0
+        mock_result.stderr = ""
+
+        with patch("subprocess.run", return_value=mock_result) as mock_run:
+            provider.send_message("hello", 8192, None)
+
+        cmd = mock_run.call_args[0][0]
+        assert "--approval-mode" in cmd
+        idx = cmd.index("--approval-mode")
+        assert cmd[idx + 1] == "plan"
+
+    # Test 15: approval-mode yolo for tool_mode full
+    def test_send_message_approval_mode_yolo_for_full(self):
+        """send_message() uses --approval-mode yolo when tool_mode is 'full'."""
+        from unittest.mock import MagicMock
+
+        from vulnhuntr.cli_providers.gemini_cli import GeminiCLILLM
+        from vulnhuntr.config import CLIPolicy
+
+        policy = CLIPolicy()
+        policy.tool_mode = "full"
+        provider = GeminiCLILLM(policy=policy)
+        mock_result = MagicMock()
+        mock_result.stdout = '{"response":"ok","stats":{"models":{}}}'
+        mock_result.returncode = 0
+        mock_result.stderr = ""
+
+        with patch("subprocess.run", return_value=mock_result) as mock_run:
+            provider.send_message("hello", 8192, None)
+
+        cmd = mock_run.call_args[0][0]
+        assert "--approval-mode" in cmd
+        idx = cmd.index("--approval-mode")
+        assert cmd[idx + 1] == "yolo"
+
+    # Test: approval-mode plan for tool_mode read-only
+    def test_send_message_approval_mode_plan_for_readonly(self):
+        """send_message() uses --approval-mode plan when tool_mode is 'read-only'."""
+        from unittest.mock import MagicMock
+
+        from vulnhuntr.cli_providers.gemini_cli import GeminiCLILLM
+        from vulnhuntr.config import CLIPolicy
+
+        policy = CLIPolicy()
+        policy.tool_mode = "read-only"
+        provider = GeminiCLILLM(policy=policy)
+        mock_result = MagicMock()
+        mock_result.stdout = '{"response":"ok","stats":{"models":{}}}'
+        mock_result.returncode = 0
+        mock_result.stderr = ""
+
+        with patch("subprocess.run", return_value=mock_result) as mock_run:
+            provider.send_message("hello", 8192, None)
+
+        cmd = mock_run.call_args[0][0]
+        assert "--approval-mode" in cmd
+        idx = cmd.index("--approval-mode")
+        assert cmd[idx + 1] == "plan"
+
+    # Test: chat is NOT overridden (uses CLIProviderLLM.chat)
+    def test_chat_not_overridden(self):
+        """GeminiCLILLM must not override chat() — base class handles pipeline."""
+        from vulnhuntr.cli_providers.base import CLIProviderLLM
+        from vulnhuntr.cli_providers.gemini_cli import GeminiCLILLM
+
+        assert GeminiCLILLM.chat is CLIProviderLLM.chat
+
+    # Test: _STRIP_ENV_VARS contains all three required vars
+    def test_strip_env_vars_class_attribute(self):
+        """GeminiCLILLM._STRIP_ENV_VARS must include all three auth-forcing vars."""
+        from vulnhuntr.cli_providers.gemini_cli import GeminiCLILLM
+
+        strip = GeminiCLILLM._STRIP_ENV_VARS
+        assert "GEMINI_API_KEY" in strip
+        assert "GOOGLE_API_KEY" in strip
+        assert "GOOGLE_GENAI_USE_VERTEXAI" in strip
+
+    # Test: --allowed-tools is never used
+    def test_no_allowed_tools_flag(self):
+        """send_message() must never use deprecated --allowed-tools flag."""
+        from unittest.mock import MagicMock
+
+        from vulnhuntr.cli_providers.gemini_cli import GeminiCLILLM
+
+        provider = GeminiCLILLM()
+        mock_result = MagicMock()
+        mock_result.stdout = '{"response":"ok","stats":{"models":{}}}'
+        mock_result.returncode = 0
+        mock_result.stderr = ""
+
+        with patch("subprocess.run", return_value=mock_result) as mock_run:
+            provider.send_message("hello", 8192, None)
+
+        cmd = mock_run.call_args[0][0]
+        assert "--allowed-tools" not in cmd
+
+    @pytest.mark.live
+    def test_live_probe(self):
+        """Live: probe() returns ok=True on an installed and authenticated gemini binary."""
+        from vulnhuntr.cli_providers.gemini_cli import GeminiCLILLM
+
+        provider = GeminiCLILLM()
+        result = provider.probe()
+        assert result.ok is True
+        assert result.binary_found is True
+        assert result.version is not None
+
+    @pytest.mark.live
+    def test_live_send_message(self):
+        """Live: gemini -p '...' --output-format json returns a valid response."""
+        from vulnhuntr.cli_providers.gemini_cli import GeminiCLILLM
+
+        provider = GeminiCLILLM()
+        payload = provider.send_message("Say hello in one word.", 256, None)
+        assert isinstance(payload, dict)
+        assert "response" in payload
