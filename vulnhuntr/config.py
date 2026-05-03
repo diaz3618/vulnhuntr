@@ -14,33 +14,19 @@ log = structlog.get_logger(__name__)
 
 @dataclass
 class CLIPolicy:
-    """Runtime policy settings for CLI-backed LLM providers.
+    """Runtime policy for CLI-backed LLM providers.
 
-    Applied to all CLI providers unless overridden per-provider via ``overrides``.
+    Applied to all providers unless overridden via ``overrides`` per provider
+    (e.g. ``{"claude-code": {"timeout": 600}}``).
 
-    Attributes:
-        timeout: Subprocess timeout in seconds (default: 300).
-        workdir: Working directory for CLI provider subprocesses.
-        auth_mode: How the provider authenticates — ``"auto"`` lets the binary
-            decide; ``"env"`` forces environment-variable credentials.
-        session_mode: ``"stateless"`` (default) starts a fresh session each call;
-            ``"continue"`` reuses an existing session when the provider supports it.
-        approval_mode: Tool-use approval policy — ``"auto"`` accepts all; ``"manual"``
-            requires operator confirmation.
-        sandbox_mode: Sandbox isolation level — ``"none"`` (default) runs without
-            sandboxing; ``"docker"`` or ``"nsjail"`` enable provider-specific isolation.
-        max_turns: Maximum conversation turns per analysis call (default: 10).
-        mcp_mode: MCP server ownership — ``"none"`` disables MCP; ``"provider"``
-            lets the CLI binary manage its own MCP servers; ``"vulnhuntr"`` uses
-            Vulnhuntr-managed MCP.
-        overrides: Per-provider setting overrides keyed by provider name
-            (e.g., ``{"claude-code": {"timeout": 600}}``).
-        tool_mode: CLI tool-use policy — ``"none"`` (default) disables provider
-            built-in tools; ``"read-only"`` allows file-reads only; ``"full"``
-            allows all provider tools.
-        strip_env_vars: Additional environment variables to strip before spawning
-            the CLI subprocess. Appended to each provider's class-level
-            ``_STRIP_ENV_VARS`` at subprocess build time.
+    tool_mode controls which tools the provider binary can use:
+      "none" (default) — disable built-in tools
+      "read-only"      — file reads only
+      "full"           — all tools enabled
+
+    strip_env_vars is appended to each provider's class-level _STRIP_ENV_VARS
+    before subprocess spawn — use this to scrub credentials the class doesn't
+    know about.
     """
 
     timeout: int = 300
@@ -68,22 +54,7 @@ except ImportError:
 
 @dataclass
 class VulnhuntrConfig:
-    """Configuration settings for Vulnhuntr.
-
-    Attributes:
-        budget: Maximum USD budget for analysis (None = no limit)
-        checkpoint: Whether to enable checkpointing (default: True)
-        checkpoint_interval: Seconds between checkpoint saves (default: 300)
-        provider: LLM provider (claude, gpt, ollama)
-        model: Model name override (uses env var if not set)
-        verbosity: Output verbosity level 0-3
-        dry_run: Enable dry-run cost estimation mode
-        vuln_types: List of vulnerability types to scan for
-        exclude_paths: Paths to exclude from analysis
-        include_paths: Only analyze these paths (if set)
-        max_iterations: Maximum secondary analysis iterations per vuln
-        confidence_threshold: Minimum confidence to report (1-10)
-    """
+    """Vulnhuntr configuration. Loaded from .vulnhuntr.yaml; merged with CLI args."""
 
     # Cost management
     budget: float | None = None

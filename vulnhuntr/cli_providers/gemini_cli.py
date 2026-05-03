@@ -1,14 +1,12 @@
 """Gemini CLI headless adapter for Vulnhuntr.
 
-Implements the four abstract methods of CLIProviderLLM using Gemini CLI flags
-verified against gemini 0.40.1:
+Verified against gemini 0.40.1. Key flags:
   -p <prompt>  --output-format json  --approval-mode plan|yolo
 
-JSON envelope (verified live run):
+JSON envelope:
   {"response": "...", "stats": {"models": {"<name>": {"tokens": {"input": N, "candidates": N}}}}}
 
-Tool control: use --approval-mode plan (read-only) or yolo (full).
-The --approval-mode flag replaces the old tool policy flags deprecated in 0.40.1.
+--allowed-tools was deprecated in 0.40.1; use --approval-mode instead.
 """
 
 from __future__ import annotations
@@ -32,14 +30,14 @@ log = structlog.get_logger(__name__)
 
 
 class GeminiCLILLM(CLIProviderLLM):
-    """Gemini CLI headless adapter (CLIProviderLLM subclass).
+    """Gemini CLI headless adapter.
 
-    Env stripping: GEMINI_API_KEY, GOOGLE_API_KEY, and GOOGLE_GENAI_USE_VERTEXAI
-    are removed before subprocess spawn to force CLI-native OAuth instead of API
-    key auth or Vertex AI routing (D-09, RESEARCH.md env-var analysis).
+    Three env vars (GEMINI_API_KEY, GOOGLE_API_KEY, GOOGLE_GENAI_USE_VERTEXAI)
+    are stripped before subprocess spawn to prevent API key auth or Vertex AI
+    routing — the binary should use its own OAuth flow.
 
-    Version gate: probe() rejects gemini < 0.6.0 because --output-format json
-    was added in that release (D-08).
+    probe() rejects versions before 0.6.0 because --output-format json was
+    added in that release.
     """
 
     _STRIP_ENV_VARS: ClassVar[tuple[str, ...]] = (
@@ -68,13 +66,11 @@ class GeminiCLILLM(CLIProviderLLM):
         return env
 
     def probe(self) -> CapabilityResult:
-        """Check binary availability and gate on version >= 0.6.0.
+        """Check binary and reject versions older than 0.6.0.
 
-        Semver comparison uses tuple integers — NOT string comparison.
-        "0.40.1" > "0.6.0" lexicographically is False; as tuples (0,40,1) > (0,6,0) is True.
-
-        auth_valid is always None — Gemini CLI OAuth can only be verified at the
-        first real call (D-08).
+        Uses tuple comparison, not string comparison — "0.40.1" > "0.9.0"
+        is False as strings but correct as (0,40,1) > (0,9,0).
+        auth_valid stays None; OAuth can only be confirmed on the first real call.
         """
         binary = shutil.which("gemini")
         if not binary:
@@ -140,16 +136,9 @@ class GeminiCLILLM(CLIProviderLLM):
     ) -> dict[str, Any]:
         """Build the gemini CLI command and return the parsed JSON payload.
 
-        Flags (D-10):
-          -p <prompt>          — prompt flag, list-form (no shell injection)
-          --output-format json — structured JSON envelope
-
-        tool_mode mapping (D-12; use --approval-mode, not deprecated tool flags):
-          "none"      → --approval-mode plan  (read-only safe headless default)
-          "read-only" → --approval-mode plan  (same as none — plan mode is read-only)
-          "full"      → --approval-mode yolo  (auto-approves all tools)
-
-        Model override: --model <model> when CLIPolicy.overrides["gemini-cli"]["model"] set (D-10).
+        tool_mode maps to --approval-mode (--allowed-tools is deprecated):
+          "none" / "read-only" → plan   (read-only, safe for scanning)
+          "full"               → yolo   (auto-approves all tools)
         """
         del max_tokens, response_model
 
@@ -194,10 +183,9 @@ class GeminiCLILLM(CLIProviderLLM):
         return payload
 
     def get_response(self, response: Any) -> str:
-        """Extract the text response from the Gemini CLI JSON envelope.
+        """Pull the text response out of the Gemini CLI JSON envelope ('response' key).
 
-        Gemini CLI uses 'response' key (D-06, verified via live run).
-        NOT 'result' — that is Claude Code's field name.
+        Not 'result' — that's Claude Code's field name.
         """
         result = response.get("response")
         if result is None:
@@ -207,14 +195,11 @@ class GeminiCLILLM(CLIProviderLLM):
         return str(result)
 
     def _extract_usage(self, response: Any) -> LLMUsage:
-        """Extract token usage from the Gemini CLI JSON envelope.
+        """Sum token counts across all entries in stats.models.
 
-        Gemini CLI uses stats.models.<model-name>.tokens.input and .candidates.
-        Multiple model entries are possible (e.g., routing model + main model).
-        Sum across ALL models — do not use only the first entry.
-
-        IMPORTANT: stats.inputTokenCount does NOT exist in gemini 0.40.1 output.
-        The correct path is stats.models.<name>.tokens.input (D-07 CORRECTED).
+        stats.inputTokenCount does not exist in gemini 0.40.1 output — the
+        correct path is stats.models.<name>.tokens.input and .candidates.
+        Multiple model entries are possible when Gemini uses a routing model.
         """
         stats = response.get("stats") or {}
         models = stats.get("models") or {}

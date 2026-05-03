@@ -1,7 +1,6 @@
 """Claude Code headless adapter for Vulnhuntr.
 
-Implements the four abstract methods of CLIProviderLLM using Claude Code CLI
-flags verified against claude 2.1.126:
+Verified against claude 2.1.126. Key flags:
   -p <prompt>  --output-format json  --permission-mode bypassPermissions
   --no-session-persistence
 """
@@ -28,14 +27,10 @@ log = structlog.get_logger(__name__)
 
 
 class ClaudeCodeLLM(CLIProviderLLM):
-    """Claude Code headless adapter (CLIProviderLLM subclass).
+    """Claude Code headless adapter.
 
-    Promotes the transport-swap approach from internal/experiments/vulnhuntr_claude_code.
-    The base class CLIProviderLLM.chat() owns the full subprocess + validation pipeline.
-    This class implements only the four provider-specific methods.
-
-    Env stripping: ANTHROPIC_API_KEY is removed before subprocess spawn to force
-    CLI-native OAuth auth instead of API key auth (D-05).
+    ANTHROPIC_API_KEY is stripped before subprocess spawn so the binary uses
+    its own OAuth auth rather than falling back to API key mode.
     """
 
     _STRIP_ENV_VARS: ClassVar[tuple[str, ...]] = ("ANTHROPIC_API_KEY",)
@@ -59,10 +54,10 @@ class ClaudeCodeLLM(CLIProviderLLM):
         return env
 
     def probe(self) -> CapabilityResult:
-        """Check binary availability and capture version.
+        """Check binary availability and capture version string.
 
-        auth_valid is always None — Claude Code OAuth auth can only be
-        verified at the first real call, not statically (D-04).
+        auth_valid is always None — OAuth state can only be confirmed on the
+        first real call, not by running --version.
         """
         binary = shutil.which("claude")
         if not binary:
@@ -104,16 +99,10 @@ class ClaudeCodeLLM(CLIProviderLLM):
     ) -> dict[str, Any]:
         """Build the claude CLI command and return the parsed JSON payload.
 
-        Flags (D-02, D-03):
-          -p <prompt>            — prompt via positional flag, list-form (no shell injection)
-          --output-format json   — structured JSON envelope
-          --permission-mode bypassPermissions — required for headless operation
-          --no-session-persistence           — stateless; no cross-call session reuse
-
-        tool_mode mapping (D-12; RESEARCH.md Tool Mode Flag Mappings):
-          "none"      -> --tools ""         (disable all built-in tools)
-          "read-only" -> --permission-mode plan (overrides bypassPermissions)
-          "full"      -> omit --tools flag  (default built-in tool set)
+        tool_mode controls which tools Claude Code can use:
+          "none"      → --tools ""               (disable everything)
+          "read-only" → --permission-mode plan   (file reads only)
+          "full"      → default tool set
         """
         del max_tokens, response_model
 
@@ -161,10 +150,7 @@ class ClaudeCodeLLM(CLIProviderLLM):
         return payload
 
     def get_response(self, response: Any) -> str:
-        """Extract the text response from the Claude Code JSON envelope.
-
-        Claude Code uses the 'result' key (verified via live run — D-02).
-        """
+        """Pull the text response out of the Claude Code JSON envelope ('result' key)."""
         result = response.get("result")
         if result is None:
             raise CLIParseError(
@@ -173,10 +159,9 @@ class ClaudeCodeLLM(CLIProviderLLM):
         return str(result)
 
     def _extract_usage(self, response: Any) -> LLMUsage:
-        """Extract token usage from the Claude Code JSON envelope.
+        """Sum token counts from the Claude Code JSON envelope.
 
-        input_tokens includes cache_creation_input_tokens and
-        cache_read_input_tokens (verified schema from live run).
+        input_tokens includes cache_creation and cache_read buckets.
         """
         usage = response.get("usage") or {}
         model_usage = response.get("modelUsage") or {}

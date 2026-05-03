@@ -1,13 +1,8 @@
-"""Shared base class and error taxonomy for CLI-backed LLM providers.
+"""Base class and error taxonomy for CLI-backed LLM providers.
 
-All CLI providers (Claude Code, Gemini CLI, Codex, Qwen Code) subclass
-``CLIProviderLLM`` and implement the three abstract methods:
-- ``probe()`` — check binary availability and auth before the scan starts
-- ``get_response()`` — extract plain text from the provider's JSON envelope
-- ``_extract_usage()`` — pull token counts from the provider's response object
-
-The subprocess transport, timeout enforcement, env-stripping, and cost
-tracking wiring live here so individual providers stay thin.
+Claude Code, Gemini CLI, Codex, Qwen Code all subclass CLIProviderLLM and
+implement probe(), get_response(), and _extract_usage(). Subprocess transport,
+timeout, env-stripping, and cost tracking live here.
 """
 
 from __future__ import annotations
@@ -85,20 +80,14 @@ class CapabilityResult:
 
 
 class CLIProviderLLM(LLM, ABC):
-    """Intermediate base class for CLI-backed LLM providers.
+    """Base class for CLI-backed LLM providers.
 
-    Subclasses must implement:
-    - ``probe()`` — return a ``CapabilityResult`` before the scan starts
-    - ``get_response(response)`` — extract plain text from the provider envelope
-    - ``_extract_usage(response)`` — return an ``LLMUsage`` with token counts
-
-    The ``chat()`` override here handles subprocess dispatch, timeout, env
-    stripping, and cost tracking so individual providers only need to deal
-    with their own JSON envelope format.
+    Subclasses implement probe(), get_response(), send_message(), and
+    _extract_usage(). The chat() method here handles subprocess dispatch,
+    timeout, env-stripping, and cost tracking.
     """
 
-    #: Environment variables stripped before spawning the subprocess.
-    #: Subclasses may extend this list to strip provider-specific keys.
+    # Provider-specific keys to strip before spawning the subprocess.
     _STRIP_ENV_VARS: tuple[str, ...] = ()
 
     def __init__(
@@ -112,28 +101,13 @@ class CLIProviderLLM(LLM, ABC):
         self.timeout = timeout
         self.workdir = workdir
 
-    # ------------------------------------------------------------------
-    # Abstract interface — implemented per provider in Phases 4/5
-    # ------------------------------------------------------------------
-
     @abstractmethod
     def probe(self) -> CapabilityResult:
-        """Check binary availability and auth before the scan starts.
-
-        Returns:
-            CapabilityResult with ok=True when the provider is ready.
-        """
+        """Check binary availability and auth before the scan starts."""
 
     @abstractmethod
     def get_response(self, response: Any) -> str:
-        """Extract plain text from the provider's response envelope.
-
-        Args:
-            response: Raw object returned by ``_run_subprocess``.
-
-        Returns:
-            Plain text content of the provider's reply.
-        """
+        """Extract plain text from the provider's response envelope."""
 
     @abstractmethod
     def send_message(
@@ -142,34 +116,14 @@ class CLIProviderLLM(LLM, ABC):
         max_tokens: int,
         response_model: Any = None,
     ) -> dict[str, Any]:
-        """Build and execute the provider subprocess command.
-
-        Args:
-            user_prompt: The user message to send.
-            max_tokens: Token budget hint for the provider.
-            response_model: Optional Pydantic model hint (may be unused).
-
-        Returns:
-            Raw provider response dict for downstream parsing.
-        """
+        """Build and execute the provider subprocess command."""
 
     @abstractmethod
     def _extract_usage(self, response: Any) -> LLMUsage:
-        """Extract token usage from the provider response envelope.
-
-        Args:
-            response: Raw provider response dict.
-
-        Returns:
-            LLMUsage with input_tokens, output_tokens, and model name.
-        """
-
-    # ------------------------------------------------------------------
-    # Subprocess transport
-    # ------------------------------------------------------------------
+        """Extract token usage from the provider response envelope."""
 
     def _build_env(self) -> dict[str, str]:
-        """Build the subprocess environment with sensitive vars stripped."""
+        """Return os.environ copy with _STRIP_ENV_VARS removed."""
         env = os.environ.copy()
         for var in self._STRIP_ENV_VARS:
             env.pop(var, None)
@@ -180,23 +134,9 @@ class CLIProviderLLM(LLM, ABC):
         cmd: list[str],
         input_text: str | None = None,
     ) -> subprocess.CompletedProcess[str]:
-        """Run a CLI command and return the completed process.
+        """Run cmd with shell=False, capturing stdout/stderr.
 
-        Always uses list-form ``subprocess.run()`` with ``shell=False`` and
-        ``stdin=subprocess.DEVNULL`` (or a pipe when ``input_text`` is given)
-        to prevent shell injection.
-
-        Args:
-            cmd: Command and arguments as a list — never a shell string.
-            input_text: Optional text to pipe to the process stdin.
-
-        Returns:
-            ``subprocess.CompletedProcess`` with stdout/stderr captured.
-
-        Raises:
-            CLIBinaryNotFoundError: When the binary is not found.
-            CLITimeoutError: When the process exceeds ``self.timeout``.
-            CLIRuntimeError: When the process exits with a non-zero status.
+        Raises CLIBinaryNotFoundError, CLITimeoutError, or CLIRuntimeError.
         """
         stdin_mode = subprocess.PIPE if input_text is not None else subprocess.DEVNULL
         env = self._build_env()
@@ -235,33 +175,19 @@ class CLIProviderLLM(LLM, ABC):
 
         return result
 
-    # ------------------------------------------------------------------
-    # chat() override — wires subprocess + cost tracking
-    # ------------------------------------------------------------------
-
     def chat(
         self,
         user_prompt: str,
         response_model: Any | None = None,
         max_tokens: int = 8192,
     ) -> Any:
-        """Send a prompt to the CLI provider and return a validated response.
+        """Send a prompt and return a validated response.
 
-        Calls ``get_response()`` to extract text from the provider envelope,
-        then feeds it into the inherited ``_validate_response()`` path for
-        Pydantic validation. Calls ``_log_response()`` for cost tracking.
-
-        Args:
-            user_prompt: The user message to send.
-            response_model: Optional Pydantic model to validate the response.
-            max_tokens: Hint passed to the provider (interpretation varies).
-
-        Returns:
-            Validated Pydantic model instance, or raw string when no model given.
+        Wires send_message() → _log_response() → get_response() →
+        _validate_response(). Do not override in subclasses.
         """
         self._add_to_history("user", user_prompt)
 
-        # Subclasses implement the actual subprocess call via send_message
         response = self.send_message(user_prompt, max_tokens, response_model)
         self._log_response(response)
 
@@ -273,8 +199,4 @@ class CLIProviderLLM(LLM, ABC):
         return response_text
 
     def create_messages(self, user_prompt: str) -> Any:
-        """Not used by CLI providers — subprocess handles message formatting."""
-        raise NotImplementedError(
-            "CLIProviderLLM does not use create_messages(). "
-            "Override send_message() to build the subprocess command instead."
-        )
+        raise NotImplementedError("CLI providers use send_message(), not create_messages()")
