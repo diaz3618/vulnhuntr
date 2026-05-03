@@ -98,11 +98,17 @@ class GeminiCLILLM(CLIProviderLLM):
                 auth_valid=None,
                 diagnostic_message=f"Failed to run gemini --version: {exc}",
             )
-        match = re.search(r"(\d+\.\d+\.\d+)", result.stdout)
+        # Accept both 3-part (0.40.1) and 2-part (0.6) version strings.
+        match = re.search(r"(\d+\.\d+(?:\.\d+)?)", result.stdout)
         version_str = match.group(1) if match else result.stdout.strip()
-        # MUST use tuple comparison — string comparison breaks for "0.40.1" vs "0.9.0"
+        # MUST use tuple comparison — string comparison breaks for "0.40.1" vs "0.9.0".
+        # Pad to 3 elements so (0, 6) == (0, 6, 0) instead of being incorrectly
+        # treated as less-than (0, 6, 0) by Python's length-aware tuple ordering.
         try:
-            parsed = tuple(int(x) for x in version_str.split(".", 2))
+            parts = [int(x) for x in version_str.split(".", 2)]
+            while len(parts) < 3:
+                parts.append(0)
+            parsed = tuple(parts)
         except ValueError:
             parsed = (0, 0, 0)
         if parsed < self._MIN_VERSION:
