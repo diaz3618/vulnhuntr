@@ -130,8 +130,8 @@ Plans:
 
 Plans:
 **Wave 1** *(parallel)*
-- [ ] 04-01-PLAN.md — ClaudeCodeLLM adapter (CLIPolicy extension + claude_code.py + __init__.py update)
-- [ ] 04-02-PLAN.md — GeminiCLILLM adapter (gemini_cli.py + __init__.py update)
+- [x] 04-01-PLAN.md — ClaudeCodeLLM adapter (CLIPolicy extension + claude_code.py + __init__.py update)
+- [x] 04-02-PLAN.md — GeminiCLILLM adapter (gemini_cli.py + __init__.py update)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 04-03-PLAN.md — Runner wiring and mocked tests for both providers
