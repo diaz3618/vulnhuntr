@@ -726,22 +726,19 @@ class TestGeminiCLILLM:
     # Test 13: _build_env strips all three Gemini-specific env vars
     def test_build_env_strips_gemini_vars(self, gemini):
         """_build_env() removes GEMINI_API_KEY, GOOGLE_API_KEY, GOOGLE_GENAI_USE_VERTEXAI."""
-        import os
-
-        os.environ["GEMINI_API_KEY"] = "key1"
-        os.environ["GOOGLE_API_KEY"] = "key2"
-        os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "true"
-
-        env = gemini._build_env()
+        with patch.dict(
+            os.environ,
+            {
+                "GEMINI_API_KEY": "key1",
+                "GOOGLE_API_KEY": "key2",
+                "GOOGLE_GENAI_USE_VERTEXAI": "true",
+            },
+        ):
+            env = gemini._build_env()
 
         assert "GEMINI_API_KEY" not in env
         assert "GOOGLE_API_KEY" not in env
         assert "GOOGLE_GENAI_USE_VERTEXAI" not in env
-
-        # Clean up
-        del os.environ["GEMINI_API_KEY"]
-        del os.environ["GOOGLE_API_KEY"]
-        del os.environ["GOOGLE_GENAI_USE_VERTEXAI"]
 
     # Test 14: approval-mode plan for tool_mode none
     def test_send_message_approval_mode_plan_for_none(self):
