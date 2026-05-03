@@ -35,6 +35,12 @@ class CLIPolicy:
             Vulnhuntr-managed MCP.
         overrides: Per-provider setting overrides keyed by provider name
             (e.g., ``{"claude-code": {"timeout": 600}}``).
+        tool_mode: CLI tool-use policy — ``"none"`` (default) disables provider
+            built-in tools; ``"read-only"`` allows file-reads only; ``"full"``
+            allows all provider tools.
+        strip_env_vars: Additional environment variables to strip before spawning
+            the CLI subprocess. Appended to each provider's class-level
+            ``_STRIP_ENV_VARS`` at subprocess build time.
     """
 
     timeout: int = 300
@@ -46,6 +52,8 @@ class CLIPolicy:
     max_turns: int = 10
     mcp_mode: str = "none"
     overrides: dict[str, dict] = field(default_factory=dict)
+    tool_mode: str = "none"
+    strip_env_vars: list[str] = field(default_factory=list)
 
 
 # Try to import yaml, provide fallback if not available
@@ -199,6 +207,10 @@ class VulnhuntrConfig:
                 cli.mcp_mode = str(cli_data["mcp_mode"])
             if "overrides" in cli_data and isinstance(cli_data["overrides"], dict):
                 cli.overrides = dict(cli_data["overrides"])
+            if "tool_mode" in cli_data:
+                cli.tool_mode = str(cli_data["tool_mode"])
+            if "strip_env_vars" in cli_data and isinstance(cli_data["strip_env_vars"], list):
+                cli.strip_env_vars = list(cli_data["strip_env_vars"])
             config.cli = cli
 
         return config
