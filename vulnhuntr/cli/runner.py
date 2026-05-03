@@ -41,14 +41,17 @@ def initialize_llm(
     system_prompt: str = "",
     cost_callback: Callable | None = None,
     model_override: str | None = None,
+    config: Any | None = None,
 ):
     """Initialize LLM client with optional cost tracking callback.
 
     Args:
-        llm_arg: LLM provider ('claude', 'gpt', 'ollama', 'openrouter')
+        llm_arg: LLM provider ('claude', 'gpt', 'ollama', 'openrouter', 'claude-code', 'gemini-cli')
         system_prompt: System prompt to use
         cost_callback: Optional callback for cost tracking
         model_override: Model name from config (overrides env var default)
+        config: VulnhuntrConfig instance used to extract CLIPolicy for CLI providers.
+            When None, CLIPolicy() defaults apply for CLI providers.
 
     Returns:
         Initialized LLM client
@@ -81,13 +84,37 @@ def initialize_llm(
         return Ollama(model, base_url, system_prompt, cost_callback)
 
     elif llm_arg in ("claude-code", "gemini-cli", "codex", "qwen-code"):
-        from vulnhuntr.cli_providers import CLIProviderLLM  # noqa: F401
+        from vulnhuntr.config import CLIPolicy
 
-        raise NotImplementedError(
-            f"CLI provider '{llm_arg}' is not yet implemented. "
-            f"It will be available in Phase 4/5. "
-            f"For now, use an API provider: claude, gpt, openrouter, ollama."
-        )
+        policy = getattr(config, "cli", None) or CLIPolicy()
+        overrides = policy.overrides.get(llm_arg, {})
+        timeout = overrides.get("timeout", policy.timeout)
+        workdir = overrides.get("workdir", policy.workdir)
+
+        if llm_arg == "claude-code":
+            from vulnhuntr.cli_providers.claude_code import ClaudeCodeLLM
+
+            return ClaudeCodeLLM(
+                system_prompt=system_prompt,
+                cost_callback=cost_callback,
+                timeout=timeout,
+                workdir=workdir,
+                policy=policy,
+            )
+        elif llm_arg == "gemini-cli":
+            from vulnhuntr.cli_providers.gemini_cli import GeminiCLILLM
+
+            return GeminiCLILLM(
+                system_prompt=system_prompt,
+                cost_callback=cost_callback,
+                timeout=timeout,
+                workdir=workdir,
+                policy=policy,
+            )
+        else:
+            raise NotImplementedError(
+                f"CLI provider '{llm_arg}' lands in Phase 5."
+            )
 
     else:
         raise ValueError(
@@ -299,7 +326,7 @@ def _init_providers(
     if llm_factory is not None:
         llm = llm_factory(args.llm, system_prompt, cost_callback, config.model)
     else:
-        llm = initialize_llm(args.llm, system_prompt, cost_callback, model_override=config.model)
+        llm = initialize_llm(args.llm, system_prompt, cost_callback, model_override=config.model, config=config)
 
     # Probe CLI providers on the unwrapped instance — BEFORE FallbackLLM wrapping.
     # Calling probe() after wrapping risks delegating to the wrong inner provider (Pitfall 2).

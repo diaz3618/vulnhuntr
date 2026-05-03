@@ -674,7 +674,7 @@ class TestInitProviders:
         config = SimpleNamespace(model=None, fallback1=None, fallback2=None, provider=None)
         args = self._make_args()
         _init_providers(args, config)
-        mock_init.assert_called_once_with("claude", "", None, model_override=None)
+        mock_init.assert_called_once_with("claude", "", None, model_override=None, config=config)
 
     @patch("vulnhuntr.cli.runner.initialize_llm")
     @patch("vulnhuntr.cli.runner.wrap_with_fallbacks")
@@ -685,7 +685,7 @@ class TestInitProviders:
         config = SimpleNamespace(model=None, fallback1=None, fallback2=None, provider=None)
         args = self._make_args()
         _init_providers(args, config, system_prompt="<instructions/>")
-        mock_init.assert_called_once_with("claude", "<instructions/>", None, model_override=None)
+        mock_init.assert_called_once_with("claude", "<instructions/>", None, model_override=None, config=config)
         mock_wrap.assert_called_once()
         # system_prompt is the 4th positional arg to wrap_with_fallbacks
         assert mock_wrap.call_args[0][3] == "<instructions/>"
@@ -699,7 +699,7 @@ class TestInitProviders:
         config = SimpleNamespace(model="claude-opus-4-5", fallback1=None, fallback2=None, provider=None)
         args = self._make_args()
         _init_providers(args, config)
-        mock_init.assert_called_once_with("claude", "", None, model_override="claude-opus-4-5")
+        mock_init.assert_called_once_with("claude", "", None, model_override="claude-opus-4-5", config=config)
 
     @patch("vulnhuntr.cli.runner.initialize_llm")
     @patch("vulnhuntr.cli.runner.wrap_with_fallbacks")
@@ -1116,20 +1116,23 @@ class TestInitProvidersProbewiring:
 
 
 class TestInitializeLLMCLIStubs:
-    """CLI provider stub tests — initialize_llm should raise NotImplementedError
-    with a 'Phase' message for CLI providers and a descriptive ValueError for
-    totally unknown providers.
+    """CLI provider tests — initialize_llm now returns real providers for claude-code
+    and gemini-cli (implemented in Phase 4). codex and qwen-code remain stubs until Phase 5.
     """
 
-    def test_claude_code_raises_not_implemented(self):
-        """initialize_llm('claude-code') raises NotImplementedError with 'Phase' in message."""
-        with pytest.raises(NotImplementedError, match="Phase"):
-            initialize_llm("claude-code")
+    def test_claude_code_returns_claude_code_llm(self):
+        """initialize_llm('claude-code') returns ClaudeCodeLLM instance (Phase 4 wired)."""
+        from vulnhuntr.cli_providers.claude_code import ClaudeCodeLLM
 
-    def test_gemini_cli_raises_not_implemented(self):
-        """initialize_llm('gemini-cli') raises NotImplementedError with 'Phase' in message."""
-        with pytest.raises(NotImplementedError, match="Phase"):
-            initialize_llm("gemini-cli")
+        result = initialize_llm("claude-code")
+        assert isinstance(result, ClaudeCodeLLM)
+
+    def test_gemini_cli_returns_gemini_cli_llm(self):
+        """initialize_llm('gemini-cli') returns GeminiCLILLM instance (Phase 4 wired)."""
+        from vulnhuntr.cli_providers.gemini_cli import GeminiCLILLM
+
+        result = initialize_llm("gemini-cli")
+        assert isinstance(result, GeminiCLILLM)
 
     def test_codex_raises_not_implemented(self):
         """initialize_llm('codex') raises NotImplementedError with 'Phase' in message."""
