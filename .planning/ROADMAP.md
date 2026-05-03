@@ -126,10 +126,15 @@ Plans:
 - CLAUDECLI-01
 - GEMINI-CLI-01
 
-**Plans:**
-1. Turn the existing Claude Code experiment into production-grade integration
-2. Implement Gemini CLI adapter with version-aware JSON capability handling
-3. Add mocked parser/runtime tests and at least one optional live path per provider
+**Plans:** 3 plans
+
+Plans:
+**Wave 1** *(parallel)*
+- [ ] 04-01-PLAN.md — ClaudeCodeLLM adapter (CLIPolicy extension + claude_code.py + __init__.py update)
+- [ ] 04-02-PLAN.md — GeminiCLILLM adapter (gemini_cli.py + __init__.py update)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 04-03-PLAN.md — Runner wiring and mocked tests for both providers
 
 **Success Criteria:**
 1. `--llm claude-code` can run the Vulnhuntr pipeline in headless mode with validated output
