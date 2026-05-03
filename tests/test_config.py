@@ -289,3 +289,35 @@ class TestCLIPolicyOverrides:
         p2 = CLIPolicy()
         p1.overrides["key"] = {"x": 1}
         assert "key" not in p2.overrides
+
+
+class TestCLIPolicyToolModeAndStripEnvVars:
+    """Tests for CLIPolicy.tool_mode and CLIPolicy.strip_env_vars fields (CLAUDECLI-01)."""
+
+    def test_tool_mode_default(self):
+        assert CLIPolicy().tool_mode == "none"
+
+    def test_strip_env_vars_default(self):
+        assert CLIPolicy().strip_env_vars == []
+
+    def test_tool_mode_parsed_from_dict(self):
+        cfg = VulnhuntrConfig.from_dict({"cli": {"tool_mode": "full"}})
+        assert cfg.cli.tool_mode == "full"
+
+    def test_strip_env_vars_parsed_from_dict(self):
+        cfg = VulnhuntrConfig.from_dict({"cli": {"strip_env_vars": ["FOO"]}})
+        assert cfg.cli.strip_env_vars == ["FOO"]
+
+    def test_strip_env_vars_ignored_when_not_a_list(self):
+        cfg = VulnhuntrConfig.from_dict({"cli": {"strip_env_vars": "not-a-list"}})
+        assert cfg.cli.strip_env_vars == []
+
+    def test_to_dict_includes_tool_mode(self):
+        cfg = VulnhuntrConfig()
+        d = cfg.to_dict()
+        assert "tool_mode" in d["cli"]
+
+    def test_to_dict_includes_strip_env_vars(self):
+        cfg = VulnhuntrConfig()
+        d = cfg.to_dict()
+        assert "strip_env_vars" in d["cli"]
