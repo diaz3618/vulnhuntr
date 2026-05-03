@@ -134,7 +134,7 @@ Plans:
 - [x] 04-02-PLAN.md — GeminiCLILLM adapter (gemini_cli.py + __init__.py update)
 
 **Wave 2** *(blocked on Wave 1 completion)*
-- [ ] 04-03-PLAN.md — Runner wiring and mocked tests for both providers
+- [x] 04-03-PLAN.md — Runner wiring and mocked tests for both providers
 
 **Success Criteria:**
 1. `--llm claude-code` can run the Vulnhuntr pipeline in headless mode with validated output
