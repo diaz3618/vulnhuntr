@@ -15,6 +15,7 @@ from vulnhuntr.cli_providers.base import (
     CLITimeoutError,
     CapabilityResult,
 )
+from vulnhuntr.cli_providers.claude_code import ClaudeCodeLLM
 
 __all__ = [
     "CLIProviderLLM",
@@ -25,4 +26,5 @@ __all__ = [
     "CLIParseError",
     "CLISandboxError",
     "CLIRuntimeError",
+    "ClaudeCodeLLM",
 ]
