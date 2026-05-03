@@ -10,6 +10,7 @@ Covers:
 
 from __future__ import annotations
 
+import os
 import subprocess
 from dataclasses import fields
 from typing import Any
@@ -868,3 +869,217 @@ class TestGeminiCLILLM:
         payload = provider.send_message("Say hello in one word.", 256, None)
         assert isinstance(payload, dict)
         assert "response" in payload
+
+    def test_send_message_binary_not_found(self):
+        """send_message() raises CLIBinaryNotFoundError when gemini binary absent."""
+        from pydantic import BaseModel
+
+        from vulnhuntr.cli_providers import CLIBinaryNotFoundError
+        from vulnhuntr.cli_providers.gemini_cli import GeminiCLILLM
+
+        class _Dummy(BaseModel):
+            pass
+
+        provider = GeminiCLILLM()
+        with patch("subprocess.run", side_effect=FileNotFoundError("no such file")):
+            with pytest.raises(CLIBinaryNotFoundError):
+                provider.send_message(user_prompt="test", max_tokens=100, response_model=_Dummy)
+
+
+# ---------------------------------------------------------------------------
+# TestClaudeCodeLLM — consolidated class (CLAUDECLI-01, Plan 04-03)
+#
+# This class consolidates all ClaudeCodeLLM behaviors into a single class,
+# adding test_send_message_binary_not_found and test_env_stripping variants
+# that were not covered by the split classes above.
+# ---------------------------------------------------------------------------
+
+_CLAUDE_SUCCESS_JSON = (
+    '{"result": "vuln found", '
+    '"usage": {"input_tokens": 10, "cache_creation_input_tokens": 3, '
+    '"cache_read_input_tokens": 2, "output_tokens": 5}, '
+    '"modelUsage": {"claude-sonnet-4-6": {}}, "total_cost_usd": 0.001}'
+)
+
+_GEMINI_SUCCESS_JSON = (
+    '{"response": "no vulns", '
+    '"stats": {"models": {'
+    '"gemini-2.5-flash": {"tokens": {"input": 100, "candidates": 20}}, '
+    '"gemini-2.5-flash-lite": {"tokens": {"input": 50, "candidates": 10}}'
+    '}}}'
+)
+
+
+class TestClaudeCodeLLM:
+    """Consolidated TestClaudeCodeLLM class (Plan 04-03 Task 2, CLAUDECLI-01).
+
+    Covers probe, send_message, get_response, _extract_usage, _build_env,
+    and CLIBinaryNotFoundError path with response_model kwarg.
+    All subprocess calls are mocked — no live binary required.
+    """
+
+    def test_probe_ok(self):
+        from vulnhuntr.cli_providers.claude_code import ClaudeCodeLLM
+
+        provider = ClaudeCodeLLM()
+        with patch("shutil.which", return_value="/usr/bin/claude"):
+            with patch("subprocess.run") as mock_run:
+                mock_run.return_value = MagicMock(
+                    returncode=0, stdout="2.1.126 (Claude Code)", stderr=""
+                )
+                result = provider.probe()
+        assert result.ok is True
+        assert result.binary_found is True
+        assert result.version == "2.1.126"
+        assert result.auth_valid is None
+
+    def test_probe_missing_binary(self):
+        from vulnhuntr.cli_providers.claude_code import ClaudeCodeLLM
+
+        provider = ClaudeCodeLLM()
+        with patch("shutil.which", return_value=None):
+            result = provider.probe()
+        assert result.ok is False
+        assert result.binary_found is False
+        assert "npm i -g @anthropic-ai/claude-code" in result.diagnostic_message
+
+    def test_send_message_success(self):
+        from vulnhuntr.cli_providers.claude_code import ClaudeCodeLLM
+
+        provider = ClaudeCodeLLM()
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(
+                returncode=0, stdout=_CLAUDE_SUCCESS_JSON, stderr=""
+            )
+            payload = provider.send_message("test prompt", 256, None)
+        assert "result" in payload
+        assert provider.model == "claude-sonnet-4-6"
+
+    def test_send_message_timeout(self):
+        from vulnhuntr.cli_providers import CLITimeoutError
+        from vulnhuntr.cli_providers.claude_code import ClaudeCodeLLM
+
+        provider = ClaudeCodeLLM()
+        with patch(
+            "subprocess.run",
+            side_effect=subprocess.TimeoutExpired(cmd="claude", timeout=300),
+        ):
+            with pytest.raises(CLITimeoutError):
+                provider.send_message("test", 256, None)
+
+    def test_send_message_parse_error_bad_json(self):
+        from vulnhuntr.cli_providers import CLIParseError
+        from vulnhuntr.cli_providers.claude_code import ClaudeCodeLLM
+
+        provider = ClaudeCodeLLM()
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0, stdout="not json at all", stderr="")
+            with pytest.raises(CLIParseError):
+                provider.send_message("test", 256, None)
+
+    def test_send_message_parse_error_empty_stdout(self):
+        from vulnhuntr.cli_providers import CLIParseError
+        from vulnhuntr.cli_providers.claude_code import ClaudeCodeLLM
+
+        provider = ClaudeCodeLLM()
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+            with pytest.raises(CLIParseError):
+                provider.send_message("test", 256, None)
+
+    def test_get_response_extracts_result_field(self):
+        from vulnhuntr.cli_providers.claude_code import ClaudeCodeLLM
+
+        provider = ClaudeCodeLLM()
+        assert provider.get_response({"result": "vuln found"}) == "vuln found"
+
+    def test_get_response_raises_on_missing_field(self):
+        from vulnhuntr.cli_providers import CLIParseError
+        from vulnhuntr.cli_providers.claude_code import ClaudeCodeLLM
+
+        provider = ClaudeCodeLLM()
+        with pytest.raises(CLIParseError):
+            provider.get_response({"response": "wrong key"})
+
+    def test_extract_usage_sums_cache_tokens(self):
+        from vulnhuntr.cli_providers.claude_code import ClaudeCodeLLM
+
+        provider = ClaudeCodeLLM()
+        payload = {
+            "usage": {
+                "input_tokens": 10,
+                "cache_creation_input_tokens": 3,
+                "cache_read_input_tokens": 2,
+                "output_tokens": 5,
+            },
+            "modelUsage": {"claude-sonnet-4-6": {}},
+        }
+        usage = provider._extract_usage(payload)
+        assert usage.input_tokens == 15  # 10 + 3 + 2
+        assert usage.output_tokens == 5
+        assert usage.model == "claude-sonnet-4-6"
+
+    def test_env_stripping_removes_anthropic_api_key(self):
+        from vulnhuntr.cli_providers.claude_code import ClaudeCodeLLM
+
+        provider = ClaudeCodeLLM()
+        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "sk-ant-test123"}):
+            env = provider._build_env()
+        assert "ANTHROPIC_API_KEY" not in env
+
+    def test_send_message_binary_not_found(self):
+        """send_message() raises CLIBinaryNotFoundError when claude binary absent."""
+        from pydantic import BaseModel
+
+        from vulnhuntr.cli_providers import CLIBinaryNotFoundError
+        from vulnhuntr.cli_providers.claude_code import ClaudeCodeLLM
+
+        class _Dummy(BaseModel):
+            pass
+
+        provider = ClaudeCodeLLM()
+        with patch("subprocess.run", side_effect=FileNotFoundError("no such file")):
+            with pytest.raises(CLIBinaryNotFoundError):
+                provider.send_message(user_prompt="test", max_tokens=100, response_model=_Dummy)
+
+
+# ---------------------------------------------------------------------------
+# Live round-trip tests (excluded from CI via pyproject.toml addopts)
+# Run: pytest tests/test_cli_providers.py -m live -k "claude or gemini"
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.live
+def test_claude_code_live_round_trip():
+    """Requires 'claude' binary installed and authenticated.
+
+    Run locally: pytest tests/test_cli_providers.py -m live -k claude
+    Excluded from CI via pyproject.toml addopts = '-m "not live"'
+    """
+    from vulnhuntr.cli_providers.claude_code import ClaudeCodeLLM
+
+    provider = ClaudeCodeLLM()
+    probe_result = provider.probe()
+    assert probe_result.ok, f"probe failed: {probe_result.diagnostic_message}"
+    payload = provider.send_message("Say 'hello' in exactly one word.", 256, None)
+    assert "result" in payload
+    text = provider.get_response(payload)
+    assert isinstance(text, str) and len(text) > 0
+
+
+@pytest.mark.live
+def test_gemini_cli_live_round_trip():
+    """Requires 'gemini' binary installed and authenticated (>= 0.6.0).
+
+    Run locally: pytest tests/test_cli_providers.py -m live -k gemini
+    Excluded from CI via pyproject.toml addopts = '-m "not live"'
+    """
+    from vulnhuntr.cli_providers.gemini_cli import GeminiCLILLM
+
+    provider = GeminiCLILLM()
+    probe_result = provider.probe()
+    assert probe_result.ok, f"probe failed: {probe_result.diagnostic_message}"
+    payload = provider.send_message("Say 'hello' in exactly one word.", 256, None)
+    assert "response" in payload
+    text = provider.get_response(payload)
+    assert isinstance(text, str) and len(text) > 0
