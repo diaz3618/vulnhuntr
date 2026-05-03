@@ -343,7 +343,7 @@ def _init_providers(
         log.info(
             "CLI provider capability check passed",
             provider=args.llm,
-            binary_path=result.binary_found,
+            binary_found=result.binary_found,
             version=result.version,
         )
     return wrap_with_fallbacks(llm, args, cost_callback, system_prompt, config=config)
@@ -380,11 +380,16 @@ def run_analysis(args: argparse.Namespace, llm_factory: Callable | None = None) 
     )
 
     # Load configuration from .vulnhuntr.yaml (if present)
-    # Search from CWD first (where user launched vulnhuntr), then target repo
+    # Search from CWD first (where user launched vulnhuntr), then target repo.
+    # Use provider absence as the sole "not useful" marker — a CWD config that
+    # sets budget but not provider should still allow the target repo to supply
+    # the provider (WR-03: the old `and budget is None` was too restrictive).
     config = load_config(start_dir=Path.cwd())
-    if config.provider is None and config.budget is None:
-        # CWD search found nothing useful, try target repo path
-        config = load_config(start_dir=Path(args.root))
+    if config.provider is None:
+        # CWD config did not specify a provider; try the target repo path.
+        repo_config = load_config(start_dir=Path(args.root))
+        if repo_config.provider is not None:
+            config = repo_config
     config = merge_config_with_args(config, args)
 
     # Apply config to args where config provides defaults
