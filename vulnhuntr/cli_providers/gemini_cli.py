@@ -147,13 +147,21 @@ class GeminiCLILLM(CLIProviderLLM):
         """
         del max_tokens, response_model
 
+        # Prepend stored system prompt when set so vulnerability-analysis
+        # context (instructions + README summary) reaches the model.
+        # Gemini CLI does not expose a dedicated --system-prompt flag so
+        # prompt-prepending is the only portable approach.
+        full_prompt = user_prompt
+        if self.system_prompt:
+            full_prompt = f"{self.system_prompt}\n\n{user_prompt}"
+
         tool_mode = self._policy.tool_mode if self._policy else "none"
         approval_mode = "yolo" if tool_mode == "full" else "plan"
 
         cmd: list[str] = [
             "gemini",
             "-p",
-            user_prompt,
+            full_prompt,
             "--output-format",
             "json",
             "--approval-mode",

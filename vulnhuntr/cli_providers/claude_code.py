@@ -117,6 +117,14 @@ class ClaudeCodeLLM(CLIProviderLLM):
         """
         del max_tokens, response_model
 
+        # Prepend stored system prompt when set so vulnerability-analysis
+        # context (instructions + README summary) reaches the model.
+        # Claude Code CLI supports --system-prompt in recent versions but
+        # prompt-prepending works across all versions without flag detection.
+        full_prompt = user_prompt
+        if self.system_prompt:
+            full_prompt = f"{self.system_prompt}\n\n{user_prompt}"
+
         tool_mode = self._policy.tool_mode if self._policy else "none"
 
         if tool_mode == "read-only":
@@ -127,7 +135,7 @@ class ClaudeCodeLLM(CLIProviderLLM):
         cmd: list[str] = [
             "claude",
             "-p",
-            user_prompt,
+            full_prompt,
             "--output-format",
             "json",
             "--permission-mode",
