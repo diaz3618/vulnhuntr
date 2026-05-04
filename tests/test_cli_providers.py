@@ -1848,3 +1848,102 @@ class TestCodexSandboxMode:
         cmd = m.call_args[0][0]
         idx = cmd.index("--sandbox")
         assert cmd[idx + 1] == "read-only"
+
+
+# ---------------------------------------------------------------------------
+# Phase 8 tests: D-13 — TestProviderSelectionBoundaries — EVAL-03
+# ---------------------------------------------------------------------------
+
+
+class TestProviderSelectionBoundaries:
+    """D-13 boundary: probe() raises the correct error type for each failure mode."""
+
+    def test_binary_not_found_raises_cli_binary_not_found_error(self):
+        """When _do_probe returns binary_found=False, probe() raises CLIBinaryNotFoundError."""
+        from vulnhuntr.cli_providers import ClaudeCodeLLM
+        from vulnhuntr.cli_providers.base import CapabilityResult, CLIBinaryNotFoundError
+        from vulnhuntr.config import CLIPolicy
+
+        llm = ClaudeCodeLLM(policy=CLIPolicy())
+        missing = CapabilityResult(
+            ok=False,
+            binary_found=False,
+            version=None,
+            auth_valid=None,
+            diagnostic_message="claude not on PATH",
+        )
+        with patch.object(llm, "_do_probe", return_value=missing):
+            with pytest.raises(CLIBinaryNotFoundError):
+                llm.probe()
+
+    def test_auth_failure_raises_cli_auth_error(self):
+        """When _do_probe returns auth_valid=False, probe() raises CLIAuthError."""
+        from vulnhuntr.cli_providers import ClaudeCodeLLM
+        from vulnhuntr.cli_providers.base import CapabilityResult, CLIAuthError
+        from vulnhuntr.config import CLIPolicy
+
+        llm = ClaudeCodeLLM(policy=CLIPolicy())
+        auth_fail = CapabilityResult(
+            ok=False,
+            binary_found=True,
+            version="2.1.0",
+            auth_valid=False,
+            diagnostic_message="not logged in",
+        )
+        with patch.object(llm, "_do_probe", return_value=auth_fail):
+            with pytest.raises(CLIAuthError):
+                llm.probe()
+
+    def test_ok_probe_returns_capability_result(self):
+        """When probe succeeds, probe() returns the CapabilityResult without raising."""
+        from vulnhuntr.cli_providers import ClaudeCodeLLM
+        from vulnhuntr.cli_providers.base import CapabilityResult
+        from vulnhuntr.config import CLIPolicy
+
+        llm = ClaudeCodeLLM(policy=CLIPolicy())
+        success = CapabilityResult(
+            ok=True,
+            binary_found=True,
+            version="2.1.126",
+            auth_valid=True,
+            diagnostic_message="",
+        )
+        with patch.object(llm, "_do_probe", return_value=success):
+            result = llm.probe()
+        assert result.ok is True
+
+    def test_binary_not_found_error_message_contains_class_name(self):
+        from vulnhuntr.cli_providers import ClaudeCodeLLM
+        from vulnhuntr.cli_providers.base import CapabilityResult, CLIBinaryNotFoundError
+        from vulnhuntr.config import CLIPolicy
+
+        llm = ClaudeCodeLLM(policy=CLIPolicy())
+        missing = CapabilityResult(
+            ok=False, binary_found=False, version=None, auth_valid=None, diagnostic_message="not found"
+        )
+        with patch.object(llm, "_do_probe", return_value=missing):
+            with pytest.raises(CLIBinaryNotFoundError, match="ClaudeCodeLLM"):
+                llm.probe()
+
+    def test_tracer_emits_event_even_on_auth_failure(self):
+        """Even when probe() raises CLIAuthError, the trace event is still emitted."""
+        from vulnhuntr.cli_providers import ClaudeCodeLLM
+        from vulnhuntr.cli_providers.base import CapabilityResult, CLIAuthError
+        from vulnhuntr.config import CLIPolicy
+        from vulnhuntr.core.trace import ExecutionTracer
+
+        tracer = ExecutionTracer()
+        llm = ClaudeCodeLLM(policy=CLIPolicy(), tracer=tracer)
+        auth_fail = CapabilityResult(
+            ok=False,
+            binary_found=True,
+            version="2.0.0",
+            auth_valid=False,
+            diagnostic_message="credentials missing",
+        )
+        with patch.object(llm, "_do_probe", return_value=auth_fail):
+            with pytest.raises(CLIAuthError):
+                llm.probe()
+        events = tracer.filter("probe_result")
+        assert len(events) == 1
+        assert events[0].data["auth_valid"] is False

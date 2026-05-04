@@ -8,6 +8,8 @@ example config generation.
 
 from argparse import Namespace
 
+import pytest
+
 from vulnhuntr.config import (
     CLIPolicy,
     VulnhuntrConfig,
@@ -321,3 +323,59 @@ class TestCLIPolicyToolModeAndStripEnvVars:
         cfg = VulnhuntrConfig()
         d = cfg.to_dict()
         assert "strip_env_vars" in d["cli"]
+
+
+class TestCLIPolicyBoundaries:
+    """EVAL-03: CLIPolicy.__post_init__ rejects out-of-range field values."""
+
+    @pytest.mark.parametrize("session_mode", ["bad", "", "STATELESS", "Continue"])
+    def test_invalid_session_mode_raises(self, session_mode):
+        with pytest.raises(ValueError, match="session_mode"):
+            CLIPolicy(session_mode=session_mode)
+
+    @pytest.mark.parametrize("mcp_mode", ["all", "both-and-more", "on", "off"])
+    def test_invalid_mcp_mode_raises(self, mcp_mode):
+        with pytest.raises(ValueError, match="mcp_mode"):
+            CLIPolicy(mcp_mode=mcp_mode)
+
+    @pytest.mark.parametrize("tool_mode", ["write", "", "Full", "NONE"])
+    def test_invalid_tool_mode_raises(self, tool_mode):
+        with pytest.raises(ValueError, match="tool_mode"):
+            CLIPolicy(tool_mode=tool_mode)
+
+    def test_negative_timeout_raises(self):
+        with pytest.raises(ValueError, match="timeout"):
+            CLIPolicy(timeout=-1)
+
+    def test_zero_timeout_allowed(self):
+        policy = CLIPolicy(timeout=0)
+        assert policy.timeout == 0
+
+    def test_zero_max_turns_raises(self):
+        with pytest.raises(ValueError, match="max_turns"):
+            CLIPolicy(max_turns=0)
+
+    def test_negative_max_turns_raises(self):
+        with pytest.raises(ValueError, match="max_turns"):
+            CLIPolicy(max_turns=-5)
+
+    def test_valid_defaults_construct(self):
+        policy = CLIPolicy()
+        assert policy.session_mode == "stateless"
+        assert policy.mcp_mode == "none"
+        assert policy.tool_mode == "none"
+
+    def test_all_valid_session_modes(self):
+        for mode in ("stateless", "continue", "resume"):
+            policy = CLIPolicy(session_mode=mode)
+            assert policy.session_mode == mode
+
+    def test_all_valid_mcp_modes(self):
+        for mode in ("none", "vulnhuntr", "provider", "both"):
+            policy = CLIPolicy(mcp_mode=mode)
+            assert policy.mcp_mode == mode
+
+    def test_all_valid_tool_modes(self):
+        for mode in ("none", "read-only", "full"):
+            policy = CLIPolicy(tool_mode=mode)
+            assert policy.tool_mode == mode
