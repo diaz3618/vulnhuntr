@@ -10,8 +10,11 @@ Covers:
 
 from __future__ import annotations
 
+import json
 import os
+import pathlib
 import subprocess
+import tempfile
 from dataclasses import fields
 from typing import Any
 from unittest.mock import MagicMock, patch
@@ -38,7 +41,7 @@ from vulnhuntr.llms import LLM, LLMError
 class _FakeCLIProvider(CLIProviderLLM):
     """Minimal concrete provider used only in tests."""
 
-    def probe(self) -> CapabilityResult:
+    def _do_probe(self) -> CapabilityResult:
         return CapabilityResult(
             ok=True,
             binary_found=True,
@@ -119,7 +122,7 @@ class TestPackageExports:
         assert C is CLIProviderLLM
 
     def test_capability_result_importable(self):
-        from vulnhuntr.cli_providers import CapabilityResult as CR
+        from vulnhuntr.cli_providers import CapabilityResult as CR  # noqa: N817
 
         assert CR is CapabilityResult
 
@@ -373,14 +376,12 @@ class TestClaudeCodeLLMImport:
 class TestClaudeCodeLLMProbe:
     def test_probe_missing_binary(self):
         from vulnhuntr.cli_providers import ClaudeCodeLLM
+        from vulnhuntr.cli_providers.base import CLIBinaryNotFoundError
 
         with patch("shutil.which", return_value=None):
             provider = ClaudeCodeLLM()
-            result = provider.probe()
-        assert result.ok is False
-        assert result.binary_found is False
-        assert result.auth_valid is None
-        assert "npm i -g @anthropic-ai/claude-code" in result.diagnostic_message
+            with pytest.raises(CLIBinaryNotFoundError, match="npm i -g @anthropic-ai/claude-code"):
+                provider.probe()
 
     def test_probe_ok(self):
         from vulnhuntr.cli_providers import ClaudeCodeLLM
@@ -532,15 +533,14 @@ class TestGeminiCLILLM:
 
     # Test 1: probe — binary missing
     def test_probe_missing_binary(self):
-        """probe() returns ok=False, binary_found=False when gemini not on PATH."""
+        """probe() raises CLIBinaryNotFoundError when gemini not on PATH."""
+        from vulnhuntr.cli_providers.base import CLIBinaryNotFoundError
         from vulnhuntr.cli_providers.gemini_cli import GeminiCLILLM
 
         provider = GeminiCLILLM()
         with patch("shutil.which", return_value=None):
-            result = provider.probe()
-        assert result.ok is False
-        assert result.binary_found is False
-        assert "npm i -g @google/gemini-cli" in result.diagnostic_message
+            with pytest.raises(CLIBinaryNotFoundError, match="npm i -g @google/gemini-cli"):
+                provider.probe()
 
     # Test 2: probe — version too old
     def test_probe_version_too_old(self):
@@ -929,14 +929,13 @@ class TestClaudeCodeLLM:
         assert result.auth_valid is None
 
     def test_probe_missing_binary(self):
+        from vulnhuntr.cli_providers.base import CLIBinaryNotFoundError
         from vulnhuntr.cli_providers.claude_code import ClaudeCodeLLM
 
         provider = ClaudeCodeLLM()
         with patch("shutil.which", return_value=None):
-            result = provider.probe()
-        assert result.ok is False
-        assert result.binary_found is False
-        assert "npm i -g @anthropic-ai/claude-code" in result.diagnostic_message
+            with pytest.raises(CLIBinaryNotFoundError, match="npm i -g @anthropic-ai/claude-code"):
+                provider.probe()
 
     def test_send_message_success(self):
         from vulnhuntr.cli_providers.claude_code import ClaudeCodeLLM
@@ -1112,14 +1111,12 @@ class TestCodexLLMImport:
 class TestCodexLLMProbe:
     def test_probe_missing_binary(self):
         from vulnhuntr.cli_providers import CodexLLM
+        from vulnhuntr.cli_providers.base import CLIBinaryNotFoundError
 
         with patch("shutil.which", return_value=None):
             provider = CodexLLM()
-            result = provider.probe()
-        assert result.ok is False
-        assert result.binary_found is False
-        assert result.auth_valid is None
-        assert "npm i -g @openai/codex" in result.diagnostic_message
+            with pytest.raises(CLIBinaryNotFoundError, match="npm i -g @openai/codex"):
+                provider.probe()
 
     def test_probe_version_too_old(self):
         from vulnhuntr.cli_providers import CodexLLM
@@ -1383,13 +1380,12 @@ class TestQwenCodeLLMImport:
 class TestQwenCodeLLMProbe:
     def test_probe_missing_binary(self):
         from vulnhuntr.cli_providers import QwenCodeLLM
+        from vulnhuntr.cli_providers.base import CLIBinaryNotFoundError
 
         with patch("shutil.which", return_value=None):
             provider = QwenCodeLLM()
-            result = provider.probe()
-        assert result.ok is False
-        assert result.binary_found is False
-        assert "npm i -g @qwen-code/qwen-code" in result.diagnostic_message
+            with pytest.raises(CLIBinaryNotFoundError, match="npm i -g @qwen-code/qwen-code"):
+                provider.probe()
 
     def test_probe_ok(self):
         from vulnhuntr.cli_providers import QwenCodeLLM
@@ -1655,9 +1651,6 @@ class TestQwenCodeLLMBridgeMode:
 # ---------------------------------------------------------------------------
 # Phase 6 tests: SESSION-01 / SESSION-02 / SESSION-03 / SESSION-04
 # ---------------------------------------------------------------------------
-import json
-import pathlib
-import tempfile
 
 
 class TestClaudeCodeSessionMode:

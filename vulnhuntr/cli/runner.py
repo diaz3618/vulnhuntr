@@ -372,7 +372,16 @@ def _init_providers(
     # Probe CLI providers on the unwrapped instance — BEFORE FallbackLLM wrapping.
     # Calling probe() after wrapping risks delegating to the wrong inner provider (Pitfall 2).
     if hasattr(llm, "probe"):
-        result = llm.probe()
+        from vulnhuntr.cli_providers.base import CLIAuthError, CLIBinaryNotFoundError
+
+        try:
+            result = llm.probe()
+        except CLIBinaryNotFoundError as exc:
+            log.error("CLI provider binary not found", provider=args.llm, error=str(exc))
+            raise SystemExit(1) from exc
+        except CLIAuthError as exc:
+            log.error("CLI provider authentication failed", provider=args.llm, error=str(exc))
+            raise SystemExit(1) from exc
         if not result.ok:
             log.error(
                 "CLI provider capability check failed",

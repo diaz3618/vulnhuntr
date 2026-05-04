@@ -1,7 +1,7 @@
 """Base class and error taxonomy for CLI-backed LLM providers.
 
 Claude Code, Gemini CLI, Codex, Qwen Code all subclass CLIProviderLLM and
-implement probe(), get_response(), and _extract_usage(). Subprocess transport,
+implement _do_probe(), get_response(), and _extract_usage(). Subprocess transport,
 timeout, env-stripping, and cost tracking live here.
 """
 
@@ -17,6 +17,7 @@ from typing import Any
 import structlog
 
 from vulnhuntr.core.models import LLMUsage
+from vulnhuntr.core.trace import ExecutionTracer
 from vulnhuntr.llms import LLM, LLMError
 
 log = structlog.get_logger(__name__)
@@ -97,16 +98,37 @@ class CLIProviderLLM(LLM, ABC):
         cost_callback: Any | None = None,
         timeout: int = 300,
         workdir: str | None = None,
+        tracer: ExecutionTracer | None = None,
     ) -> None:
         super().__init__(system_prompt, cost_callback)
         self.timeout = timeout
         self.workdir = workdir
         self.session_id: str | None = None
         self._last_probe_version: str | None = None
+        self._tracer = tracer
 
     @abstractmethod
+    def _do_probe(self) -> CapabilityResult:
+        """Provider-specific probe implementation. Do not call directly; use probe()."""
+
     def probe(self) -> CapabilityResult:
-        """Check binary availability and auth before the scan starts."""
+        """Check binary availability and emit a probe_result trace event."""
+        result = self._do_probe()
+        if self._tracer is not None:
+            self._tracer.emit(
+                "probe_result",
+                provider=self.__class__.__name__,
+                ok=result.ok,
+                binary_found=result.binary_found,
+                version=result.version,
+                auth_valid=result.auth_valid,
+                diagnostic_message=result.diagnostic_message,
+            )
+        if not result.binary_found:
+            raise CLIBinaryNotFoundError(f"{self.__class__.__name__}: binary not found. {result.diagnostic_message}")
+        if result.auth_valid is False:
+            raise CLIAuthError(f"{self.__class__.__name__}: authentication failed. {result.diagnostic_message}")
+        return result
 
     @abstractmethod
     def get_response(self, response: Any) -> str:
@@ -222,12 +244,46 @@ class CLIProviderLLM(LLM, ABC):
         """
         self._add_to_history("user", user_prompt)
 
-        response = self.send_message(user_prompt, max_tokens, response_model)
+        try:
+            response = self.send_message(user_prompt, max_tokens, response_model)
+        except CLIParseError as exc:
+            if self._tracer is not None:
+                self._tracer.emit(
+                    "response_validated",
+                    provider=self.__class__.__name__,
+                    vuln_type=None,
+                    confidence=None,
+                    valid=False,
+                    error=str(exc),
+                )
+            raise
+
         self._log_response(response)
 
         response_text = self.get_response(response)
         if response_model:
-            response_text = self._validate_response(response_text, response_model)
+            try:
+                response_text = self._validate_response(response_text, response_model)
+                if self._tracer is not None:
+                    self._tracer.emit(
+                        "response_validated",
+                        provider=self.__class__.__name__,
+                        vuln_type=getattr(response_text, "vulnerability_types", None),
+                        confidence=getattr(response_text, "confidence_score", None),
+                        valid=True,
+                        error=None,
+                    )
+            except Exception as exc:
+                if self._tracer is not None:
+                    self._tracer.emit(
+                        "response_validated",
+                        provider=self.__class__.__name__,
+                        vuln_type=None,
+                        confidence=None,
+                        valid=False,
+                        error=str(exc),
+                    )
+                raise
 
         self._add_to_history("assistant", str(response_text))
         return response_text

@@ -68,7 +68,7 @@ class CodexLLM(CLIProviderLLM):
             env.pop(var, None)
         return env
 
-    def probe(self) -> CapabilityResult:
+    def _do_probe(self) -> CapabilityResult:
         """Check binary and reject versions older than 0.95.0.
 
         Uses tuple comparison, not string comparison — "0.128.0" > "0.95.0"

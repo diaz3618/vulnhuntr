@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 from typing import Any
 
 import structlog
@@ -13,6 +14,7 @@ from vulnhuntr.core.models import (
     MCPToolCallRequest,
     MCPToolCallResult,
 )
+from vulnhuntr.core.trace import ExecutionTracer
 from vulnhuntr.mcp.config import MCPAnalysisMode, MCPAnalysisPolicy, MCPSettings
 
 log = structlog.get_logger(__name__)
@@ -67,12 +69,13 @@ class MCPAnalysisHelper:
     ``asyncio.run()`` or the event loop helper at call sites.
     """
 
-    def __init__(self, settings: MCPSettings) -> None:
+    def __init__(self, settings: MCPSettings, tracer: ExecutionTracer | None = None) -> None:
         self._settings = settings
         self._policy: MCPAnalysisPolicy = settings.analysis
         self._tools: list[ToolDescriptor] = []
         self._client: Any = None  # MCPClientManager (lazy import)
         self._initialized = False
+        self._tracer = tracer
 
     # -- Properties --------------------------------------------------------
 
@@ -228,10 +231,12 @@ class MCPAnalysisHelper:
 
             try:
                 timeout = self._policy.tool_timeout_seconds or None
+                t0 = time.monotonic()
                 raw = await asyncio.wait_for(
                     self._client.call_tool(req.server, req.tool, req.arguments),
                     timeout=timeout if timeout and timeout > 0 else None,
                 )
+                duration_ms = (time.monotonic() - t0) * 1000
                 output_str = _extract_text(raw)
                 results.append(
                     MCPToolCallResult(
@@ -241,6 +246,16 @@ class MCPAnalysisHelper:
                         output=output_str[:MAX_TOOL_RESULT_CHARS],
                     )
                 )
+                if self._tracer is not None:
+                    self._tracer.emit(
+                        "tool_call",
+                        provider="MCPAnalysisHelper",
+                        server=req.server,
+                        tool=req.tool,
+                        success=True,
+                        error=None,
+                        duration_ms=duration_ms,
+                    )
                 log.info(
                     "MCP tool call succeeded",
                     server=req.server,
@@ -248,6 +263,7 @@ class MCPAnalysisHelper:
                     output_len=len(output_str),
                 )
             except asyncio.TimeoutError:
+                duration_ms = (self._policy.tool_timeout_seconds or 0) * 1000
                 results.append(
                     MCPToolCallResult(
                         server=req.server,
@@ -256,6 +272,16 @@ class MCPAnalysisHelper:
                         error=f"Timeout after {self._policy.tool_timeout_seconds}s",
                     )
                 )
+                if self._tracer is not None:
+                    self._tracer.emit(
+                        "tool_call",
+                        provider="MCPAnalysisHelper",
+                        server=req.server,
+                        tool=req.tool,
+                        success=False,
+                        error=f"Timeout after {self._policy.tool_timeout_seconds}s",
+                        duration_ms=duration_ms,
+                    )
                 log.warning("MCP tool call timed out", server=req.server, tool=req.tool)
             except Exception as e:
                 results.append(
@@ -266,6 +292,16 @@ class MCPAnalysisHelper:
                         error=str(e)[:512],
                     )
                 )
+                if self._tracer is not None:
+                    self._tracer.emit(
+                        "tool_call",
+                        provider="MCPAnalysisHelper",
+                        server=req.server,
+                        tool=req.tool,
+                        success=False,
+                        error=str(e)[:512],
+                        duration_ms=0.0,
+                    )
                 log.error("MCP tool call failed", server=req.server, tool=req.tool, error=str(e))
 
         if len(requests) > cap:

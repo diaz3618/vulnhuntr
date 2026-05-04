@@ -19,9 +19,9 @@ from typing import Any, ClassVar
 import structlog
 
 from vulnhuntr.cli_providers.base import (
+    CapabilityResult,
     CLIParseError,
     CLIProviderLLM,
-    CapabilityResult,
 )
 from vulnhuntr.config import CLIPolicy
 from vulnhuntr.core.models import LLMUsage
@@ -61,11 +61,11 @@ class GeminiCLILLM(CLIProviderLLM):
     def _build_env(self) -> dict[str, str]:
         """Strip class-level vars plus any operator-supplied vars from CLIPolicy."""
         env = super()._build_env()
-        for var in (self._policy.strip_env_vars if self._policy else []):
+        for var in self._policy.strip_env_vars if self._policy else []:
             env.pop(var, None)
         return env
 
-    def probe(self) -> CapabilityResult:
+    def _do_probe(self) -> CapabilityResult:
         """Check binary and reject versions older than 0.6.0.
 
         Uses tuple comparison, not string comparison — "0.40.1" > "0.9.0"
@@ -79,10 +79,7 @@ class GeminiCLILLM(CLIProviderLLM):
                 binary_found=False,
                 version=None,
                 auth_valid=None,
-                diagnostic_message=(
-                    "Gemini CLI binary not found. "
-                    "Install with: npm i -g @google/gemini-cli"
-                ),
+                diagnostic_message=("Gemini CLI binary not found. Install with: npm i -g @google/gemini-cli"),
             )
         try:
             result = self._run_subprocess(["gemini", "--version"])
@@ -187,9 +184,7 @@ class GeminiCLILLM(CLIProviderLLM):
         try:
             payload = json.loads(stdout)
         except json.JSONDecodeError as exc:
-            raise CLIParseError(
-                f"Gemini CLI returned invalid JSON: {stdout[:500]}"
-            ) from exc
+            raise CLIParseError(f"Gemini CLI returned invalid JSON: {stdout[:500]}") from exc
         return payload
 
     def get_response(self, response: Any) -> str:
@@ -199,9 +194,7 @@ class GeminiCLILLM(CLIProviderLLM):
         """
         result = response.get("response")
         if result is None:
-            raise CLIParseError(
-                "Gemini CLI response did not contain a 'response' field"
-            )
+            raise CLIParseError("Gemini CLI response did not contain a 'response' field")
         return str(result)
 
     def _extract_usage(self, response: Any) -> LLMUsage:

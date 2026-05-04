@@ -243,10 +243,12 @@ Plans:
 - EVAL-02
 - EVAL-03
 
-**Plans:**
-1. Define a structured trace contract for probe, validation, tool, fallback, and session events
-2. Add behavior-level tests that assert semantic and procedural correctness on representative multi-step flows
-3. Add boundary-focused tests for config parsing, provider selection, and failure classification
+**Plans:** 3 plans
+
+Plans:
+- [ ] 08-01-PLAN.md — Core trace module (trace.py), CLIProviderLLM template method + tracer kwarg, CLIPolicy validation
+- [ ] 08-02-PLAN.md — Provider probe renames, session_decision + fallback_triggered + tool_call wiring, VulnerabilityAnalyzer.tracer
+- [ ] 08-03-PLAN.md — test_trace.py, test_behavior.py, TestCLIPolicyBoundaries, TestProviderSelectionBoundaries
 
 **Success Criteria:**
 1. Critical provider paths emit enough structured events to reconstruct what happened

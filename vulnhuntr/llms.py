@@ -14,6 +14,7 @@ import structlog
 from pydantic import BaseModel, ValidationError
 
 from vulnhuntr.core.models import LLMUsage
+from vulnhuntr.core.trace import ExecutionTracer
 
 log = structlog.get_logger()
 
@@ -473,12 +474,13 @@ class FallbackLLM:
         >>> llm.chat(prompt, response_model=Response)  # tries primary, then fallback1
     """
 
-    def __init__(self, primary: LLM, fallbacks: list[LLM]) -> None:
+    def __init__(self, primary: LLM, fallbacks: list[LLM], tracer: ExecutionTracer | None = None) -> None:
         self._primary = primary
         self._fallbacks = fallbacks
         self._active: LLM = primary
         self._all_llms: list[LLM] = [primary] + fallbacks
         self._diagnostics: list[dict[str, Any]] = []
+        self._tracer = tracer
 
     def __getattr__(self, name: str) -> Any:
         """Delegate attribute access to the active LLM."""
@@ -540,6 +542,15 @@ class FallbackLLM:
                         "fallback_to": type(self._all_llms[i + 1]).__name__ if i + 1 < len(self._all_llms) else "none",
                     }
                 )
+                if self._tracer is not None:
+                    self._tracer.emit(
+                        "fallback_triggered",
+                        provider=type(llm).__name__,
+                        failed_provider=type(llm).__name__,
+                        error_class=type(e).__name__,
+                        fallback_to=type(self._all_llms[i + 1]).__name__ if i + 1 < len(self._all_llms) else "none",
+                        fallback_index=i,
+                    )
                 if i == len(self._all_llms) - 1:
                     raise LLMError(
                         f"All LLMs failed (primary + {len(self._fallbacks)} fallbacks). Last error: {e}"

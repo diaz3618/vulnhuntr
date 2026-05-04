@@ -80,7 +80,7 @@ class QwenCodeLLM(CLIProviderLLM):
                 env["OPENAI_BASE_URL"] = str(base_url)
         return env
 
-    def probe(self) -> CapabilityResult:
+    def _do_probe(self) -> CapabilityResult:
         """Check binary availability and reject versions older than 0.1.0.
 
         Uses tuple comparison, not string comparison.

@@ -11,9 +11,7 @@ Covers Task 1 of Plan 04-03:
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import MagicMock
 
 
 def _make_config(
@@ -100,6 +98,7 @@ class TestInitializeLlmCliProviders:
     def test_config_parameter_accepted_by_signature(self):
         """initialize_llm signature must include config keyword argument."""
         import inspect
+
         from vulnhuntr.cli.runner import initialize_llm
 
         sig = inspect.signature(initialize_llm)

@@ -23,6 +23,7 @@ from vulnhuntr.cli_providers.base import (
 )
 from vulnhuntr.config import CLIPolicy
 from vulnhuntr.core.models import LLMUsage
+from vulnhuntr.core.trace import ExecutionTracer
 
 log = structlog.get_logger(__name__)
 
@@ -43,8 +44,9 @@ class ClaudeCodeLLM(CLIProviderLLM):
         timeout: int = 300,
         workdir: str | None = None,
         policy: CLIPolicy | None = None,
+        tracer: ExecutionTracer | None = None,
     ) -> None:
-        super().__init__(system_prompt, cost_callback, timeout, workdir)
+        super().__init__(system_prompt, cost_callback, timeout, workdir, tracer=tracer)
         self._policy = policy
 
     def _build_env(self) -> dict[str, str]:
@@ -106,7 +108,7 @@ class ClaudeCodeLLM(CLIProviderLLM):
         config_path.write_text(json.dumps({"mcpServers": mcp_servers}), encoding="utf-8")
         return ["--mcp-config", str(config_path)]
 
-    def probe(self) -> CapabilityResult:
+    def _do_probe(self) -> CapabilityResult:
         """Check binary availability and capture version string.
 
         auth_valid is always None — OAuth state can only be confirmed on the
@@ -185,8 +187,10 @@ class ClaudeCodeLLM(CLIProviderLLM):
 
         if session_mode == "stateless":
             cmd.append("--no-session-persistence")
+            flags_added = ["--no-session-persistence"]
         elif session_mode == "continue":
             cmd.append("--continue")
+            flags_added = ["--continue"]
         elif session_mode == "resume":
             if not self.session_id:
                 raise CLIRuntimeError(
@@ -194,6 +198,18 @@ class ClaudeCodeLLM(CLIProviderLLM):
                     "run with session_mode='stateless' or 'continue' first to create one."
                 )
             cmd.extend(["--resume", self.session_id])
+            flags_added = ["--resume", self.session_id]
+        else:
+            flags_added = []
+
+        if self._tracer is not None:
+            self._tracer.emit(
+                "session_decision",
+                provider=self.__class__.__name__,
+                session_mode=session_mode,
+                flags_added=flags_added,
+                warned=False,
+            )
 
         if tool_mode == "none":
             cmd.extend(["--tools", ""])

@@ -30,6 +30,8 @@ if TYPE_CHECKING:
     # Type alias for any LLM client
     LLMClient = Claude | ChatGPT | Ollama
 
+from .trace import ExecutionTracer
+
 log = structlog.get_logger()
 
 
@@ -111,6 +113,7 @@ class VulnerabilityAnalyzer:
         prompt_templates: dict[str, str] | None = None,
         vuln_specific_data: dict[VulnType, dict] | None = None,
         mcp_helper: Any | None = None,
+        tracer: ExecutionTracer | None = None,
     ) -> None:
         """Initialize the analyzer.
 
@@ -121,6 +124,7 @@ class VulnerabilityAnalyzer:
             prompt_templates: Custom prompt templates (optional)
             vuln_specific_data: Bypasses and prompts per vuln type
             mcp_helper: Optional MCPAnalysisHelper; None disables MCP tool dispatch.
+            tracer: Optional execution tracer for behavioral capture.
         """
         self.llm = llm
         self.code_extractor = code_extractor
@@ -128,6 +132,7 @@ class VulnerabilityAnalyzer:
         self.prompt_templates = prompt_templates or {}
         self.vuln_specific_data = vuln_specific_data or {}
         self.mcp_helper = mcp_helper
+        self.tracer = tracer
 
         # Callbacks
         self._on_iteration: Callable | None = None

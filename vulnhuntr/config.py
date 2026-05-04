@@ -49,6 +49,24 @@ class CLIPolicy:
     tool_mode: str = "none"
     strip_env_vars: list[str] = field(default_factory=list)
 
+    _VALID_SESSION_MODES: frozenset[str] = frozenset({"stateless", "continue", "resume"})
+    _VALID_MCP_MODES: frozenset[str] = frozenset({"none", "vulnhuntr", "provider", "both"})
+    _VALID_TOOL_MODES: frozenset[str] = frozenset({"none", "read-only", "full"})
+
+    def __post_init__(self) -> None:
+        if self.session_mode not in self._VALID_SESSION_MODES:
+            raise ValueError(
+                f"Invalid session_mode {self.session_mode!r}. Must be one of: {sorted(self._VALID_SESSION_MODES)}"
+            )
+        if self.mcp_mode not in self._VALID_MCP_MODES:
+            raise ValueError(f"Invalid mcp_mode {self.mcp_mode!r}. Must be one of: {sorted(self._VALID_MCP_MODES)}")
+        if self.tool_mode not in self._VALID_TOOL_MODES:
+            raise ValueError(f"Invalid tool_mode {self.tool_mode!r}. Must be one of: {sorted(self._VALID_TOOL_MODES)}")
+        if self.timeout < 0:
+            raise ValueError(f"timeout must be >= 0, got {self.timeout}")
+        if self.max_turns < 1:
+            raise ValueError(f"max_turns must be >= 1, got {self.max_turns}")
+
 
 # Try to import yaml, provide fallback if not available
 try:
@@ -167,30 +185,30 @@ class VulnhuntrConfig:
 
         if "cli" in data and isinstance(data["cli"], dict):
             cli_data = data["cli"]
-            cli = CLIPolicy()
+            kwargs: dict[str, Any] = {}
             if "timeout" in cli_data:
-                cli.timeout = int(cli_data["timeout"])
+                kwargs["timeout"] = int(cli_data["timeout"])
             if "workdir" in cli_data:
-                cli.workdir = str(cli_data["workdir"])
+                kwargs["workdir"] = str(cli_data["workdir"])
             if "auth_mode" in cli_data:
-                cli.auth_mode = str(cli_data["auth_mode"])
+                kwargs["auth_mode"] = str(cli_data["auth_mode"])
             if "session_mode" in cli_data:
-                cli.session_mode = str(cli_data["session_mode"])
+                kwargs["session_mode"] = str(cli_data["session_mode"])
             if "approval_mode" in cli_data:
-                cli.approval_mode = str(cli_data["approval_mode"])
+                kwargs["approval_mode"] = str(cli_data["approval_mode"])
             if "sandbox_mode" in cli_data:
-                cli.sandbox_mode = str(cli_data["sandbox_mode"])
+                kwargs["sandbox_mode"] = str(cli_data["sandbox_mode"])
             if "max_turns" in cli_data:
-                cli.max_turns = int(cli_data["max_turns"])
+                kwargs["max_turns"] = int(cli_data["max_turns"])
             if "mcp_mode" in cli_data:
-                cli.mcp_mode = str(cli_data["mcp_mode"])
+                kwargs["mcp_mode"] = str(cli_data["mcp_mode"])
             if "overrides" in cli_data and isinstance(cli_data["overrides"], dict):
-                cli.overrides = dict(cli_data["overrides"])
+                kwargs["overrides"] = dict(cli_data["overrides"])
             if "tool_mode" in cli_data:
-                cli.tool_mode = str(cli_data["tool_mode"])
+                kwargs["tool_mode"] = str(cli_data["tool_mode"])
             if "strip_env_vars" in cli_data and isinstance(cli_data["strip_env_vars"], list):
-                cli.strip_env_vars = list(cli_data["strip_env_vars"])
-            config.cli = cli
+                kwargs["strip_env_vars"] = list(cli_data["strip_env_vars"])
+            config.cli = CLIPolicy(**kwargs)
 
         return config
 
