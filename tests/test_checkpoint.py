@@ -62,6 +62,7 @@ class TestCheckpointData:
             "started_at",
             "last_updated",
             "vulnhuntr_version",
+            "session_metadata",
         }
         assert set(d.keys()) == expected
 

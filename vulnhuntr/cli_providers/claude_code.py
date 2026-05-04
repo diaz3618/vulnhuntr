@@ -74,7 +74,8 @@ class ClaudeCodeLLM(CLIProviderLLM):
             from vulnhuntr.mcp import load_mcp_config
             from vulnhuntr.mcp.config import TransportType
 
-            mcp_settings = load_mcp_config()
+            start_dir = pathlib.Path(self.workdir) if self.workdir else None
+            mcp_settings = load_mcp_config(start_dir=start_dir)
         except Exception:
             return []
 
@@ -98,9 +99,6 @@ class ClaudeCodeLLM(CLIProviderLLM):
                     entry["headers"] = server_cfg.headers
 
             mcp_servers[server_name] = entry
-
-        if not mcp_servers:
-            return []
 
         workdir = self.workdir or "/tmp/vulnhuntr"
         config_path = pathlib.Path(workdir) / "mcp_config.json"

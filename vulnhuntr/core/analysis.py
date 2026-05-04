@@ -354,8 +354,12 @@ class VulnerabilityAnalyzer:
             if self.mcp_helper is not None and self.mcp_helper.is_active and report.mcp_tool_calls:
                 from vulnhuntr.mcp.analysis import run_async  # lazy import — optional dependency
 
-                mcp_results = run_async(self.mcp_helper.execute_tool_calls(report.mcp_tool_calls))
-                mcp_pending_block = self.mcp_helper.format_results_for_prompt(mcp_results)
+                try:
+                    mcp_results = run_async(self.mcp_helper.execute_tool_calls(report.mcp_tool_calls))
+                    mcp_pending_block = self.mcp_helper.format_results_for_prompt(mcp_results)
+                except Exception as mcp_err:
+                    log.warning("mcp_dispatch_failed", error=str(mcp_err)[:200])
+                    mcp_pending_block = ""
 
             # Call iteration callback if set
             if self._on_iteration:
