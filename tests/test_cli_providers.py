@@ -19,6 +19,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from vulnhuntr.cli_providers import (
+    CapabilityResult,
     CLIAuthError,
     CLIBinaryNotFoundError,
     CLIParseError,
@@ -26,10 +27,8 @@ from vulnhuntr.cli_providers import (
     CLIRuntimeError,
     CLISandboxError,
     CLITimeoutError,
-    CapabilityResult,
 )
 from vulnhuntr.llms import LLM, LLMError
-
 
 # ---------------------------------------------------------------------------
 # Minimal concrete subclass for testing the abstract base
@@ -147,7 +146,9 @@ class TestCapabilityResult:
         assert cr.ok is True
 
     def test_binary_found_field(self):
-        cr = CapabilityResult(ok=False, binary_found=False, version=None, auth_valid=None, diagnostic_message="not found")
+        cr = CapabilityResult(
+            ok=False, binary_found=False, version=None, auth_valid=None, diagnostic_message="not found"
+        )
         assert cr.binary_found is False
 
     def test_version_can_be_none(self):
@@ -159,7 +160,9 @@ class TestCapabilityResult:
         assert cr.auth_valid is None
 
     def test_diagnostic_message_present(self):
-        cr = CapabilityResult(ok=False, binary_found=True, version=None, auth_valid=False, diagnostic_message="auth failed")
+        cr = CapabilityResult(
+            ok=False, binary_found=True, version=None, auth_valid=False, diagnostic_message="auth failed"
+        )
         assert cr.diagnostic_message == "auth failed"
 
     def test_probe_returns_capability_result(self):
@@ -347,25 +350,30 @@ class TestClaudeCodeLLMImport:
 
     def test_in_all(self):
         from vulnhuntr import cli_providers
+
         assert "ClaudeCodeLLM" in cli_providers.__all__
 
     def test_subclass_of_cli_provider_llm(self):
         from vulnhuntr.cli_providers import ClaudeCodeLLM
+
         assert issubclass(ClaudeCodeLLM, CLIProviderLLM)
 
     def test_strip_env_vars_contains_anthropic_api_key(self):
         from vulnhuntr.cli_providers import ClaudeCodeLLM
+
         assert "ANTHROPIC_API_KEY" in ClaudeCodeLLM._STRIP_ENV_VARS
 
     def test_no_chat_override(self):
         from vulnhuntr.cli_providers import ClaudeCodeLLM
         from vulnhuntr.cli_providers.base import CLIProviderLLM as Base
+
         assert ClaudeCodeLLM.chat is Base.chat
 
 
 class TestClaudeCodeLLMProbe:
     def test_probe_missing_binary(self):
         from vulnhuntr.cli_providers import ClaudeCodeLLM
+
         with patch("shutil.which", return_value=None):
             provider = ClaudeCodeLLM()
             result = provider.probe()
@@ -376,6 +384,7 @@ class TestClaudeCodeLLMProbe:
 
     def test_probe_ok(self):
         from vulnhuntr.cli_providers import ClaudeCodeLLM
+
         mock_result = MagicMock()
         mock_result.stdout = "2.1.126 (Claude Code)"
         mock_result.returncode = 0
@@ -393,7 +402,10 @@ class TestClaudeCodeLLMProbe:
 class TestClaudeCodeLLMSendMessage:
     def test_send_message_success(self):
         from vulnhuntr.cli_providers import ClaudeCodeLLM
-        payload_json = '{"result":"hello","usage":{"input_tokens":10,"output_tokens":5},"modelUsage":{"claude-sonnet-4-6":{}}}'
+
+        payload_json = (
+            '{"result":"hello","usage":{"input_tokens":10,"output_tokens":5},"modelUsage":{"claude-sonnet-4-6":{}}}'
+        )
         mock_result = MagicMock()
         mock_result.returncode = 0
         mock_result.stdout = payload_json
@@ -407,6 +419,7 @@ class TestClaudeCodeLLMSendMessage:
 
     def test_send_message_empty_stdout_raises_cli_parse_error(self):
         from vulnhuntr.cli_providers import ClaudeCodeLLM
+
         mock_result = MagicMock()
         mock_result.returncode = 0
         mock_result.stdout = ""
@@ -418,6 +431,7 @@ class TestClaudeCodeLLMSendMessage:
 
     def test_send_message_bad_json_raises_cli_parse_error(self):
         from vulnhuntr.cli_providers import ClaudeCodeLLM
+
         mock_result = MagicMock()
         mock_result.returncode = 0
         mock_result.stdout = "not json"
@@ -431,12 +445,14 @@ class TestClaudeCodeLLMSendMessage:
 class TestClaudeCodeLLMGetResponse:
     def test_get_response_ok(self):
         from vulnhuntr.cli_providers import ClaudeCodeLLM
+
         provider = ClaudeCodeLLM()
         result = provider.get_response({"result": "text"})
         assert result == "text"
 
     def test_get_response_missing_raises_cli_parse_error(self):
         from vulnhuntr.cli_providers import ClaudeCodeLLM
+
         provider = ClaudeCodeLLM()
         with pytest.raises(CLIParseError):
             provider.get_response({"other": "x"})
@@ -446,6 +462,7 @@ class TestClaudeCodeLLMExtractUsage:
     def test_extract_usage_sums_cache_tokens(self):
         from vulnhuntr.cli_providers import ClaudeCodeLLM
         from vulnhuntr.core.models import LLMUsage
+
         provider = ClaudeCodeLLM()
         payload = {
             "usage": {
@@ -466,7 +483,9 @@ class TestClaudeCodeLLMExtractUsage:
 class TestClaudeCodeLLMBuildEnv:
     def test_build_env_strips_anthropic_api_key(self):
         import os
+
         from vulnhuntr.cli_providers import ClaudeCodeLLM
+
         os.environ["ANTHROPIC_API_KEY"] = "test-key-should-be-stripped"
         try:
             provider = ClaudeCodeLLM()
@@ -477,8 +496,10 @@ class TestClaudeCodeLLMBuildEnv:
 
     def test_build_env_strips_policy_vars(self):
         import os
+
         from vulnhuntr.cli_providers import ClaudeCodeLLM
         from vulnhuntr.config import CLIPolicy
+
         os.environ["CUSTOM_SECRET"] = "should-also-be-stripped"
         try:
             policy = CLIPolicy()
@@ -534,17 +555,14 @@ class TestGeminiCLILLM:
         mock_result.returncode = 0
         mock_result.stderr = ""
 
-        with patch("shutil.which", return_value="/usr/bin/gemini"), patch(
-            "subprocess.run", return_value=mock_result
-        ):
+        with patch("shutil.which", return_value="/usr/bin/gemini"), patch("subprocess.run", return_value=mock_result):
             result = provider.probe()
 
         assert result.ok is False
         assert result.binary_found is True
         assert result.version == "0.5.9"
         assert result.diagnostic_message == (
-            "Gemini CLI 0.5.9 too old; --output-format json requires >= 0.6.0. "
-            "Run: npm i -g @google/gemini-cli"
+            "Gemini CLI 0.5.9 too old; --output-format json requires >= 0.6.0. Run: npm i -g @google/gemini-cli"
         )
 
     # Test 3: probe — version 0.40.1 passes gate (0.40.1 >= 0.6.0 as tuples)
@@ -560,9 +578,7 @@ class TestGeminiCLILLM:
         mock_result.returncode = 0
         mock_result.stderr = ""
 
-        with patch("shutil.which", return_value="/usr/bin/gemini"), patch(
-            "subprocess.run", return_value=mock_result
-        ):
+        with patch("shutil.which", return_value="/usr/bin/gemini"), patch("subprocess.run", return_value=mock_result):
             result = provider.probe()
 
         assert result.ok is True
@@ -574,11 +590,11 @@ class TestGeminiCLILLM:
     @pytest.mark.parametrize(
         "version_str,expected_ok",
         [
-            ("0.40.1", True),   # (0,40,1) >= (0,6,0) — string compare would fail
-            ("0.9.0", True),    # (0,9,0) >= (0,6,0)
-            ("0.5.9", False),   # (0,5,9) < (0,6,0)
-            ("0.6.0", True),    # exactly at minimum
-            ("1.0.0", True),    # major version bump
+            ("0.40.1", True),  # (0,40,1) >= (0,6,0) — string compare would fail
+            ("0.9.0", True),  # (0,9,0) >= (0,6,0)
+            ("0.5.9", False),  # (0,5,9) < (0,6,0)
+            ("0.6.0", True),  # exactly at minimum
+            ("1.0.0", True),  # major version bump
         ],
     )
     def test_probe_semver_tuple_comparison(self, version_str, expected_ok):
@@ -593,9 +609,7 @@ class TestGeminiCLILLM:
         mock_result.returncode = 0
         mock_result.stderr = ""
 
-        with patch("shutil.which", return_value="/usr/bin/gemini"), patch(
-            "subprocess.run", return_value=mock_result
-        ):
+        with patch("shutil.which", return_value="/usr/bin/gemini"), patch("subprocess.run", return_value=mock_result):
             result = provider.probe()
 
         assert result.ok is expected_ok
@@ -609,8 +623,7 @@ class TestGeminiCLILLM:
 
         provider = GeminiCLILLM()
         stdout_payload = (
-            '{"response":"hello",'
-            '"stats":{"models":{"gemini-2.5-flash":{"tokens":{"input":100,"candidates":20}}}}}'
+            '{"response":"hello","stats":{"models":{"gemini-2.5-flash":{"tokens":{"input":100,"candidates":20}}}}}'
         )
         mock_result = MagicMock()
         mock_result.stdout = stdout_payload
@@ -678,15 +691,7 @@ class TestGeminiCLILLM:
         """_extract_usage() returns correct token counts for single model."""
         from vulnhuntr.core.models import LLMUsage
 
-        payload = {
-            "stats": {
-                "models": {
-                    "gemini-2.5-flash": {
-                        "tokens": {"input": 100, "candidates": 20}
-                    }
-                }
-            }
-        }
+        payload = {"stats": {"models": {"gemini-2.5-flash": {"tokens": {"input": 100, "candidates": 20}}}}}
         usage = gemini._extract_usage(payload)
         assert isinstance(usage, LLMUsage)
         assert usage.input_tokens == 100
@@ -695,17 +700,12 @@ class TestGeminiCLILLM:
     # Test 11: _extract_usage — multi-model summing
     def test_extract_usage_multi_model_sums(self, gemini):
         """_extract_usage() sums tokens across ALL model entries."""
-        from vulnhuntr.core.models import LLMUsage
 
         payload = {
             "stats": {
                 "models": {
-                    "gemini-2.5-flash-lite": {
-                        "tokens": {"input": 100, "candidates": 20}
-                    },
-                    "gemini-2.5-flash": {
-                        "tokens": {"input": 50, "candidates": 10}
-                    },
+                    "gemini-2.5-flash-lite": {"tokens": {"input": 100, "candidates": 20}},
+                    "gemini-2.5-flash": {"tokens": {"input": 50, "candidates": 10}},
                 }
             }
         }
@@ -743,7 +743,7 @@ class TestGeminiCLILLM:
     # Test 14: approval-mode plan for tool_mode none
     def test_send_message_approval_mode_plan_for_none(self):
         """send_message() uses --approval-mode plan when tool_mode is 'none'."""
-        from unittest.mock import MagicMock, call
+        from unittest.mock import MagicMock
 
         from vulnhuntr.cli_providers.gemini_cli import GeminiCLILLM
 
@@ -903,7 +903,7 @@ _GEMINI_SUCCESS_JSON = (
     '"stats": {"models": {'
     '"gemini-2.5-flash": {"tokens": {"input": 100, "candidates": 20}}, '
     '"gemini-2.5-flash-lite": {"tokens": {"input": 50, "candidates": 10}}'
-    '}}}'
+    "}}}"
 )
 
 
@@ -921,9 +921,7 @@ class TestClaudeCodeLLM:
         provider = ClaudeCodeLLM()
         with patch("shutil.which", return_value="/usr/bin/claude"):
             with patch("subprocess.run") as mock_run:
-                mock_run.return_value = MagicMock(
-                    returncode=0, stdout="2.1.126 (Claude Code)", stderr=""
-                )
+                mock_run.return_value = MagicMock(returncode=0, stdout="2.1.126 (Claude Code)", stderr="")
                 result = provider.probe()
         assert result.ok is True
         assert result.binary_found is True
@@ -945,9 +943,7 @@ class TestClaudeCodeLLM:
 
         provider = ClaudeCodeLLM()
         with patch("subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(
-                returncode=0, stdout=_CLAUDE_SUCCESS_JSON, stderr=""
-            )
+            mock_run.return_value = MagicMock(returncode=0, stdout=_CLAUDE_SUCCESS_JSON, stderr="")
             payload = provider.send_message("test prompt", 256, None)
         assert "result" in payload
         assert provider.model == "claude-sonnet-4-6"
@@ -1080,3 +1076,577 @@ def test_gemini_cli_live_round_trip():
     assert "response" in payload
     text = provider.get_response(payload)
     assert isinstance(text, str) and len(text) > 0
+
+
+# ---------------------------------------------------------------------------
+# CodexLLM tests (CODEX-01)
+# ---------------------------------------------------------------------------
+
+
+class TestCodexLLMImport:
+    def test_importable_from_cli_providers(self):
+        from vulnhuntr.cli_providers import CodexLLM  # noqa: F401
+
+    def test_in_all(self):
+        from vulnhuntr import cli_providers
+
+        assert "CodexLLM" in cli_providers.__all__
+
+    def test_subclass_of_cli_provider_llm(self):
+        from vulnhuntr.cli_providers import CodexLLM
+
+        assert issubclass(CodexLLM, CLIProviderLLM)
+
+    def test_strip_env_vars_contains_openai_api_key(self):
+        from vulnhuntr.cli_providers import CodexLLM
+
+        assert "OPENAI_API_KEY" in CodexLLM._STRIP_ENV_VARS
+
+    def test_no_chat_override(self):
+        from vulnhuntr.cli_providers import CodexLLM
+        from vulnhuntr.cli_providers.base import CLIProviderLLM as Base
+
+        assert CodexLLM.chat is Base.chat
+
+
+class TestCodexLLMProbe:
+    def test_probe_missing_binary(self):
+        from vulnhuntr.cli_providers import CodexLLM
+
+        with patch("shutil.which", return_value=None):
+            provider = CodexLLM()
+            result = provider.probe()
+        assert result.ok is False
+        assert result.binary_found is False
+        assert result.auth_valid is None
+        assert "npm i -g @openai/codex" in result.diagnostic_message
+
+    def test_probe_version_too_old(self):
+        from vulnhuntr.cli_providers import CodexLLM
+
+        mock_result = MagicMock()
+        mock_result.stdout = "codex 0.90.0"
+        mock_result.returncode = 0
+        mock_result.stderr = ""
+        with patch("shutil.which", return_value="/usr/bin/codex"):
+            with patch("subprocess.run", return_value=mock_result):
+                provider = CodexLLM()
+                result = provider.probe()
+        assert result.ok is False
+        assert result.binary_found is True
+        assert result.version == "0.90.0"
+
+    def test_probe_ok(self):
+        from vulnhuntr.cli_providers import CodexLLM
+
+        mock_result = MagicMock()
+        mock_result.stdout = "codex 0.128.0"
+        mock_result.returncode = 0
+        mock_result.stderr = ""
+        with patch("shutil.which", return_value="/usr/bin/codex"):
+            with patch("subprocess.run", return_value=mock_result):
+                provider = CodexLLM()
+                result = provider.probe()
+        assert result.ok is True
+        assert result.binary_found is True
+        assert result.version == "0.128.0"
+        assert result.auth_valid is None
+
+
+class TestCodexLLMSendMessage:
+    def _make_jsonl(
+        self,
+        text: str,
+        input_tokens: int = 10,
+        output_tokens: int = 5,
+    ) -> str:
+        import json
+
+        lines = [
+            json.dumps({"type": "thread.started", "thread_id": "abc"}),
+            json.dumps({"type": "turn.started"}),
+            json.dumps(
+                {
+                    "type": "item.completed",
+                    "item": {"type": "agent_message", "text": text},
+                }
+            ),
+            json.dumps(
+                {
+                    "type": "turn.completed",
+                    "usage": {
+                        "input_tokens": input_tokens,
+                        "cached_input_tokens": 0,
+                        "output_tokens": output_tokens,
+                        "reasoning_output_tokens": 0,
+                    },
+                }
+            ),
+        ]
+        return "\n".join(lines)
+
+    def test_send_message_success(self):
+        from vulnhuntr.cli_providers import CodexLLM
+
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = self._make_jsonl("analysis complete")
+        mock_result.stderr = ""
+        with patch("subprocess.run", return_value=mock_result):
+            provider = CodexLLM()
+            response = provider.send_message("analyze this", 8192)
+        assert "events" in response
+        assert isinstance(response["events"], list)
+
+    def test_send_message_empty_stdout_raises_cli_parse_error(self):
+        from vulnhuntr.cli_providers import CodexLLM
+
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = ""
+        mock_result.stderr = ""
+        with patch("subprocess.run", return_value=mock_result):
+            provider = CodexLLM()
+            with pytest.raises(CLIParseError):
+                provider.send_message("test", 8192)
+
+    def test_send_message_no_parseable_lines_raises_cli_parse_error(self):
+        from vulnhuntr.cli_providers import CodexLLM
+
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = "not json at all\nalso not json"
+        mock_result.stderr = ""
+        with patch("subprocess.run", return_value=mock_result):
+            provider = CodexLLM()
+            with pytest.raises(CLIParseError):
+                provider.send_message("test", 8192)
+
+    def test_send_message_tool_mode_none_uses_read_only_sandbox(self):
+        from vulnhuntr.cli_providers import CodexLLM
+        from vulnhuntr.config import CLIPolicy
+
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = self._make_jsonl("result")
+        mock_result.stderr = ""
+        with patch("subprocess.run", return_value=mock_result) as mock_run:
+            provider = CodexLLM(policy=CLIPolicy(tool_mode="none"))
+            provider.send_message("test", 8192)
+        cmd = mock_run.call_args[0][0]
+        assert "--sandbox" in cmd
+        assert "read-only" in cmd
+        assert "--ask-for-approval" in cmd
+        assert "never" in cmd
+
+    def test_send_message_tool_mode_full_uses_workspace_write_sandbox(self):
+        from vulnhuntr.cli_providers import CodexLLM
+        from vulnhuntr.config import CLIPolicy
+
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = self._make_jsonl("result")
+        mock_result.stderr = ""
+        with patch("subprocess.run", return_value=mock_result) as mock_run:
+            provider = CodexLLM(policy=CLIPolicy(tool_mode="full"))
+            provider.send_message("test", 8192)
+        cmd = mock_run.call_args[0][0]
+        assert "--sandbox" in cmd
+        assert "workspace-write" in cmd
+
+    def test_send_message_prompt_is_last_positional_arg_not_after_p_flag(self):
+        from vulnhuntr.cli_providers import CodexLLM
+
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = self._make_jsonl("ok")
+        mock_result.stderr = ""
+        with patch("subprocess.run", return_value=mock_result) as mock_run:
+            provider = CodexLLM()
+            provider.send_message("my prompt", 8192)
+        cmd = mock_run.call_args[0][0]
+        assert cmd[-1] == "my prompt"
+        assert "-p" not in cmd
+
+
+class TestCodexLLMGetResponse:
+    def test_get_response_ok(self):
+        from vulnhuntr.cli_providers import CodexLLM
+
+        provider = CodexLLM()
+        events = [
+            {
+                "type": "item.completed",
+                "item": {"type": "agent_message", "text": "hello world"},
+            },
+            {"type": "turn.completed", "usage": {"input_tokens": 5, "output_tokens": 3}},
+        ]
+        result = provider.get_response({"events": events})
+        assert result == "hello world"
+
+    def test_get_response_returns_last_agent_message(self):
+        from vulnhuntr.cli_providers import CodexLLM
+
+        provider = CodexLLM()
+        events = [
+            {
+                "type": "item.completed",
+                "item": {"type": "agent_message", "text": "first"},
+            },
+            {
+                "type": "item.completed",
+                "item": {"type": "agent_message", "text": "final"},
+            },
+        ]
+        result = provider.get_response({"events": events})
+        assert result == "final"
+
+    def test_get_response_missing_agent_message_raises_cli_parse_error(self):
+        from vulnhuntr.cli_providers import CodexLLM
+
+        provider = CodexLLM()
+        events = [{"type": "turn.completed", "usage": {}}]
+        with pytest.raises(CLIParseError):
+            provider.get_response({"events": events})
+
+
+class TestCodexLLMExtractUsage:
+    def test_extract_usage_from_turn_completed(self):
+        from vulnhuntr.cli_providers import CodexLLM
+        from vulnhuntr.core.models import LLMUsage
+
+        provider = CodexLLM()
+        events = [
+            {
+                "type": "turn.completed",
+                "usage": {
+                    "input_tokens": 100,
+                    "cached_input_tokens": 20,
+                    "output_tokens": 50,
+                    "reasoning_output_tokens": 0,
+                },
+            },
+        ]
+        usage = provider._extract_usage({"events": events})
+        assert isinstance(usage, LLMUsage)
+        assert usage.input_tokens == 120  # input_tokens(100) + cached_input_tokens(20)
+        assert usage.output_tokens == 50
+
+    def test_extract_usage_no_turn_completed_returns_zeros(self):
+        from vulnhuntr.cli_providers import CodexLLM
+        from vulnhuntr.core.models import LLMUsage
+
+        provider = CodexLLM()
+        usage = provider._extract_usage({"events": []})
+        assert isinstance(usage, LLMUsage)
+        assert usage.input_tokens == 0
+        assert usage.output_tokens == 0
+
+
+# ---------------------------------------------------------------------------
+# QwenCodeLLM tests (QWEN-01)
+# ---------------------------------------------------------------------------
+
+
+class TestQwenCodeLLMImport:
+    def test_importable_from_cli_providers(self):
+        from vulnhuntr.cli_providers import QwenCodeLLM  # noqa: F401
+
+    def test_in_all(self):
+        from vulnhuntr import cli_providers
+
+        assert "QwenCodeLLM" in cli_providers.__all__
+
+    def test_subclass_of_cli_provider_llm(self):
+        from vulnhuntr.cli_providers import QwenCodeLLM
+
+        assert issubclass(QwenCodeLLM, CLIProviderLLM)
+
+    def test_strip_env_vars_contains_dashscope_and_bailian(self):
+        from vulnhuntr.cli_providers import QwenCodeLLM
+
+        assert "DASHSCOPE_API_KEY" in QwenCodeLLM._STRIP_ENV_VARS
+        assert "BAILIAN_CODING_PLAN_API_KEY" in QwenCodeLLM._STRIP_ENV_VARS
+
+    def test_strip_env_vars_does_not_contain_openai_api_key(self):
+        from vulnhuntr.cli_providers import QwenCodeLLM
+
+        assert "OPENAI_API_KEY" not in QwenCodeLLM._STRIP_ENV_VARS
+
+    def test_no_chat_override(self):
+        from vulnhuntr.cli_providers import QwenCodeLLM
+        from vulnhuntr.cli_providers.base import CLIProviderLLM as Base
+
+        assert QwenCodeLLM.chat is Base.chat
+
+
+class TestQwenCodeLLMProbe:
+    def test_probe_missing_binary(self):
+        from vulnhuntr.cli_providers import QwenCodeLLM
+
+        with patch("shutil.which", return_value=None):
+            provider = QwenCodeLLM()
+            result = provider.probe()
+        assert result.ok is False
+        assert result.binary_found is False
+        assert "npm i -g @qwen-code/qwen-code" in result.diagnostic_message
+
+    def test_probe_ok(self):
+        from vulnhuntr.cli_providers import QwenCodeLLM
+
+        mock_result = MagicMock()
+        mock_result.stdout = "0.15.6"
+        mock_result.returncode = 0
+        mock_result.stderr = ""
+        with patch("shutil.which", return_value="/usr/bin/qwen"):
+            with patch("subprocess.run", return_value=mock_result):
+                provider = QwenCodeLLM()
+                result = provider.probe()
+        assert result.ok is True
+        assert result.binary_found is True
+        assert result.version == "0.15.6"
+        assert result.auth_valid is None
+
+
+class TestQwenCodeLLMSendMessage:
+    def _make_json_array(
+        self,
+        text: str,
+        input_tokens: int = 10,
+        output_tokens: int = 5,
+    ) -> str:
+        import json
+
+        messages = [
+            {
+                "type": "system",
+                "subtype": "session_start",
+                "model": "qwen3-coder-plus",
+            },
+            {
+                "type": "assistant",
+                "message": {
+                    "role": "assistant",
+                    "content": [{"type": "text", "text": text}],
+                    "usage": {
+                        "input_tokens": input_tokens,
+                        "output_tokens": output_tokens,
+                    },
+                },
+            },
+            {
+                "type": "result",
+                "subtype": "success",
+                "is_error": False,
+                "result": text,
+                "usage": {
+                    "input_tokens": input_tokens,
+                    "output_tokens": output_tokens,
+                },
+            },
+        ]
+        return json.dumps(messages)
+
+    def test_send_message_success(self):
+        from vulnhuntr.cli_providers import QwenCodeLLM
+
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = self._make_json_array("analysis done")
+        mock_result.stderr = ""
+        with patch("subprocess.run", return_value=mock_result):
+            provider = QwenCodeLLM()
+            response = provider.send_message("analyze", 8192)
+        assert "messages" in response
+        assert isinstance(response["messages"], list)
+
+    def test_send_message_empty_stdout_raises_cli_parse_error(self):
+        from vulnhuntr.cli_providers import QwenCodeLLM
+
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = ""
+        mock_result.stderr = ""
+        with patch("subprocess.run", return_value=mock_result):
+            provider = QwenCodeLLM()
+            with pytest.raises(CLIParseError):
+                provider.send_message("test", 8192)
+
+    def test_send_message_non_array_json_raises_cli_parse_error(self):
+        from vulnhuntr.cli_providers import QwenCodeLLM
+
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = '{"response": "this is gemini format"}'
+        mock_result.stderr = ""
+        with patch("subprocess.run", return_value=mock_result):
+            provider = QwenCodeLLM()
+            with pytest.raises(CLIParseError):
+                provider.send_message("test", 8192)
+
+    def test_send_message_tool_mode_none_uses_approval_mode_plan(self):
+        from vulnhuntr.cli_providers import QwenCodeLLM
+        from vulnhuntr.config import CLIPolicy
+
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = self._make_json_array("ok")
+        mock_result.stderr = ""
+        with patch("subprocess.run", return_value=mock_result) as mock_run:
+            provider = QwenCodeLLM(policy=CLIPolicy(tool_mode="none"))
+            provider.send_message("test", 8192)
+        cmd = mock_run.call_args[0][0]
+        assert "--approval-mode" in cmd
+        assert "plan" in cmd
+        assert "--yolo" not in cmd
+
+    def test_send_message_tool_mode_full_uses_yolo(self):
+        from vulnhuntr.cli_providers import QwenCodeLLM
+        from vulnhuntr.config import CLIPolicy
+
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = self._make_json_array("ok")
+        mock_result.stderr = ""
+        with patch("subprocess.run", return_value=mock_result) as mock_run:
+            provider = QwenCodeLLM(policy=CLIPolicy(tool_mode="full"))
+            provider.send_message("test", 8192)
+        cmd = mock_run.call_args[0][0]
+        assert "--yolo" in cmd
+        assert "--approval-mode" not in cmd
+
+    def test_send_message_uses_p_flag(self):
+        from vulnhuntr.cli_providers import QwenCodeLLM
+
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = self._make_json_array("ok")
+        mock_result.stderr = ""
+        with patch("subprocess.run", return_value=mock_result) as mock_run:
+            provider = QwenCodeLLM()
+            provider.send_message("my prompt", 8192)
+        cmd = mock_run.call_args[0][0]
+        assert "-p" in cmd
+        p_idx = cmd.index("-p")
+        assert cmd[p_idx + 1] == "my prompt"
+
+
+class TestQwenCodeLLMGetResponse:
+    def test_get_response_ok(self):
+        from vulnhuntr.cli_providers import QwenCodeLLM
+
+        provider = QwenCodeLLM()
+        messages = [
+            {"type": "system", "model": "qwen3-coder-plus"},
+            {
+                "type": "result",
+                "subtype": "success",
+                "is_error": False,
+                "result": "the answer",
+            },
+        ]
+        result = provider.get_response({"messages": messages})
+        assert result == "the answer"
+
+    def test_get_response_no_result_entry_raises_cli_parse_error(self):
+        from vulnhuntr.cli_providers import QwenCodeLLM
+
+        provider = QwenCodeLLM()
+        messages = [{"type": "system", "model": "qwen3-coder-plus"}]
+        with pytest.raises(CLIParseError):
+            provider.get_response({"messages": messages})
+
+    def test_get_response_is_error_raises_cli_parse_error(self):
+        from vulnhuntr.cli_providers import QwenCodeLLM
+
+        provider = QwenCodeLLM()
+        messages = [
+            {
+                "type": "result",
+                "subtype": "error",
+                "is_error": True,
+                "result": "something failed",
+            },
+        ]
+        with pytest.raises(CLIParseError):
+            provider.get_response({"messages": messages})
+
+
+class TestQwenCodeLLMExtractUsage:
+    def test_extract_usage_from_result_entry(self):
+        from vulnhuntr.cli_providers import QwenCodeLLM
+        from vulnhuntr.core.models import LLMUsage
+
+        provider = QwenCodeLLM()
+        messages = [
+            {
+                "type": "result",
+                "subtype": "success",
+                "is_error": False,
+                "result": "ok",
+                "usage": {"input_tokens": 200, "output_tokens": 75},
+            },
+        ]
+        usage = provider._extract_usage({"messages": messages})
+        assert isinstance(usage, LLMUsage)
+        assert usage.input_tokens == 200
+        assert usage.output_tokens == 75
+
+    def test_extract_usage_fallback_to_assistant_message(self):
+        from vulnhuntr.cli_providers import QwenCodeLLM
+        from vulnhuntr.core.models import LLMUsage
+
+        provider = QwenCodeLLM()
+        messages = [
+            {
+                "type": "assistant",
+                "message": {"usage": {"input_tokens": 50, "output_tokens": 25}},
+            },
+            {
+                "type": "result",
+                "subtype": "success",
+                "is_error": False,
+                "result": "ok",
+                "usage": {"input_tokens": 0, "output_tokens": 0},
+            },
+        ]
+        usage = provider._extract_usage({"messages": messages})
+        assert isinstance(usage, LLMUsage)
+        assert usage.input_tokens >= 0
+        assert usage.output_tokens >= 0
+
+
+class TestQwenCodeLLMBridgeMode:
+    def test_build_env_injects_openai_base_url_in_bridge_mode(self):
+        from vulnhuntr.cli_providers import QwenCodeLLM
+        from vulnhuntr.config import CLIPolicy
+
+        policy = CLIPolicy(overrides={"qwen-code": {"base_url": "https://openrouter.ai/api/v1"}})
+        provider = QwenCodeLLM(policy=policy)
+        env = provider._build_env()
+        assert env.get("OPENAI_BASE_URL") == "https://openrouter.ai/api/v1"
+
+    def test_build_env_no_base_url_does_not_crash(self):
+        from vulnhuntr.cli_providers import QwenCodeLLM
+        from vulnhuntr.config import CLIPolicy
+
+        policy = CLIPolicy()
+        provider = QwenCodeLLM(policy=policy)
+        env = provider._build_env()
+        assert isinstance(env, dict)
+
+    def test_build_env_strips_dashscope_key(self):
+        from vulnhuntr.cli_providers import QwenCodeLLM
+
+        provider = QwenCodeLLM()
+        with patch.dict(os.environ, {"DASHSCOPE_API_KEY": "sk-test"}):
+            env = provider._build_env()
+        assert "DASHSCOPE_API_KEY" not in env
+
+    def test_build_env_does_not_strip_openai_api_key(self):
+        from vulnhuntr.cli_providers import QwenCodeLLM
+
+        provider = QwenCodeLLM()
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-openai-test"}):
+            env = provider._build_env()
+        assert env.get("OPENAI_API_KEY") == "sk-openai-test"

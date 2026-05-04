@@ -54,23 +54,23 @@ class TestInitializeLlmCliProviders:
         result = initialize_llm("gemini-cli", config=cfg)
         assert isinstance(result, GeminiCLILLM)
 
-    def test_codex_raises_not_implemented_with_phase5_message(self):
-        """initialize_llm('codex', ...) raises NotImplementedError containing 'Phase 5'."""
+    def test_codex_returns_codex_llm(self):
+        """initialize_llm('codex', ...) returns CodexLLM instance (Phase 5 wired)."""
         from vulnhuntr.cli.runner import initialize_llm
+        from vulnhuntr.cli_providers import CodexLLM
 
         cfg = _make_config()
-        with pytest.raises(NotImplementedError) as exc_info:
-            initialize_llm("codex", config=cfg)
-        assert "Phase 5" in str(exc_info.value)
+        result = initialize_llm("codex", config=cfg)
+        assert isinstance(result, CodexLLM)
 
-    def test_qwen_code_raises_not_implemented_with_phase5_message(self):
-        """initialize_llm('qwen-code', ...) raises NotImplementedError containing 'Phase 5'."""
+    def test_qwen_code_returns_qwen_code_llm(self):
+        """initialize_llm('qwen-code', ...) returns QwenCodeLLM instance (Phase 5 wired)."""
         from vulnhuntr.cli.runner import initialize_llm
+        from vulnhuntr.cli_providers import QwenCodeLLM
 
         cfg = _make_config()
-        with pytest.raises(NotImplementedError) as exc_info:
-            initialize_llm("qwen-code", config=cfg)
-        assert "Phase 5" in str(exc_info.value)
+        result = initialize_llm("qwen-code", config=cfg)
+        assert isinstance(result, QwenCodeLLM)
 
     def test_claude_code_with_config_none_uses_defaults(self):
         """initialize_llm('claude-code', config=None) uses CLIPolicy() defaults — no error."""

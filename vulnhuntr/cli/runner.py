@@ -111,16 +111,32 @@ def initialize_llm(
                 workdir=workdir,
                 policy=policy,
             )
-        else:
-            raise NotImplementedError(
-                f"CLI provider '{llm_arg}' lands in Phase 5."
+        elif llm_arg == "codex":
+            from vulnhuntr.cli_providers.codex import CodexLLM
+
+            return CodexLLM(
+                system_prompt=system_prompt,
+                cost_callback=cost_callback,
+                timeout=timeout,
+                workdir=workdir,
+                policy=policy,
+            )
+        elif llm_arg == "qwen-code":
+            from vulnhuntr.cli_providers.qwen_code import QwenCodeLLM
+
+            return QwenCodeLLM(
+                system_prompt=system_prompt,
+                cost_callback=cost_callback,
+                timeout=timeout,
+                workdir=workdir,
+                policy=policy,
             )
 
     else:
         raise ValueError(
             f"Invalid LLM argument: {llm_arg}\n"
             f"API providers (available now): claude, gpt, openrouter, ollama\n"
-            f"CLI providers (coming in Phase 4/5): claude-code, gemini-cli, codex, qwen-code"
+            f"CLI providers: claude-code, gemini-cli, codex, qwen-code"
         )
 
 

@@ -1134,15 +1134,19 @@ class TestInitializeLLMCLIStubs:
         result = initialize_llm("gemini-cli")
         assert isinstance(result, GeminiCLILLM)
 
-    def test_codex_raises_not_implemented(self):
-        """initialize_llm('codex') raises NotImplementedError with 'Phase' in message."""
-        with pytest.raises(NotImplementedError, match="Phase"):
-            initialize_llm("codex")
+    def test_codex_returns_codex_llm(self):
+        """initialize_llm('codex') returns CodexLLM instance (Phase 5 wired)."""
+        from vulnhuntr.cli_providers import CodexLLM
 
-    def test_qwen_code_raises_not_implemented(self):
-        """initialize_llm('qwen-code') raises NotImplementedError with 'Phase' in message."""
-        with pytest.raises(NotImplementedError, match="Phase"):
-            initialize_llm("qwen-code")
+        result = initialize_llm("codex")
+        assert isinstance(result, CodexLLM)
+
+    def test_qwen_code_returns_qwen_code_llm(self):
+        """initialize_llm('qwen-code') returns QwenCodeLLM instance (Phase 5 wired)."""
+        from vulnhuntr.cli_providers import QwenCodeLLM
+
+        result = initialize_llm("qwen-code")
+        assert isinstance(result, QwenCodeLLM)
 
     def test_unknown_provider_mentions_cli_providers(self):
         """initialize_llm('totally-unknown') raises ValueError listing claude-code."""
