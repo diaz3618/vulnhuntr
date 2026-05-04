@@ -140,11 +140,15 @@ def initialize_llm(
         )
 
 
+_CLI_PROVIDERS: frozenset[str] = frozenset({"claude-code", "gemini-cli", "codex", "qwen-code"})
+
+
 def parse_fallback_spec(
     spec: str,
     system_prompt: str = "",
     cost_callback: Callable | None = None,
     default_provider: str | None = None,
+    config: Any | None = None,
 ):
     """Parse a fallback spec like 'provider:model' and return an LLM instance.
 
@@ -154,11 +158,15 @@ def parse_fallback_spec(
       When no valid provider prefix is found, uses default_provider or 'openrouter'
       if the model name contains '/' (typical of OpenRouter model identifiers).
 
+    CLI providers (claude-code, gemini-cli, codex, qwen-code) are delegated
+    directly to initialize_llm without model sub-spec support.
+
     Args:
         spec: Fallback specification string
         system_prompt: System prompt to use
         cost_callback: Optional callback for cost tracking
         default_provider: Provider to use when spec has no explicit provider prefix
+        config: VulnhuntrConfig instance; passed to initialize_llm for CLI providers
 
     Returns:
         Initialized LLM client
@@ -168,6 +176,24 @@ def parse_fallback_spec(
     """
     from vulnhuntr.llms import ChatGPT, Claude, Ollama, OpenRouter
 
+    parts = spec.split(":", 1)
+    provider_candidate = parts[0].lower()
+
+    # CLI providers cannot accept a model sub-spec — delegate to initialize_llm
+    if provider_candidate in _CLI_PROVIDERS:
+        if len(parts) == 2:  # noqa: PLR2004
+            log.warning(
+                "CLI providers do not accept model sub-spec; ignoring",
+                spec=spec,
+                provider=provider_candidate,
+            )
+        return initialize_llm(
+            provider_candidate,
+            system_prompt=system_prompt,
+            cost_callback=cost_callback,
+            config=config,
+        )
+
     providers: dict[str, type] = {
         "claude": Claude,
         "gpt": ChatGPT,
@@ -175,10 +201,9 @@ def parse_fallback_spec(
         "ollama": Ollama,
     }
 
-    parts = spec.split(":", 1)
-    if len(parts) == 2 and parts[0].lower() in providers:  # noqa: PLR2004
+    if len(parts) == 2 and provider_candidate in providers:  # noqa: PLR2004
         # Explicit provider prefix: 'openrouter:model-name:free'
-        provider, model = parts[0].lower(), parts[1]
+        provider, model = provider_candidate, parts[1]
     else:
         # No valid provider prefix — treat entire spec as model name.
         # Infer provider: use default_provider, or 'openrouter' for slash-style names.
@@ -255,11 +280,11 @@ def wrap_with_fallbacks(
 
     fallbacks = []
     if fallback1:
-        fb1 = parse_fallback_spec(fallback1, system_prompt, cost_callback, default_provider)
+        fb1 = parse_fallback_spec(fallback1, system_prompt, cost_callback, default_provider, config=config)
         fallbacks.append(fb1)
         log.info("Fallback 1 configured", spec=fallback1)
     if fallback2:
-        fb2 = parse_fallback_spec(fallback2, system_prompt, cost_callback, default_provider)
+        fb2 = parse_fallback_spec(fallback2, system_prompt, cost_callback, default_provider, config=config)
         fallbacks.append(fb2)
         log.info("Fallback 2 configured", spec=fallback2)
 
@@ -553,7 +578,7 @@ def run_analysis(args: argparse.Namespace, llm_factory: Callable | None = None) 
         min_confidence_for_finding=5,
         verbosity=getattr(args, "verbosity", 0),
     )
-    analyzer = VulnerabilityAnalyzer(llm, code_extractor, analysis_config)
+    analyzer = VulnerabilityAnalyzer(llm, code_extractor, analysis_config, mcp_helper=mcp_helper)
 
     # Wire budget checking into analyzer callbacks
     if budget_enforcer:
@@ -577,6 +602,20 @@ def run_analysis(args: argparse.Namespace, llm_factory: Callable | None = None) 
 
     # Finalize checkpoint
     checkpoint.finalize(success=analysis_success and len(files_to_analyze) > 0)
+
+    # Print provider fallback diagnostics when verbosity is on
+    if getattr(args, "verbosity", 0) > 0:
+        import sys
+
+        diagnostics = getattr(llm, "_diagnostics", [])
+        if diagnostics:
+            print(f"\nProvider fallback events ({len(diagnostics)}):", file=sys.stderr)
+            for entry in diagnostics:
+                print(
+                    f"  {entry.get('failed_provider', '?')} → {entry.get('fallback_to', '?')}"
+                    f"  [{entry.get('error_class', '?')}] {entry.get('failure_reason', '?')}",
+                    file=sys.stderr,
+                )
 
     # Persist session metadata to checkpoint when using a session-aware CLI provider
     cli_policy = getattr(config, "cli", None)

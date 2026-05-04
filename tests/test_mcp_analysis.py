@@ -582,3 +582,141 @@ class TestMCPAnalysisHelperShutdown:
         run_async(helper.shutdown())
         assert helper._client is None
         assert helper._initialized is False
+
+
+# ---------------------------------------------------------------------------
+# TestMCPFullLoop — tests for VulnerabilityAnalyzer + MCPAnalysisHelper wiring
+# ---------------------------------------------------------------------------
+
+
+def _make_mock_helper(active: bool = True, results: list | None = None) -> MagicMock:
+    """Return a MagicMock MCPAnalysisHelper with configurable is_active."""
+    helper = MagicMock()
+    helper.is_active = active
+    helper.execute_tool_calls = AsyncMock(return_value=results or [])
+    helper.format_results_for_prompt = MagicMock(return_value="<mcp_results>tool output</mcp_results>")
+    return helper
+
+
+class TestMCPFullLoop:
+    """Tests for MCP tool call injection into VulnerabilityAnalyzer._secondary_analysis.
+
+    These tests verify the D-05/D-06/D-07/D-08 data-flow requirements:
+    - D-05: MCP tool results are prepended to the next iteration's prompt
+    - D-06: No tool calls → MCP dispatch is skipped entirely
+    - D-07/D-08: Errors (including timeouts) produce failure results, not exceptions
+    """
+
+    def _make_analyzer_with_mock_llm(self, mcp_helper=None):
+        """Create a VulnerabilityAnalyzer with a mock LLM and code extractor."""
+        from vulnhuntr.core.analysis import AnalysisConfig, VulnerabilityAnalyzer
+        from vulnhuntr.core.models import Response
+
+        mock_llm = MagicMock()
+        mock_extractor = MagicMock()
+        mock_extractor.get_definitions_for_code.return_value = MagicMock(definitions=[])
+
+        response = Response(scratchpad="thinking", confidence=2, analysis="no finding")
+        mock_llm.chat.return_value = response
+
+        config = AnalysisConfig(max_iterations=2, min_confidence_for_finding=5)
+        analyzer = VulnerabilityAnalyzer(
+            llm=mock_llm,
+            code_extractor=mock_extractor,
+            config=config,
+            mcp_helper=mcp_helper,
+        )
+        return analyzer, mock_llm
+
+    def test_tool_call_result_injected_into_next_iteration(self):
+        """D-05: When LLM requests tool calls, results are prepended to next prompt."""
+        from vulnhuntr.core.models import MCPToolCallRequest, Response
+
+        tool_call = MCPToolCallRequest(server="s", tool="t", arguments={}, reason="check")
+
+        # First iteration returns tool calls; second returns empty
+        response_with_calls = Response(scratchpad="a", confidence=2, mcp_tool_calls=[tool_call])
+        response_final = Response(scratchpad="b", confidence=2)
+
+        mock_helper = _make_mock_helper(active=True, results=[])
+        mock_helper.format_results_for_prompt.return_value = "<mcp_results>data</mcp_results>"
+
+        analyzer, mock_llm = self._make_analyzer_with_mock_llm(mcp_helper=mock_helper)
+        mock_llm.chat.side_effect = [response_with_calls, response_final]
+
+        with patch(
+            "vulnhuntr.mcp.analysis.run_async",
+            side_effect=lambda coro: (
+                asyncio.get_event_loop().run_until_complete(coro) if asyncio.iscoroutine(coro) else []
+            ),
+        ):
+            analyzer._secondary_analysis("path.py", "code", "PT-SQLi", "approach", "guidelines")
+
+        # The helper must have been asked to execute tool calls from iteration 1
+        mock_helper.execute_tool_calls.assert_called_once_with([tool_call])
+        # The helper must have been asked to format those results
+        mock_helper.format_results_for_prompt.assert_called_once()
+        # The second llm.chat call must have received the MCP block prepended
+        second_call_prompt = mock_llm.chat.call_args_list[1][0][0]
+        assert "<mcp_results>data</mcp_results>" in second_call_prompt
+
+    def test_no_tool_calls_skips_mcp_entirely(self):
+        """D-06: When LLM returns no tool calls, MCP dispatch is never invoked."""
+        from vulnhuntr.core.models import Response
+
+        response = Response(scratchpad="a", confidence=2, mcp_tool_calls=[])
+        mock_helper = _make_mock_helper(active=True)
+        analyzer, mock_llm = self._make_analyzer_with_mock_llm(mcp_helper=mock_helper)
+        mock_llm.chat.return_value = response
+
+        analyzer._secondary_analysis("path.py", "code", "PT-SQLi", "approach", "guidelines")
+
+        mock_helper.execute_tool_calls.assert_not_called()
+        mock_helper.format_results_for_prompt.assert_not_called()
+
+    def test_none_mcp_helper_runs_without_mcp(self):
+        """D-06 guard: mcp_helper=None must not cause any errors."""
+        from vulnhuntr.core.models import MCPToolCallRequest, Response
+
+        # Even if LLM hallucinated tool calls, None helper must be a no-op
+        tool_call = MCPToolCallRequest(server="s", tool="t")
+        response = Response(scratchpad="a", confidence=2, mcp_tool_calls=[tool_call])
+        analyzer, mock_llm = self._make_analyzer_with_mock_llm(mcp_helper=None)
+        mock_llm.chat.return_value = response
+
+        # Should complete without raising
+        result = analyzer._secondary_analysis("path.py", "code", "PT-SQLi", "approach", "guidelines")
+        assert result is not None
+
+    def test_inactive_helper_skips_tool_dispatch(self):
+        """is_active=False must prevent tool dispatch even when tool calls are present."""
+        from vulnhuntr.core.models import MCPToolCallRequest, Response
+
+        tool_call = MCPToolCallRequest(server="s", tool="t")
+        response = Response(scratchpad="a", confidence=2, mcp_tool_calls=[tool_call])
+        mock_helper = _make_mock_helper(active=False)
+        analyzer, mock_llm = self._make_analyzer_with_mock_llm(mcp_helper=mock_helper)
+        mock_llm.chat.return_value = response
+
+        analyzer._secondary_analysis("path.py", "code", "PT-SQLi", "approach", "guidelines")
+
+        mock_helper.execute_tool_calls.assert_not_called()
+
+    def test_timeout_produces_failure_result_not_exception(self):
+        """D-07/D-08: asyncio.TimeoutError from execute_tool_calls must not propagate."""
+        from vulnhuntr.core.models import MCPToolCallRequest, Response
+
+        tool_call = MCPToolCallRequest(server="s", tool="t")
+        response_with_calls = Response(scratchpad="a", confidence=2, mcp_tool_calls=[tool_call])
+        response_final = Response(scratchpad="b", confidence=2)
+
+        mock_helper = _make_mock_helper(active=True)
+        mock_helper.execute_tool_calls = AsyncMock(side_effect=asyncio.TimeoutError)
+
+        analyzer, mock_llm = self._make_analyzer_with_mock_llm(mcp_helper=mock_helper)
+        mock_llm.chat.side_effect = [response_with_calls, response_final]
+
+        with patch("vulnhuntr.mcp.analysis.run_async", side_effect=asyncio.TimeoutError):
+            # Should not raise — MCPAnalysisHelper.execute_tool_calls catches timeouts
+            result = analyzer._secondary_analysis("path.py", "code", "PT-SQLi", "approach", "guidelines")
+        assert result is not None

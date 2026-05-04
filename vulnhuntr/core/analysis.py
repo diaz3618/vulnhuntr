@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import structlog
 
@@ -110,6 +110,7 @@ class VulnerabilityAnalyzer:
         config: AnalysisConfig | None = None,
         prompt_templates: dict[str, str] | None = None,
         vuln_specific_data: dict[VulnType, dict] | None = None,
+        mcp_helper: Any | None = None,
     ) -> None:
         """Initialize the analyzer.
 
@@ -119,12 +120,14 @@ class VulnerabilityAnalyzer:
             config: Analysis configuration (uses defaults if None)
             prompt_templates: Custom prompt templates (optional)
             vuln_specific_data: Bypasses and prompts per vuln type
+            mcp_helper: Optional MCPAnalysisHelper; None disables MCP tool dispatch.
         """
         self.llm = llm
         self.code_extractor = code_extractor
         self.config = config or AnalysisConfig()
         self.prompt_templates = prompt_templates or {}
         self.vuln_specific_data = vuln_specific_data or {}
+        self.mcp_helper = mcp_helper
 
         # Callbacks
         self._on_iteration: Callable | None = None
@@ -281,6 +284,7 @@ class VulnerabilityAnalyzer:
         prompt = vuln_data.get("prompt", "")
 
         report = None
+        mcp_pending_block: str = ""
 
         for iteration in range(self.config.max_iterations):
             log.info(
@@ -327,6 +331,11 @@ class VulnerabilityAnalyzer:
                 guidelines=guidelines,
             )
 
+            # Prepend MCP results from previous iteration (D-05)
+            if mcp_pending_block:
+                secondary_prompt = mcp_pending_block + "\n" + secondary_prompt
+                mcp_pending_block = ""
+
             report = cast(
                 Response,
                 self.llm.chat(
@@ -340,6 +349,13 @@ class VulnerabilityAnalyzer:
                 iteration=iteration,
                 report=report.model_dump(),
             )
+
+            # Execute MCP tool calls requested by the LLM (D-05, D-06)
+            if self.mcp_helper is not None and self.mcp_helper.is_active and report.mcp_tool_calls:
+                from vulnhuntr.mcp.analysis import run_async  # lazy import — optional dependency
+
+                mcp_results = run_async(self.mcp_helper.execute_tool_calls(report.mcp_tool_calls))
+                mcp_pending_block = self.mcp_helper.format_results_for_prompt(mcp_results)
 
             # Call iteration callback if set
             if self._on_iteration:

@@ -152,6 +152,11 @@ class CostTracker:
         self._costs_by_file: dict[str, float] = {}
         self._costs_by_model: dict[str, float] = {}
         self._start_time: datetime = datetime.now()
+        self._counts_by_type: dict[str, int] = {
+            "api": 0,
+            "provider_reported": 0,
+            "subscription": 0,
+        }
 
     def track_call(
         self,
@@ -196,6 +201,7 @@ class CostTracker:
 
         # Track by model
         self._costs_by_model[model] = self._costs_by_model.get(model, 0.0) + cost
+        self._counts_by_type["api"] = self._counts_by_type.get("api", 0) + 1
 
         log.debug(
             "Tracked LLM call",
@@ -208,6 +214,45 @@ class CostTracker:
         )
 
         return cost
+
+    def track_subscription_call(
+        self,
+        provider: str,
+        file_path: str | None = None,
+        call_type: str = "analysis",
+        note: str | None = None,
+    ) -> None:
+        """Record a subscription-backed call with no token or cost data.
+
+        Use when the provider is subscription-backed (e.g., Claude Code, Gemini CLI)
+        and no per-call token counts are available. Records the event for operator
+        visibility without inflating cost totals.
+
+        Args:
+            provider: Provider name (e.g., 'claude-code')
+            file_path: File being analyzed (optional)
+            call_type: Call type label (default 'analysis')
+            note: Human-readable context (e.g., 'claude-code subscription; no per-call cost')
+        """
+        usage = TokenUsage(
+            input_tokens=0,
+            output_tokens=0,
+            model=provider,
+            cost_usd=0.0,
+            file_path=file_path,
+            call_type=call_type,
+            usage_type="subscription",
+            provider_note=note,
+        )
+        self._calls.append(usage)
+        self._counts_by_type["subscription"] = self._counts_by_type.get("subscription", 0) + 1
+
+        log.debug(
+            "Tracked subscription call",
+            provider=provider,
+            file_path=file_path,
+            call_type=call_type,
+        )
 
     @property
     def total_cost(self) -> float:
@@ -256,6 +301,27 @@ class CostTracker:
             "costs_by_model": {k: round(v, 4) for k, v in self._costs_by_model.items()},
             "elapsed_seconds": elapsed.total_seconds(),
             "start_time": self._start_time.isoformat(),
+            "usage_by_type": {
+                "api": {
+                    "calls": self._counts_by_type.get("api", 0),
+                    "cost_usd": round(self._total_cost, 4),
+                    "tokens": self.total_tokens,
+                },
+                "provider_reported": {
+                    "calls": self._counts_by_type.get("provider_reported", 0),
+                    "cost_usd": round(
+                        sum(c.cost_usd for c in self._calls if getattr(c, "usage_type", "api") == "provider_reported"),
+                        4,
+                    ),
+                },
+                "subscription": {
+                    "calls": self._counts_by_type.get("subscription", 0),
+                    "cost_usd": 0.0,
+                    "providers": list(
+                        {c.model for c in self._calls if getattr(c, "usage_type", "api") == "subscription"}
+                    ),
+                },
+            },
         }
 
     def get_detailed_report(self) -> str:

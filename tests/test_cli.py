@@ -584,6 +584,84 @@ class TestParseFallbackSpec:
         parse_fallback_spec("OpenRouter:meta-llama/llama-3.3-70b-instruct:free", "sys")
         mock_or.assert_called_once()
 
+    # -----------------------------------------------------------------------
+    # CLI provider routing (Plan 07-02)
+    # -----------------------------------------------------------------------
+
+    @patch("vulnhuntr.cli.runner.initialize_llm")
+    def test_cli_provider_claude_code_returns_cli_llm(self, mock_init):
+        """parse_fallback_spec('claude-code') delegates to initialize_llm."""
+        mock_llm = MagicMock()
+        mock_init.return_value = mock_llm
+
+        result = parse_fallback_spec("claude-code", "sys")
+
+        mock_init.assert_called_once_with(
+            "claude-code",
+            system_prompt="sys",
+            cost_callback=None,
+            config=None,
+        )
+        assert result is mock_llm
+
+    @patch("vulnhuntr.cli.runner.initialize_llm")
+    def test_cli_provider_gemini_cli(self, mock_init):
+        """parse_fallback_spec('gemini-cli') delegates to initialize_llm."""
+        mock_init.return_value = MagicMock()
+        parse_fallback_spec("gemini-cli", "sys")
+        mock_init.assert_called_once_with(
+            "gemini-cli",
+            system_prompt="sys",
+            cost_callback=None,
+            config=None,
+        )
+
+    @patch("vulnhuntr.cli.runner.initialize_llm")
+    def test_cli_provider_codex(self, mock_init):
+        """parse_fallback_spec('codex') delegates to initialize_llm."""
+        mock_init.return_value = MagicMock()
+        parse_fallback_spec("codex", "sys")
+        mock_init.assert_called_once_with(
+            "codex",
+            system_prompt="sys",
+            cost_callback=None,
+            config=None,
+        )
+
+    @patch("vulnhuntr.cli.runner.initialize_llm")
+    def test_cli_provider_qwen_code(self, mock_init):
+        """parse_fallback_spec('qwen-code') delegates to initialize_llm."""
+        mock_init.return_value = MagicMock()
+        parse_fallback_spec("qwen-code", "sys")
+        mock_init.assert_called_once_with(
+            "qwen-code",
+            system_prompt="sys",
+            cost_callback=None,
+            config=None,
+        )
+
+    @patch("vulnhuntr.cli.runner.initialize_llm")
+    def test_cli_provider_sub_spec_logs_warning(self, mock_init):
+        """CLI provider with model sub-spec still calls initialize_llm (sub-spec ignored)."""
+        mock_init.return_value = MagicMock()
+
+        # structlog is used for the warning — we just verify initialize_llm is called
+        # and that no exception is raised (the warning is a structlog event, not stdlib)
+        parse_fallback_spec("claude-code:some-model", "sys")
+
+        mock_init.assert_called_once()
+        # Verify call was made with the CLI provider name (not the sub-spec model)
+        call_args = mock_init.call_args
+        assert call_args[0][0] == "claude-code"
+
+    @patch("vulnhuntr.llms.Claude")
+    def test_api_provider_not_treated_as_cli(self, mock_claude):
+        """'claude:haiku' should not be routed through initialize_llm CLI path."""
+        with patch("vulnhuntr.cli.runner.initialize_llm") as mock_init:
+            parse_fallback_spec("claude:claude-haiku-4-5", "sys")
+            mock_init.assert_not_called()
+        mock_claude.assert_called_once()
+
 
 class TestCollectFiles:
     """Unit tests for _collect_files() — RUNNER-02.

@@ -16,11 +16,10 @@ from typing import Any, ClassVar
 import structlog
 
 from vulnhuntr.cli_providers.base import (
-    CLIBinaryNotFoundError,
+    CapabilityResult,
     CLIParseError,
     CLIProviderLLM,
     CLIRuntimeError,
-    CapabilityResult,
 )
 from vulnhuntr.config import CLIPolicy
 from vulnhuntr.core.models import LLMUsage
@@ -51,28 +50,62 @@ class ClaudeCodeLLM(CLIProviderLLM):
     def _build_env(self) -> dict[str, str]:
         """Strip class-level vars plus any operator-supplied vars from CLIPolicy."""
         env = super()._build_env()
-        for var in (self._policy.strip_env_vars if self._policy else []):
+        for var in self._policy.strip_env_vars if self._policy else []:
             env.pop(var, None)
         return env
 
     def _build_mcp_config_args(self) -> list[str]:
-        """Write a stub MCP config and return --mcp-config args when mcp_mode requires it.
+        """Write MCP server config and return --mcp-config args when mcp_mode requires it.
 
-        Phase 6 writes {"mcpServers": {}} as a stub. Phase 7 populates real servers.
-        mcp_mode="provider" means the operator manages their own config — Vulnhuntr
-        does nothing.
-        mcp_mode="none" or mcp_mode="provider" → return []
-        mcp_mode="vulnhuntr" or mcp_mode="both" → write stub, return ["--mcp-config", path]
+        Lazy-loads MCPSettings from the current working directory so the method
+        never hard-fails when MCP is not configured.
+
+        mcp_mode='none' or mcp_mode='provider' → return []
+        mcp_mode='vulnhuntr' or mcp_mode='both' → write real server config, return args
         """
         policy = self._policy
         if not policy:
             return []
         if policy.mcp_mode not in ("vulnhuntr", "both"):
             return []
+
+        # Lazy-load MCPSettings — optional dependency; gracefully return [] on failure
+        try:
+            from vulnhuntr.mcp import load_mcp_config
+            from vulnhuntr.mcp.config import TransportType
+
+            mcp_settings = load_mcp_config()
+        except Exception:
+            return []
+
+        # Build {"mcpServers": {...}} JSON from enabled servers
+        mcp_servers: dict[str, dict] = {}
+        for server_name, server_cfg in (mcp_settings.servers or {}).items():
+            if not server_cfg.enabled:
+                continue
+            transport = server_cfg.transport
+            if isinstance(transport, str):
+                transport = TransportType(transport)
+
+            if transport == TransportType.STDIO:
+                entry: dict = {"command": server_cfg.command or "", "args": server_cfg.args}
+                if server_cfg.env:
+                    entry["env"] = server_cfg.env
+            else:
+                # streamable-http or sse
+                entry = {"url": server_cfg.url or ""}
+                if server_cfg.headers:
+                    entry["headers"] = server_cfg.headers
+
+            mcp_servers[server_name] = entry
+
+        if not mcp_servers:
+            return []
+
         workdir = self.workdir or "/tmp/vulnhuntr"
         config_path = pathlib.Path(workdir) / "mcp_config.json"
         config_path.parent.mkdir(parents=True, exist_ok=True)
-        config_path.write_text('{"mcpServers": {}}', encoding="utf-8")
+        config_path.write_text(json.dumps({"mcpServers": mcp_servers}), encoding="utf-8")
         return ["--mcp-config", str(config_path)]
 
     def probe(self) -> CapabilityResult:
@@ -88,10 +121,7 @@ class ClaudeCodeLLM(CLIProviderLLM):
                 binary_found=False,
                 version=None,
                 auth_valid=None,
-                diagnostic_message=(
-                    "Claude Code binary not found. "
-                    "Install with: npm i -g @anthropic-ai/claude-code"
-                ),
+                diagnostic_message=("Claude Code binary not found. Install with: npm i -g @anthropic-ai/claude-code"),
             )
         try:
             result = self._run_subprocess(["claude", "--version"])
@@ -179,9 +209,7 @@ class ClaudeCodeLLM(CLIProviderLLM):
         try:
             payload = json.loads(stdout)
         except json.JSONDecodeError as exc:
-            raise CLIParseError(
-                f"Claude Code returned invalid JSON: {stdout[:500]}"
-            ) from exc
+            raise CLIParseError(f"Claude Code returned invalid JSON: {stdout[:500]}") from exc
         model_usage = payload.get("modelUsage") or {}
         self.model = next(iter(model_usage.keys()), "claude-code")
         self.session_id = payload.get("session_id")
@@ -191,9 +219,7 @@ class ClaudeCodeLLM(CLIProviderLLM):
         """Pull the text response out of the Claude Code JSON envelope ('result' key)."""
         result = response.get("result")
         if result is None:
-            raise CLIParseError(
-                "Claude Code response did not contain a 'result' field"
-            )
+            raise CLIParseError("Claude Code response did not contain a 'result' field")
         return str(result)
 
     def _extract_usage(self, response: Any) -> LLMUsage:

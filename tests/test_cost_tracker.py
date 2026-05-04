@@ -80,6 +80,8 @@ class TestTokenUsage:
             "timestamp",
             "file_path",
             "call_type",
+            "usage_type",
+            "provider_note",
         }
 
     def test_round_trip(self):
@@ -172,6 +174,136 @@ class TestCostTracker:
         ct = CostTracker()
         cost = ct.track_call(5000, 2000, "ollama")
         assert cost == 0.0
+
+    def test_track_subscription_call_no_cost(self):
+        """track_subscription_call does not inflate total_cost."""
+        ct = CostTracker()
+        ct.track_call(1000, 500, "gpt-4o")
+        cost_before = ct.total_cost
+        ct.track_subscription_call("claude-code", note="subscription; no per-call cost")
+        assert ct.total_cost == cost_before
+
+    def test_track_subscription_call_increments_call_count(self):
+        """Subscription call adds to _calls list."""
+        ct = CostTracker()
+        ct.track_subscription_call("claude-code")
+        assert ct.call_count == 1
+
+    def test_track_subscription_call_usage_type(self):
+        """Subscription call records usage_type='subscription'."""
+        ct = CostTracker()
+        ct.track_subscription_call("gemini-cli", file_path="a.py", call_type="secondary")
+        usage = ct._calls[0]
+        assert usage.usage_type == "subscription"
+        assert usage.model == "gemini-cli"
+        assert usage.cost_usd == 0.0
+
+    def test_get_summary_includes_usage_by_type(self):
+        """get_summary() must include 'usage_by_type' key."""
+        ct = CostTracker()
+        ct.track_call(100, 50, "gpt-4o")
+        s = ct.get_summary()
+        assert "usage_by_type" in s
+
+    def test_usage_by_type_api_counts(self):
+        """api call count reflected in usage_by_type."""
+        ct = CostTracker()
+        ct.track_call(100, 50, "gpt-4o")
+        ct.track_call(200, 100, "gpt-4o")
+        s = ct.get_summary()
+        assert s["usage_by_type"]["api"]["calls"] == 2
+
+    def test_usage_by_type_subscription_counts(self):
+        """subscription calls are tracked in usage_by_type."""
+        ct = CostTracker()
+        ct.track_subscription_call("claude-code")
+        ct.track_subscription_call("gemini-cli")
+        s = ct.get_summary()
+        assert s["usage_by_type"]["subscription"]["calls"] == 2
+        providers = s["usage_by_type"]["subscription"]["providers"]
+        assert "claude-code" in providers
+        assert "gemini-cli" in providers
+
+    def test_usage_by_type_mixed(self):
+        """Both API and subscription calls tracked separately."""
+        ct = CostTracker()
+        ct.track_call(100, 50, "gpt-4o")
+        ct.track_subscription_call("claude-code")
+        s = ct.get_summary()
+        assert s["usage_by_type"]["api"]["calls"] == 1
+        assert s["usage_by_type"]["subscription"]["calls"] == 1
+        # subscription has no cost
+        subscription = s["usage_by_type"]["subscription"]
+        assert subscription.get("cost_usd", 0.0) == 0.0
+        # API cost should be positive
+        assert s["usage_by_type"]["api"]["cost_usd"] > 0
+
+
+class TestTokenUsageType:
+    """Tests for TokenUsage.usage_type and provider_note fields (Plan 07-01)."""
+
+    def test_default_usage_type_is_api(self):
+        t = TokenUsage(input_tokens=10, output_tokens=5, model="m", cost_usd=0.001)
+        assert t.usage_type == "api"
+
+    def test_subscription_usage_type(self):
+        t = TokenUsage(
+            input_tokens=0,
+            output_tokens=0,
+            model="claude-code",
+            cost_usd=0.0,
+            usage_type="subscription",
+        )
+        assert t.usage_type == "subscription"
+
+    def test_provider_reported_usage_type(self):
+        t = TokenUsage(
+            input_tokens=100,
+            output_tokens=50,
+            model="some-provider",
+            cost_usd=0.0,
+            usage_type="provider_reported",
+        )
+        assert t.usage_type == "provider_reported"
+
+    def test_provider_note_stored(self):
+        t = TokenUsage(
+            input_tokens=0,
+            output_tokens=0,
+            model="claude-code",
+            cost_usd=0.0,
+            provider_note="oauth subscription; no per-call metering",
+        )
+        assert t.provider_note == "oauth subscription; no per-call metering"
+
+    def test_to_dict_includes_usage_type(self):
+        t = TokenUsage(
+            input_tokens=0,
+            output_tokens=0,
+            model="claude-code",
+            cost_usd=0.0,
+            usage_type="subscription",
+            provider_note="note",
+        )
+        d = t.to_dict()
+        assert d["usage_type"] == "subscription"
+        assert d["provider_note"] == "note"
+
+    def test_from_dict_backward_compat_missing_usage_type(self):
+        """Old checkpoints without usage_type should default to 'api'."""
+        d = {
+            "input_tokens": 100,
+            "output_tokens": 50,
+            "total_tokens": 150,
+            "model": "gpt-4o",
+            "cost_usd": 0.01,
+            "timestamp": "2025-01-01T00:00:00",
+            "file_path": None,
+            "call_type": "analysis",
+        }
+        t = TokenUsage.from_dict(d)
+        assert t.usage_type == "api"
+        assert t.provider_note is None
 
 
 class TestBudgetEnforcer:
