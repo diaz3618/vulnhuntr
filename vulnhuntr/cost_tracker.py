@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
+from typing import Literal
 
 import structlog
 
@@ -101,6 +102,8 @@ class TokenUsage(LLMUsage):
     timestamp: datetime = field(default_factory=datetime.now)
     file_path: str | None = None
     call_type: str = "analysis"
+    usage_type: Literal["api", "provider_reported", "subscription"] = "api"
+    provider_note: str | None = None
 
     def to_dict(self) -> dict:
         return {
@@ -112,6 +115,8 @@ class TokenUsage(LLMUsage):
             "timestamp": self.timestamp.isoformat(),
             "file_path": self.file_path,
             "call_type": self.call_type,
+            "usage_type": self.usage_type,
+            "provider_note": self.provider_note,
         }
 
     @classmethod
@@ -124,6 +129,8 @@ class TokenUsage(LLMUsage):
             timestamp=datetime.fromisoformat(data["timestamp"]),
             file_path=data.get("file_path"),
             call_type=data.get("call_type", "analysis"),
+            usage_type=data.get("usage_type", "api"),
+            provider_note=data.get("provider_note"),
         )
 
 

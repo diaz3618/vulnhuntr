@@ -4,13 +4,13 @@ milestone: v1.0
 milestone_name: foundation-mcp-ai-cli-integration
 status: ready_to_plan
 last_updated: "2026-05-04T00:00:00.000Z"
-last_activity: 2026-05-04 -- Phase 06 discussion complete
+last_activity: 2026-05-04 -- Phase 06 complete (4/4 plans, commits 0bc03e5 ef22305 5899aaa 7eac60c)
 progress:
   total_phases: 10
-  completed_phases: 4
-  total_plans: 12
-  completed_plans: 9
-  percent: 40
+  completed_phases: 6
+  total_plans: 18
+  completed_plans: 19
+  percent: 83
 ---
 
 # Project State: Vulnhuntr
@@ -28,9 +28,9 @@ progress:
 | 1: Quick Wins & Test Infrastructure | ✅ Complete | 4 / 4 |
 | 2: Runner Decomposition | ✅ Complete | 6 / 6 |
 | 3: CLI Provider Contract & Config Schema | ✅ Complete | 7 / 7 |
-| 4: Claude Code & Gemini CLI | 🔲 Not started | 0 / 2 |
-| 5: Codex & Qwen Code | 🔲 Not started | 0 / 2 |
-| 6: Sessions, Native Tools, and MCP Policy | 🔲 Not started | 0 / 4 |
+| 4: Claude Code & Gemini CLI | ✅ Complete | 2 / 2 |
+| 5: Codex & Qwen Code | ✅ Complete | 2 / 2 |
+| 6: Sessions, Native Tools, and MCP Policy | ✅ Complete | 4 / 4 |
 | 7: MCP Completion, Routing, and Cost Hardening | 🔲 Not started | 0 / 9 |
 | 8: Behavioral Evaluation & Trace Capture | 🔲 Not started | 0 / 3 |
 | 9: State, Branch, and Data-Flow Hardening | 🔲 Not started | 0 / 3 |
@@ -49,9 +49,9 @@ progress:
 
 ## Current Position
 
-Phase: 6
+Phase: 7
 Plan: Not started
-Status: Discussion complete — ready to plan Phase 6
+Status: Phase 6 complete — ready to plan Phase 7
 Last activity: 2026-05-04
 
 ---
@@ -71,15 +71,17 @@ Last activity: 2026-05-04
 - Phase 1: Quick Wins & Test Infrastructure
 - Phase 2: Runner Decomposition
 - Phase 3: CLI Provider Contract & Config Schema
+- Phase 4: Claude Code & Gemini CLI
+- Phase 5: Codex & Qwen Code
 
 ---
 
 ## Next Command
 
-Start Phase 4:
+Start Phase 6:
 
 ```text
-/gsd-plan-phase 4
+/gsd-plan-phase 6
 ```
 
 ---

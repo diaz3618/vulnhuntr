@@ -655,29 +655,9 @@ def _analyze_files(
 
         print_readable(result.initial_report)
 
-        # Execute MCP tool calls from initial analysis (if any)
-        if mcp_helper is not None and mcp_helper.is_active and result.initial_report.mcp_tool_calls:
-            try:
-                from vulnhuntr.mcp import run_async
-
-                mcp_results = run_async(mcp_helper.execute_tool_calls(result.initial_report.mcp_tool_calls))
-                log.info("MCP tool calls executed (initial)", count=len(mcp_results))
-            except Exception as e:
-                log.error("MCP tool execution failed (initial)", error=str(e))
-
         for vuln_type, report in result.findings.items():
             if verbosity == 0:
                 print_readable(report)
-
-            # Execute MCP tool calls from final report (if any)
-            if mcp_helper is not None and mcp_helper.is_active and report.mcp_tool_calls:
-                try:
-                    from vulnhuntr.mcp import run_async
-
-                    mcp_results = run_async(mcp_helper.execute_tool_calls(report.mcp_tool_calls))
-                    log.info("MCP tool calls executed (secondary)", count=len(mcp_results))
-                except Exception as e:
-                    log.error("MCP tool execution failed (secondary)", error=str(e))
 
             finding = response_to_finding(
                 response=report,

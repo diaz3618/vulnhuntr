@@ -478,6 +478,7 @@ class FallbackLLM:
         self._fallbacks = fallbacks
         self._active: LLM = primary
         self._all_llms: list[LLM] = [primary] + fallbacks
+        self._diagnostics: list[dict[str, Any]] = []
 
     def __getattr__(self, name: str) -> Any:
         """Delegate attribute access to the active LLM."""
@@ -511,8 +512,11 @@ class FallbackLLM:
                     llm.prev_prompt = self._active.prev_prompt
                     llm.prev_response = self._active.prev_response
                     log.warning(
-                        f"Primary LLM failed, falling back to {llm.model}",
-                        extra={"fallback_index": i, "model": llm.model},
+                        "provider_failed_falling_back",
+                        failed_provider=type(self._active).__name__,
+                        failed_model=getattr(self._active, "model", "unknown"),
+                        fallback_provider=type(llm).__name__,
+                        fallback_index=i,
                     )
 
                 result = llm.chat(user_prompt, response_model, max_tokens)
@@ -521,9 +525,19 @@ class FallbackLLM:
 
             except LLMError as e:
                 log.error(
-                    f"LLM {llm.model} failed: {e}",
-                    extra={"model": llm.model, "fallback_index": i},
+                    "llm_failed",
+                    provider=type(llm).__name__,
+                    model=getattr(llm, "model", "unknown"),
+                    error_class=type(e).__name__,
+                    failure_reason=str(e),
+                    fallback_index=i,
                 )
+                self._diagnostics.append({
+                    "failed_provider": type(llm).__name__,
+                    "error_class": type(e).__name__,
+                    "failure_reason": str(e)[:200],
+                    "fallback_to": type(self._all_llms[i + 1]).__name__ if i + 1 < len(self._all_llms) else "none",
+                })
                 if i == len(self._all_llms) - 1:
                     raise LLMError(
                         f"All LLMs failed (primary + {len(self._fallbacks)} fallbacks). Last error: {e}"
