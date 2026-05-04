@@ -8,6 +8,7 @@ Verified against claude 2.1.126. Key flags:
 from __future__ import annotations
 
 import json
+import pathlib
 import re
 import shutil
 from typing import Any, ClassVar
@@ -18,6 +19,7 @@ from vulnhuntr.cli_providers.base import (
     CLIBinaryNotFoundError,
     CLIParseError,
     CLIProviderLLM,
+    CLIRuntimeError,
     CapabilityResult,
 )
 from vulnhuntr.config import CLIPolicy
@@ -53,6 +55,26 @@ class ClaudeCodeLLM(CLIProviderLLM):
             env.pop(var, None)
         return env
 
+    def _build_mcp_config_args(self) -> list[str]:
+        """Write a stub MCP config and return --mcp-config args when mcp_mode requires it.
+
+        Phase 6 writes {"mcpServers": {}} as a stub. Phase 7 populates real servers.
+        mcp_mode="provider" means the operator manages their own config — Vulnhuntr
+        does nothing.
+        mcp_mode="none" or mcp_mode="provider" → return []
+        mcp_mode="vulnhuntr" or mcp_mode="both" → write stub, return ["--mcp-config", path]
+        """
+        policy = self._policy
+        if not policy:
+            return []
+        if policy.mcp_mode not in ("vulnhuntr", "both"):
+            return []
+        workdir = self.workdir or "/tmp/vulnhuntr"
+        config_path = pathlib.Path(workdir) / "mcp_config.json"
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        config_path.write_text('{"mcpServers": {}}', encoding="utf-8")
+        return ["--mcp-config", str(config_path)]
+
     def probe(self) -> CapabilityResult:
         """Check binary availability and capture version string.
 
@@ -83,6 +105,7 @@ class ClaudeCodeLLM(CLIProviderLLM):
             )
         match = re.search(r"(\d+\.\d+\.\d+)", result.stdout)
         version = match.group(1) if match else result.stdout.strip()
+        self._last_probe_version = version
         return CapabilityResult(
             ok=True,
             binary_found=True,
@@ -115,6 +138,7 @@ class ClaudeCodeLLM(CLIProviderLLM):
             full_prompt = f"{self.system_prompt}\n\n{user_prompt}"
 
         tool_mode = self._policy.tool_mode if self._policy else "none"
+        session_mode = self._policy.session_mode if self._policy else "stateless"
 
         if tool_mode == "read-only":
             permission_mode = "plan"
@@ -129,11 +153,24 @@ class ClaudeCodeLLM(CLIProviderLLM):
             "json",
             "--permission-mode",
             permission_mode,
-            "--no-session-persistence",
         ]
+
+        if session_mode == "stateless":
+            cmd.append("--no-session-persistence")
+        elif session_mode == "continue":
+            cmd.append("--continue")
+        elif session_mode == "resume":
+            if not self.session_id:
+                raise CLIRuntimeError(
+                    "session_mode='resume' requires a stored session_id; "
+                    "run with session_mode='stateless' or 'continue' first to create one."
+                )
+            cmd.extend(["--resume", self.session_id])
 
         if tool_mode == "none":
             cmd.extend(["--tools", ""])
+
+        cmd.extend(self._build_mcp_config_args())
 
         result = self._run_subprocess(cmd)
         stdout = result.stdout.strip()
@@ -147,6 +184,7 @@ class ClaudeCodeLLM(CLIProviderLLM):
             ) from exc
         model_usage = payload.get("modelUsage") or {}
         self.model = next(iter(model_usage.keys()), "claude-code")
+        self.session_id = payload.get("session_id")
         return payload
 
     def get_response(self, response: Any) -> str:

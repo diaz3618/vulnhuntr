@@ -128,6 +128,7 @@ class QwenCodeLLM(CLIProviderLLM):
                     "Run: npm i -g @qwen-code/qwen-code"
                 ),
             )
+        self._last_probe_version = version_str
         return CapabilityResult(
             ok=True,
             binary_found=True,
@@ -158,6 +159,13 @@ class QwenCodeLLM(CLIProviderLLM):
 
         tool_mode = self._policy.tool_mode if self._policy else "none"
 
+        session_mode = self._policy.session_mode if self._policy else "stateless"
+        if session_mode != "stateless":
+            log.warning(
+                "session_mode not supported by Qwen Code; falling back to stateless",
+                requested_session_mode=session_mode,
+            )
+
         cmd: list[str] = [
             "qwen",
             "-p",
@@ -169,6 +177,8 @@ class QwenCodeLLM(CLIProviderLLM):
             cmd.append("--yolo")
         else:
             cmd.extend(["--approval-mode", "plan"])
+
+        cmd.extend(self._build_mcp_config_args())
 
         result = self._run_subprocess(cmd)
         stdout = result.stdout.strip()

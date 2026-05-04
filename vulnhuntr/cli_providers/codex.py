@@ -120,6 +120,7 @@ class CodexLLM(CLIProviderLLM):
                     "Run: npm i -g @openai/codex"
                 ),
             )
+        self._last_probe_version = version_str
         return CapabilityResult(
             ok=True,
             binary_found=True,
@@ -152,7 +153,19 @@ class CodexLLM(CLIProviderLLM):
             full_prompt = f"{self.system_prompt}\n\n{user_prompt}"
 
         tool_mode = self._policy.tool_mode if self._policy else "none"
-        sandbox = "workspace-write" if tool_mode == "full" else "read-only"
+        sandbox_mode = self._policy.sandbox_mode if self._policy else "none"
+        if sandbox_mode == "workspace-write":
+            sandbox = "workspace-write"
+        else:
+            # tool_mode="full" also enables workspace-write for backward compatibility
+            sandbox = "workspace-write" if tool_mode == "full" else "read-only"
+
+        session_mode = self._policy.session_mode if self._policy else "stateless"
+        if session_mode != "stateless":
+            log.warning(
+                "session_mode not supported by Codex CLI; falling back to stateless",
+                requested_session_mode=session_mode,
+            )
 
         # NOTE: full_prompt is the LAST element (positional arg), NOT after -p
         cmd: list[str] = [
@@ -165,6 +178,8 @@ class CodexLLM(CLIProviderLLM):
             "never",
             full_prompt,
         ]
+
+        cmd.extend(self._build_mcp_config_args())
 
         result = self._run_subprocess(cmd)
         stdout = result.stdout.strip()

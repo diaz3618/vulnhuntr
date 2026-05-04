@@ -120,6 +120,7 @@ class GeminiCLILLM(CLIProviderLLM):
                     "Run: npm i -g @google/gemini-cli"
                 ),
             )
+        self._last_probe_version = version_str
         return CapabilityResult(
             ok=True,
             binary_found=True,
@@ -153,6 +154,13 @@ class GeminiCLILLM(CLIProviderLLM):
         tool_mode = self._policy.tool_mode if self._policy else "none"
         approval_mode = "yolo" if tool_mode == "full" else "plan"
 
+        session_mode = self._policy.session_mode if self._policy else "stateless"
+        if session_mode != "stateless":
+            log.warning(
+                "session_mode not supported by Gemini CLI; falling back to stateless",
+                requested_session_mode=session_mode,
+            )
+
         cmd: list[str] = [
             "gemini",
             "-p",
@@ -169,6 +177,8 @@ class GeminiCLILLM(CLIProviderLLM):
             model_override = gemini_overrides.get("model")
             if model_override:
                 cmd.extend(["--model", str(model_override)])
+
+        cmd.extend(self._build_mcp_config_args())
 
         result = self._run_subprocess(cmd)
         stdout = result.stdout.strip()
