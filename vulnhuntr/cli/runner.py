@@ -578,6 +578,15 @@ def run_analysis(args: argparse.Namespace, llm_factory: Callable | None = None) 
     # Finalize checkpoint
     checkpoint.finalize(success=analysis_success and len(files_to_analyze) > 0)
 
+    # Persist session metadata to checkpoint when using a session-aware CLI provider
+    cli_policy = getattr(config, "cli", None)
+    session_mode = getattr(cli_policy, "session_mode", "stateless") if cli_policy else "stateless"
+    if session_mode != "stateless" and hasattr(llm, "get_session_metadata"):
+        metadata = llm.get_session_metadata()
+        if metadata is not None and checkpoint._data is not None:
+            checkpoint._data.session_metadata = metadata
+            checkpoint.save()
+
     # Shutdown MCP connections
     if mcp_helper is not None:
         try:
