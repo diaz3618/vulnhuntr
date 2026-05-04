@@ -287,3 +287,32 @@ class TestSignalHandler:
         # Handler should be restored to whatever it was before
         assert cp._original_sigint_handler is None
         assert before == after
+
+
+class TestCheckpointSessionMetadata:
+    """SESSION-03: CheckpointData.session_metadata round-trips through to_dict/from_dict."""
+
+    def test_session_metadata_default_is_none(self):
+        from vulnhuntr.checkpoint import CheckpointData
+
+        data = CheckpointData()
+        assert data.session_metadata is None
+
+    def test_session_metadata_round_trips(self):
+        from vulnhuntr.checkpoint import CheckpointData
+
+        meta = {"provider": "claude-code", "session_id": "abc", "workdir": "/tmp"}
+        data = CheckpointData(session_metadata=meta)
+        d = data.to_dict()
+        assert d["session_metadata"] == meta
+        restored = CheckpointData.from_dict(d)
+        assert restored.session_metadata == meta
+
+    def test_session_metadata_none_round_trips(self):
+        from vulnhuntr.checkpoint import CheckpointData
+
+        data = CheckpointData(session_metadata=None)
+        d = data.to_dict()
+        assert d["session_metadata"] is None
+        restored = CheckpointData.from_dict(d)
+        assert restored.session_metadata is None

@@ -1650,3 +1650,208 @@ class TestQwenCodeLLMBridgeMode:
         with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-openai-test"}):
             env = provider._build_env()
         assert env.get("OPENAI_API_KEY") == "sk-openai-test"
+
+
+# ---------------------------------------------------------------------------
+# Phase 6 tests: SESSION-01 / SESSION-02 / SESSION-03 / SESSION-04
+# ---------------------------------------------------------------------------
+import json
+import pathlib
+import tempfile
+
+
+class TestClaudeCodeSessionMode:
+    """SESSION-01 / SESSION-03: ClaudeCodeLLM session_mode flags and CLIRuntimeError."""
+
+    def _make_fake(self, session_id: str | None = None) -> MagicMock:
+        payload: dict[str, Any] = {"result": "ok", "usage": {}, "modelUsage": {}}
+        if session_id:
+            payload["session_id"] = session_id
+        fake = MagicMock()
+        fake.stdout = json.dumps(payload)
+        fake.returncode = 0
+        return fake
+
+    def test_stateless_adds_no_session_persistence(self):
+        from vulnhuntr.cli_providers import ClaudeCodeLLM
+        from vulnhuntr.config import CLIPolicy
+
+        policy = CLIPolicy(session_mode="stateless", mcp_mode="none", tool_mode="none")
+        llm = ClaudeCodeLLM(policy=policy, workdir="/tmp")
+        with patch("subprocess.run", return_value=self._make_fake()) as m:
+            llm.send_message("test", 1024)
+        cmd = m.call_args[0][0]
+        assert "--no-session-persistence" in cmd
+        assert "--continue" not in cmd
+        assert "--resume" not in cmd
+
+    def test_continue_adds_continue_flag(self):
+        from vulnhuntr.cli_providers import ClaudeCodeLLM
+        from vulnhuntr.config import CLIPolicy
+
+        policy = CLIPolicy(session_mode="continue", mcp_mode="none", tool_mode="none")
+        llm = ClaudeCodeLLM(policy=policy, workdir="/tmp")
+        with patch("subprocess.run", return_value=self._make_fake("sess-abc")) as m:
+            llm.send_message("test", 1024)
+        cmd = m.call_args[0][0]
+        assert "--continue" in cmd
+        assert "--no-session-persistence" not in cmd
+
+    def test_resume_without_session_id_raises(self):
+        from vulnhuntr.cli_providers import ClaudeCodeLLM
+        from vulnhuntr.cli_providers.base import CLIRuntimeError
+        from vulnhuntr.config import CLIPolicy
+
+        policy = CLIPolicy(session_mode="resume", mcp_mode="none", tool_mode="none")
+        llm = ClaudeCodeLLM(policy=policy, workdir="/tmp")
+        with pytest.raises(CLIRuntimeError, match="session_id"):
+            with patch("subprocess.run", return_value=self._make_fake()):
+                llm.send_message("test", 1024)
+
+    def test_resume_with_session_id_passes_resume_flag(self):
+        from vulnhuntr.cli_providers import ClaudeCodeLLM
+        from vulnhuntr.config import CLIPolicy
+
+        policy = CLIPolicy(session_mode="resume", mcp_mode="none", tool_mode="none")
+        llm = ClaudeCodeLLM(policy=policy, workdir="/tmp")
+        llm.session_id = "stored-session-123"
+        with patch("subprocess.run", return_value=self._make_fake("stored-session-123")) as m:
+            llm.send_message("test", 1024)
+        cmd = m.call_args[0][0]
+        idx = cmd.index("--resume")
+        assert cmd[idx + 1] == "stored-session-123"
+
+    def test_session_id_extracted_from_response(self):
+        from vulnhuntr.cli_providers import ClaudeCodeLLM
+        from vulnhuntr.config import CLIPolicy
+
+        policy = CLIPolicy(session_mode="continue", mcp_mode="none", tool_mode="none")
+        llm = ClaudeCodeLLM(policy=policy, workdir="/tmp")
+        with patch("subprocess.run", return_value=self._make_fake("sess-42")):
+            llm.send_message("test", 1024)
+        assert llm.session_id == "sess-42"
+
+    def test_session_id_none_when_not_in_payload(self):
+        from vulnhuntr.cli_providers import ClaudeCodeLLM
+        from vulnhuntr.config import CLIPolicy
+
+        policy = CLIPolicy(session_mode="stateless", mcp_mode="none", tool_mode="none")
+        llm = ClaudeCodeLLM(policy=policy, workdir="/tmp")
+        with patch("subprocess.run", return_value=self._make_fake()):
+            llm.send_message("test", 1024)
+        assert llm.session_id is None
+
+
+class TestClaudeCodeMCPConfig:
+    """SESSION-02: ClaudeCodeLLM._build_mcp_config_args writes stub and passes flag."""
+
+    def _make_fake(self) -> MagicMock:
+        fake = MagicMock()
+        fake.stdout = json.dumps({"result": "ok", "usage": {}, "modelUsage": {}})
+        fake.returncode = 0
+        return fake
+
+    def test_mcp_mode_none_no_flag(self):
+        from vulnhuntr.cli_providers import ClaudeCodeLLM
+        from vulnhuntr.config import CLIPolicy
+
+        with tempfile.TemporaryDirectory() as td:
+            policy = CLIPolicy(session_mode="stateless", mcp_mode="none", tool_mode="none")
+            llm = ClaudeCodeLLM(policy=policy, workdir=td)
+            with patch("subprocess.run", return_value=self._make_fake()) as m:
+                llm.send_message("test", 1024)
+            cmd = m.call_args[0][0]
+            assert "--mcp-config" not in cmd
+            assert not (pathlib.Path(td) / "mcp_config.json").exists()
+
+    def test_mcp_mode_vulnhuntr_writes_stub_and_flag(self):
+        from vulnhuntr.cli_providers import ClaudeCodeLLM
+        from vulnhuntr.config import CLIPolicy
+
+        with tempfile.TemporaryDirectory() as td:
+            policy = CLIPolicy(session_mode="stateless", mcp_mode="vulnhuntr", tool_mode="none")
+            llm = ClaudeCodeLLM(policy=policy, workdir=td)
+            with patch("subprocess.run", return_value=self._make_fake()) as m:
+                llm.send_message("test", 1024)
+            cmd = m.call_args[0][0]
+            assert "--mcp-config" in cmd
+            cfg_path = pathlib.Path(td) / "mcp_config.json"
+            assert cfg_path.exists()
+            data = json.loads(cfg_path.read_text())
+            assert data == {"mcpServers": {}}
+
+    def test_mcp_mode_provider_no_flag(self):
+        from vulnhuntr.cli_providers import ClaudeCodeLLM
+        from vulnhuntr.config import CLIPolicy
+
+        with tempfile.TemporaryDirectory() as td:
+            policy = CLIPolicy(session_mode="stateless", mcp_mode="provider", tool_mode="none")
+            llm = ClaudeCodeLLM(policy=policy, workdir=td)
+            with patch("subprocess.run", return_value=self._make_fake()) as m:
+                llm.send_message("test", 1024)
+            cmd = m.call_args[0][0]
+            assert "--mcp-config" not in cmd
+
+
+class TestGetSessionMetadata:
+    """SESSION-03: get_session_metadata() returns correct dict or None."""
+
+    def test_returns_none_before_first_message(self):
+        from vulnhuntr.cli_providers import ClaudeCodeLLM
+        from vulnhuntr.config import CLIPolicy
+
+        policy = CLIPolicy(session_mode="continue", mcp_mode="none")
+        llm = ClaudeCodeLLM(policy=policy, workdir="/tmp/test")
+        assert llm.get_session_metadata() is None
+
+    def test_returns_metadata_after_session_id_set(self):
+        from vulnhuntr.cli_providers import ClaudeCodeLLM
+        from vulnhuntr.config import CLIPolicy
+
+        policy = CLIPolicy(session_mode="continue", mcp_mode="none")
+        llm = ClaudeCodeLLM(policy=policy, workdir="/tmp/test")
+        llm.session_id = "sid-99"
+        llm._last_probe_version = "1.2.3"
+        meta = llm.get_session_metadata()
+        assert meta is not None
+        assert meta["session_id"] == "sid-99"
+        assert meta["provider"] == "ClaudeCodeLLM"
+        assert meta["workdir"] == "/tmp/test"
+
+
+class TestCodexSandboxMode:
+    """SESSION-04: CodexLLM sandbox_mode config-driven selection."""
+
+    def _make_fake(self) -> MagicMock:
+        fake = MagicMock()
+        fake.stdout = (
+            json.dumps({"type": "item.completed", "item": {"type": "agent_message", "text": "ok"}})
+            + "\n"
+            + json.dumps({"type": "turn.completed", "usage": {}})
+        )
+        fake.returncode = 0
+        return fake
+
+    def test_sandbox_mode_workspace_write_overrides_tool_mode(self):
+        from vulnhuntr.cli_providers import CodexLLM
+        from vulnhuntr.config import CLIPolicy
+
+        policy = CLIPolicy(session_mode="stateless", sandbox_mode="workspace-write", tool_mode="none")
+        llm = CodexLLM(policy=policy)
+        with patch("subprocess.run", return_value=self._make_fake()) as m:
+            llm.send_message("test", 1024)
+        cmd = m.call_args[0][0]
+        idx = cmd.index("--sandbox")
+        assert cmd[idx + 1] == "workspace-write"
+
+    def test_sandbox_mode_none_falls_back_to_tool_mode(self):
+        from vulnhuntr.cli_providers import CodexLLM
+        from vulnhuntr.config import CLIPolicy
+
+        policy = CLIPolicy(session_mode="stateless", sandbox_mode="none", tool_mode="none")
+        llm = CodexLLM(policy=policy)
+        with patch("subprocess.run", return_value=self._make_fake()) as m:
+            llm.send_message("test", 1024)
+        cmd = m.call_args[0][0]
+        idx = cmd.index("--sandbox")
+        assert cmd[idx + 1] == "read-only"
