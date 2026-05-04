@@ -532,12 +532,14 @@ class FallbackLLM:
                     failure_reason=str(e),
                     fallback_index=i,
                 )
-                self._diagnostics.append({
-                    "failed_provider": type(llm).__name__,
-                    "error_class": type(e).__name__,
-                    "failure_reason": str(e)[:200],
-                    "fallback_to": type(self._all_llms[i + 1]).__name__ if i + 1 < len(self._all_llms) else "none",
-                })
+                self._diagnostics.append(
+                    {
+                        "failed_provider": type(llm).__name__,
+                        "error_class": type(e).__name__,
+                        "failure_reason": str(e)[:200],
+                        "fallback_to": type(self._all_llms[i + 1]).__name__ if i + 1 < len(self._all_llms) else "none",
+                    }
+                )
                 if i == len(self._all_llms) - 1:
                     raise LLMError(
                         f"All LLMs failed (primary + {len(self._fallbacks)} fallbacks). Last error: {e}"
