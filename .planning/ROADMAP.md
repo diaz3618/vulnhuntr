@@ -179,10 +179,18 @@ Plans:
 - SESSION-03
 - SESSION-04
 
-**Plans:**
-1. Implement stateless/continue/resume modes where supported
-2. Record provider session metadata and workdir context
-3. Define and implement native-tool and MCP ownership modes
+**Plans:** 4 plans
+
+Plans:
+**Wave 1**
+- [ ] 06-01-PLAN.md — Base class contracts: session_id, _last_probe_version, get_session_metadata(), _build_mcp_config_args(); CheckpointData.session_metadata; CLIPolicy docstring
+
+**Wave 2** *(parallel)*
+- [ ] 06-02-PLAN.md — Provider wire-up: session_mode flags in all 4 providers, ClaudeCodeLLM MCP override, probe() version capture
+- [ ] 06-03-PLAN.md — Runner session metadata write to checkpoint after first successful call
+
+**Wave 3** *(blocked on Wave 2)*
+- [ ] 06-04-PLAN.md — Parametrized tests: session_mode, tool_mode, sandbox_mode, MCP, get_session_metadata, CheckpointData round-trip
 
 **Success Criteria:**
 1. Operators can choose stateless vs resumed execution through config
