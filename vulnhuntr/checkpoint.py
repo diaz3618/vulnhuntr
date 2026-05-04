@@ -33,6 +33,9 @@ class CheckpointData:
     # Cost tracking
     cost_tracker_data: dict | None = None
 
+    # Session metadata (set when using a session-aware CLI provider)
+    session_metadata: dict[str, Any] | None = None
+
     # Metadata
     repo_path: str | None = None
     model: str | None = None
@@ -61,6 +64,7 @@ class CheckpointData:
             "current_file": self.current_file,
             "results": self.results,
             "cost_tracker_data": self.cost_tracker_data,
+            "session_metadata": self.session_metadata,
             "repo_path": self.repo_path,
             "model": self.model,
             "started_at": self.started_at,
@@ -77,6 +81,7 @@ class CheckpointData:
             current_file=data.get("current_file"),
             results=data.get("results", []),
             cost_tracker_data=data.get("cost_tracker_data"),
+            session_metadata=data.get("session_metadata"),
             repo_path=data.get("repo_path"),
             model=data.get("model"),
             started_at=data.get("started_at"),

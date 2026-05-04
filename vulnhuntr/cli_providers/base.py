@@ -11,6 +11,7 @@ import os
 import subprocess
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 
 import structlog
@@ -100,6 +101,8 @@ class CLIProviderLLM(LLM, ABC):
         super().__init__(system_prompt, cost_callback)
         self.timeout = timeout
         self.workdir = workdir
+        self.session_id: str | None = None
+        self._last_probe_version: str | None = None
 
     @abstractmethod
     def probe(self) -> CapabilityResult:
@@ -174,6 +177,37 @@ class CLIProviderLLM(LLM, ABC):
             )
 
         return result
+
+    def get_session_metadata(self) -> dict[str, Any] | None:
+        """Return session metadata after a send_message() call, or None if no session."""
+        if not self.session_id:
+            return None
+        return {
+            "provider": self.__class__.__name__,
+            "session_id": self.session_id,
+            "started_at": datetime.utcnow().isoformat(),
+            "workdir": self.workdir,
+            "binary_version": self._last_probe_version,
+        }
+
+    def _build_mcp_config_args(self) -> list[str]:
+        """Return extra CLI args for MCP config injection, or [] if not applicable.
+
+        Subclasses with --mcp-config support override this. The default logs a
+        warning when mcp_mode is non-none and returns [] so scans continue safely.
+        """
+        policy = getattr(self, "_policy", None)
+        if not policy:
+            return []
+        mcp_mode = getattr(policy, "mcp_mode", "none")
+        if mcp_mode != "none":
+            log.warning(
+                "mcp_mode requested but provider does not implement MCP config injection; "
+                "continuing with mcp_mode='none' behavior",
+                provider=self.__class__.__name__,
+                mcp_mode=mcp_mode,
+            )
+        return []
 
     def chat(
         self,

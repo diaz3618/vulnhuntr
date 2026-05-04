@@ -19,10 +19,18 @@ class CLIPolicy:
     Applied to all providers unless overridden via ``overrides`` per provider
     (e.g. ``{"claude-code": {"timeout": 600}}``).
 
-    tool_mode controls which tools the provider binary can use:
-      "none" (default) — disable built-in tools
-      "read-only"      — file reads only
-      "full"           — all tools enabled
+    tool_mode controls access to ALL provider-native tools during a scan:
+    file-system reads/writes, shell execution, web browsing, computer-use
+    actions, and MCP servers the provider manages on its own. It does NOT
+    govern Vulnhuntr-managed MCP servers (that is mcp_mode).
+
+      "none" (default) — disable all tools (safe default for scanning)
+      "read-only"      — file reads only; shell, web, and computer-use disabled
+      "full"           — all tools the provider supports are enabled (explicit opt-in)
+
+    sandbox_mode is Codex-specific and maps to --sandbox read-only|workspace-write.
+    No other provider uses this field. Set to "workspace-write" to allow Codex
+    to write files in the workdir; leave as "none" or "read-only" for safe scanning.
 
     strip_env_vars is appended to each provider's class-level _STRIP_ENV_VARS
     before subprocess spawn — use this to scrub credentials the class doesn't
