@@ -52,9 +52,13 @@ Examples:
         "-l",
         "--llm",
         type=str,
-        choices=["claude", "gpt", "ollama", "openrouter"],
+        choices=["claude", "gpt", "ollama", "openrouter", "claude-code", "gemini-cli", "codex", "qwen-code"],
         default=None,
-        help="LLM client to use (default: claude). OpenRouter provides access to free models.",
+        help=(
+            "LLM client to use (default: claude). "
+            "API providers: claude, gpt, ollama, openrouter. "
+            "CLI providers (no API key needed): claude-code, gemini-cli, codex, qwen-code."
+        ),
     )
 
     parser.add_argument(

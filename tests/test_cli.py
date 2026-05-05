@@ -66,7 +66,7 @@ class TestCreateArgumentParser:
 
     def test_parses_llm_choices(self, tmp_path):
         parser = create_argument_parser()
-        for llm in ["claude", "gpt", "ollama"]:
+        for llm in ["claude", "gpt", "ollama", "openrouter", "claude-code", "gemini-cli", "codex", "qwen-code"]:
             args = parser.parse_args(["--root", str(tmp_path), "--llm", llm])
             assert args.llm == llm
 

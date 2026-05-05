@@ -168,6 +168,13 @@ class CLIProviderLLM(LLM, ABC):
 
         log.debug("Spawning CLI provider subprocess", cmd=cmd[0], args=cmd[1:])
 
+        cwd: str | None = None
+        if self.workdir:
+            import pathlib
+
+            pathlib.Path(self.workdir).mkdir(parents=True, exist_ok=True)
+            cwd = self.workdir
+
         try:
             result = subprocess.run(
                 cmd,
@@ -178,7 +185,7 @@ class CLIProviderLLM(LLM, ABC):
                 timeout=self.timeout,
                 env=env,
                 shell=False,
-                cwd=self.workdir if self.workdir else None,
+                cwd=cwd,
             )
         except FileNotFoundError as exc:
             raise CLIBinaryNotFoundError(
