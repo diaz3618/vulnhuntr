@@ -6,6 +6,39 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- **CLI provider support** (`--llm claude-code`, `gemini-cli`, `codex`, `qwen-code`):
+  delegates analysis to external AI binaries without requiring an API key.
+- **Budget enforcement**: `--budget USD` stops analysis before the dollar limit is hit.
+- **Native session continuation**: `ClaudeCodeLLM` and `QwenCodeLLM` use their provider's
+  `--resume`/`--continue` flags to carry context across analysis passes.
+- **MCP tool dispatch**: `VulnerabilityAnalyzer._secondary_analysis()` can inject MCP
+  tool results into subsequent LLM passes when an `MCPAnalysisHelper` is active.
+- **Execution tracing**: `ExecutionTracer` records probe, validation, session, fallback,
+  and tool events for diagnostics and behavioral evaluation.
+- **Cost classification**: `TokenUsage` distinguishes `api`, `provider_reported`, and
+  `subscription` usage; `CostTracker.get_summary()` breaks costs down by type.
+- **Provider fallback diagnostics**: verbose mode (`-v`) prints a fallback event log at
+  the end of each run.
+- **Analysis checkpoint** (`--resume`): `checkpoint.save_now()` persists progress after
+  each file; `--no-checkpoint` disables this.
+- **State-machine invariants**: `InvariantViolationError` guards known illegal state
+  transitions in `FallbackLLM` and `ClaudeCodeLLM`.
+
+### Fixed
+
+- `checkpoint.save_now()` call (was incorrectly using `checkpoint.save()`).
+- `GeminiCLILLM` and `CodexLLM` were not wired to accept a `tracer=` argument,
+  meaning trace events were silently dropped for those providers.
+
+### Changed
+
+- `.env.example` model name updated from `claude-3-5-sonnet-latest` to
+  `claude-sonnet-4-5` to match the current default used in production.
+- `.env.example` now includes a CLI providers section documenting env-var auth for
+  `codex` and `qwen-code`.
+
 ## [1.1.3] - 2026-02-11
 
 ### Fixed
