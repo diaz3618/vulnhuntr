@@ -882,6 +882,19 @@ class TestGeminiCLILLM:
             with pytest.raises(CLIBinaryNotFoundError):
                 provider.send_message(user_prompt="test", max_tokens=100, response_model=_Dummy)
 
+    def test_send_message_timeout(self):
+        """send_message() raises CLITimeoutError when subprocess times out."""
+        from vulnhuntr.cli_providers import CLITimeoutError
+        from vulnhuntr.cli_providers.gemini_cli import GeminiCLILLM
+
+        provider = GeminiCLILLM()
+        with patch(
+            "subprocess.run",
+            side_effect=subprocess.TimeoutExpired(cmd="gemini", timeout=300),
+        ):
+            with pytest.raises(CLITimeoutError):
+                provider.send_message("test", 8192, None)
+
 
 # ---------------------------------------------------------------------------
 # TestClaudeCodeLLM — consolidated class (CLAUDECLI-01, Plan 04-03)
@@ -1077,6 +1090,50 @@ def test_gemini_cli_live_round_trip():
     assert isinstance(text, str) and len(text) > 0
 
 
+@pytest.mark.live
+def test_codex_live_round_trip():
+    """Requires 'codex' binary installed and authenticated (OPENAI_API_KEY in env).
+
+    Run locally: pytest tests/test_cli_providers.py -m live -k codex
+    Excluded from CI via pyproject.toml addopts = '-m "not live"'
+    """
+    import shutil
+
+    from vulnhuntr.cli_providers import CodexLLM
+
+    if shutil.which("codex") is None:
+        pytest.skip("codex binary not on PATH — install with: npm i -g @openai/codex")
+    provider = CodexLLM()
+    probe_result = provider.probe()
+    assert probe_result.ok, f"probe failed: {probe_result.diagnostic_message}"
+    payload = provider.send_message("Say 'hello' in exactly one word.", 256, None)
+    assert "events" in payload
+    text = provider.get_response(payload)
+    assert isinstance(text, str) and len(text) > 0
+
+
+@pytest.mark.live
+def test_qwen_code_live_round_trip():
+    """Requires 'qwen' binary installed and authenticated (DASHSCOPE_API_KEY in env).
+
+    Run locally: pytest tests/test_cli_providers.py -m live -k qwen
+    Excluded from CI via pyproject.toml addopts = '-m "not live"'
+    """
+    import shutil
+
+    from vulnhuntr.cli_providers import QwenCodeLLM
+
+    if shutil.which("qwen") is None:
+        pytest.skip("qwen binary not on PATH — install with: npm i -g @qwen-code/qwen-code")
+    provider = QwenCodeLLM()
+    probe_result = provider.probe()
+    assert probe_result.ok, f"probe failed: {probe_result.diagnostic_message}"
+    payload = provider.send_message("Say 'hello' in exactly one word.", 256, None)
+    assert "messages" in payload
+    text = provider.get_response(payload)
+    assert isinstance(text, str) and len(text) > 0
+
+
 # ---------------------------------------------------------------------------
 # CodexLLM tests (CODEX-01)
 # ---------------------------------------------------------------------------
@@ -1264,6 +1321,27 @@ class TestCodexLLMSendMessage:
         cmd = mock_run.call_args[0][0]
         assert cmd[-1] == "my prompt"
         assert "-p" not in cmd
+
+    def test_send_message_timeout(self):
+        """send_message() raises CLITimeoutError when subprocess times out."""
+        from vulnhuntr.cli_providers import CLITimeoutError, CodexLLM
+
+        provider = CodexLLM()
+        with patch(
+            "subprocess.run",
+            side_effect=subprocess.TimeoutExpired(cmd="codex", timeout=300),
+        ):
+            with pytest.raises(CLITimeoutError):
+                provider.send_message("test", 8192)
+
+    def test_send_message_binary_not_found(self):
+        """send_message() raises CLIBinaryNotFoundError when codex binary absent."""
+        from vulnhuntr.cli_providers import CLIBinaryNotFoundError, CodexLLM
+
+        provider = CodexLLM()
+        with patch("subprocess.run", side_effect=FileNotFoundError("no such file")):
+            with pytest.raises(CLIBinaryNotFoundError):
+                provider.send_message(user_prompt="test", max_tokens=100, response_model=None)
 
 
 class TestCodexLLMGetResponse:
@@ -1525,6 +1603,27 @@ class TestQwenCodeLLMSendMessage:
         assert "-p" in cmd
         p_idx = cmd.index("-p")
         assert cmd[p_idx + 1] == "my prompt"
+
+    def test_send_message_timeout(self):
+        """send_message() raises CLITimeoutError when subprocess times out."""
+        from vulnhuntr.cli_providers import CLITimeoutError, QwenCodeLLM
+
+        provider = QwenCodeLLM()
+        with patch(
+            "subprocess.run",
+            side_effect=subprocess.TimeoutExpired(cmd="qwen", timeout=300),
+        ):
+            with pytest.raises(CLITimeoutError):
+                provider.send_message("test", 8192)
+
+    def test_send_message_binary_not_found(self):
+        """send_message() raises CLIBinaryNotFoundError when qwen binary absent."""
+        from vulnhuntr.cli_providers import CLIBinaryNotFoundError, QwenCodeLLM
+
+        provider = QwenCodeLLM()
+        with patch("subprocess.run", side_effect=FileNotFoundError("no such file")):
+            with pytest.raises(CLIBinaryNotFoundError):
+                provider.send_message(user_prompt="test", max_tokens=100, response_model=None)
 
 
 class TestQwenCodeLLMGetResponse:

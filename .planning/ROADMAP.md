@@ -299,11 +299,13 @@ Plans:
 - CONFIG-04
 - CONFIG-05
 
-**Plans:**
-1. Finish mocked tests for all adapters and config parsing
-2. Add optional live test guidance/markers
-3. Update QUICKSTART and config examples
-4. Document the verification evidence required before declaring provider integration done
+**Plans:** 4 plans
+
+Plans:
+- [ ] 10-01-PLAN.md — Fill mocked timeout + binary_not_found gaps; add Codex + Qwen Code live round-trip tests (VERIFY-01, VERIFY-02)
+- [ ] 10-02-PLAN.md — Add CLI Providers section to QUICKSTART.md and docs/troubleshooting.md (VERIFY-03, CONFIG-04)
+- [ ] 10-03-PLAN.md — Create docs/verification.md and docs/example-config.yaml (VERIFY-04, CONFIG-05)
+- [ ] 10-04-PLAN.md — Humanization pass: Python source, tests, docs, and commit message rewrite (D-01, D-02, D-03)
 
 **Success Criteria:**
 1. Every CLI provider has adapter tests covering the main failure classes
