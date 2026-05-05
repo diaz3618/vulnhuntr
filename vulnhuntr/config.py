@@ -5,7 +5,7 @@ from __future__ import annotations
 import dataclasses
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 import structlog
 
@@ -49,9 +49,9 @@ class CLIPolicy:
     tool_mode: str = "none"
     strip_env_vars: list[str] = field(default_factory=list)
 
-    _VALID_SESSION_MODES: frozenset[str] = frozenset({"stateless", "continue", "resume"})
-    _VALID_MCP_MODES: frozenset[str] = frozenset({"none", "vulnhuntr", "provider", "both"})
-    _VALID_TOOL_MODES: frozenset[str] = frozenset({"none", "read-only", "full"})
+    _VALID_SESSION_MODES: ClassVar[frozenset[str]] = frozenset({"stateless", "continue", "resume"})
+    _VALID_MCP_MODES: ClassVar[frozenset[str]] = frozenset({"none", "vulnhuntr", "provider", "both"})
+    _VALID_TOOL_MODES: ClassVar[frozenset[str]] = frozenset({"none", "read-only", "full"})
 
     def __post_init__(self) -> None:
         if self.session_mode not in self._VALID_SESSION_MODES:
