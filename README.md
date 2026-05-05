@@ -121,7 +121,8 @@ OPENROUTER_API_KEY=sk-or-...
 ### Command Line Interface
 
 ```
-usage: vulnhuntr [-h] -r ROOT [-a ANALYZE] [-l {claude,gpt,ollama,openrouter}] [-v]
+usage: vulnhuntr [-h] -r ROOT [-a ANALYZE] [-l PROVIDER] [--fallback1 PROVIDER:MODEL]
+                 [--fallback2 PROVIDER:MODEL] [-v]
                  [--dry-run] [--budget BUDGET] [--resume [RESUME]] [--no-checkpoint]
                  [--sarif PATH] [--html PATH] [--json PATH] [--csv PATH] [--markdown PATH]
                  [--export-all DIR] [--create-issues] [--webhook URL]
@@ -134,8 +135,14 @@ options:
   -r ROOT, --root ROOT  Path to the root directory of the project
   -a ANALYZE, --analyze ANALYZE
                         Specific path or file within the project to analyze
-  -l {claude,gpt,ollama,openrouter}, --llm {claude,gpt,ollama,openrouter}
-                        LLM client to use (default: claude). OpenRouter provides access to free models.
+  -l PROVIDER, --llm PROVIDER
+                        LLM provider. API providers: claude, gpt, ollama, openrouter.
+                        CLI providers (no API key needed): claude-code, gemini-cli, codex, qwen-code.
+                        Default: claude
+  --fallback1 PROVIDER:MODEL
+                        First fallback LLM if primary fails (e.g., openrouter:qwen/qwen3-coder:free)
+  --fallback2 PROVIDER:MODEL
+                        Second fallback LLM
   -v, --verbosity       Increase output verbosity (-v for INFO, -vv for DEBUG)
 
 Cost Management:

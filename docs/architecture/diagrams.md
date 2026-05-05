@@ -103,7 +103,7 @@ flowchart TD
 flowchart TD
     RAW([Raw API Response]) --> PROV{provider?}
     PROV -->|Claude| CLAUD["response.content[0].text\nstrip newlines"]
-    PROV -->|ChatGPT| CGPT["response.choices[0].message.content"]
+    PROV -->|ChatGPT / OpenRouter| CGPT["response.choices[0].message.content"]
     PROV -->|Ollama| OLMA["response.json()['response']"]
     CLAUD --> RTEXT[response_text]
     CGPT --> RTEXT
@@ -120,4 +120,24 @@ flowchart TD
     VALID -->|yes| OK([Return Response object])
     VALID -->|no| LOGW[log.warning: validation failed]
     LOGW --> ERR([raise LLMError])
+```
+
+---
+
+## Diagram 5: CLI Provider Routing
+
+```mermaid
+flowchart TD
+    FLAG["--llm VALUE"] --> APICHECK{"API provider?"}
+    APICHECK -->|"claude / gpt / ollama / openrouter"| APIPATH["vulnhuntr/llms.py\nLLM subclass"]
+    APICHECK -->|"claude-code / gemini-cli / codex / qwen-code"| CLIPATH["vulnhuntr/cli_providers/\nCLIProviderLLM subclass"]
+    APIPATH --> APICALL["HTTP API call\n(provider API key required)"]
+    CLIPATH --> BINCHECK{"Binary on PATH?"}
+    BINCHECK -->|yes| SPAWN["Spawn subprocess\nclaude / gemini / codex / qwen\n(API key env vars stripped)"]
+    BINCHECK -->|no| FALLBACK{"--fallback1 or\n--fallback2 set?"}
+    FALLBACK -->|yes| FBPATH["Re-route to fallback\nprovider:model"]
+    FALLBACK -->|no| ERR(["CLIBinaryNotFoundError"])
+    SPAWN --> RESP["Parse response\n→ LLM._validate_response()"]
+    APICALL --> RESP
+    FBPATH --> RESP
 ```

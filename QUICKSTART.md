@@ -47,7 +47,7 @@ Common issues include JSON validation errors (use a model with sufficient contex
 ## CLI Reference
 
 ```
-vulnhuntr -r ROOT [-a FILE] [-l {claude,gpt,ollama,openrouter}] [-v]
+vulnhuntr -r ROOT [-a FILE] [-l PROVIDER] [-v]
           [--dry-run] [--budget USD] [--resume] [--no-checkpoint]
           [--sarif PATH] [--html PATH] [--json PATH]
 ```

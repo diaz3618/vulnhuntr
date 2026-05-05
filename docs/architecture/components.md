@@ -2,9 +2,11 @@
 
 ## Entry Point (`__main__.py`)
 
-The main pipeline: parse args → init RepoOps → filter files → summarize README → initial analysis → iterative secondary analysis → report.
+`__main__.py` loads `.env` via `python-dotenv`, then configures structlog with a full stdlib processor chain (`filter_by_level`, `add_logger_name`, `add_log_level`, `PositionalArgumentsFormatter`, `TimeStamper`, `StackInfoRenderer`, `format_exc_info`, `UnicodeDecoder`, `JSONRenderer`). Once logging is set up it delegates everything else to the CLI module.
 
-`run()` coordinates everything. `initialize_llm()` is a factory for Claude/GPT/Ollama/OpenRouter clients. `print_readable()` formats output for the terminal.
+- `vulnhuntr/cli/parser.py` — `create_argument_parser()`, `validate_args()`, `normalize_args()`
+- `vulnhuntr/cli/runner.py` — `run_analysis()` main orchestrator, `initialize_llm()` provider factory (handles all 8 providers)
+- `vulnhuntr/cli/output.py` — terminal formatting: `print_readable()`, `print_findings_summary()`, `console`
 
 ---
 
@@ -154,6 +156,47 @@ All clients raise standardized exceptions:
 - `RateLimitError`: Request rate-limited
 - `APIStatusError`: Non-200 status code
 - `LLMError`: Generic/validation errors
+
+---
+
+## CLI Providers (`vulnhuntr/cli_providers/`)
+
+Implements four providers that delegate to local binaries rather than calling HTTP APIs. All share the same `CLIProviderLLM` abstract base class, itself a subclass of `LLM`.
+
+### Base Class: `CLIProviderLLM`
+
+Uses subprocess transport: spawns the provider binary, pipes the prompt to stdin, reads stdout. Before spawning, `CLIProviderLLM` strips its own API key environment variables (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_API_KEY`, `DASHSCOPE_API_KEY`) so the subprocess uses the provider's own stored credentials instead of any keys you have exported. Each call is subject to a configurable timeout and reports token usage via the cost callback.
+
+**Error taxonomy**:
+
+- `CLIBinaryNotFoundError` — binary not on PATH
+- `CLIAuthError` — provider auth failed or not set up
+- `CLITimeoutError` — subprocess exceeded timeout
+- `CLIParseError` — could not parse structured output
+- `CLISandboxError` — sandbox or permission denied
+- `CLIRuntimeError` — unclassified subprocess error
+
+**Subclasses**:
+
+| File | Provider | Binary |
+|------|----------|--------|
+| `claude_code.py` | `claude-code` | `claude` |
+| `gemini_cli.py` | `gemini-cli` | `gemini` |
+| `codex.py` | `codex` | `codex` |
+| `qwen_code.py` | `qwen-code` | `qwen` |
+
+---
+
+## Other Modules
+
+- `vulnhuntr/core/repo.py` — `RepoOps`: scans and filters target repo files, identifies network entry points
+- `vulnhuntr/core/trace.py` — `ExecutionTracer`: captures analysis execution trace for debugging and reporting
+- `vulnhuntr/core/models.py` — shared types including `LLMUsage` and other cross-module data classes
+- `vulnhuntr/reporters/` — multi-format report writers: SARIF, HTML, JSON, CSV, Markdown
+- `vulnhuntr/cost_tracker.py` — `CostTracker`, `BudgetEnforcer`, `estimate_analysis_cost`
+- `vulnhuntr/checkpoint.py` — `AnalysisCheckpoint`: saves and restores analysis state across interruptions
+- `vulnhuntr/config.py` — `load_config`, `merge_config_with_args`, `VulnhuntrConfig`, `CLIPolicy`
+- `vulnhuntr/mcp/` — MCP gateway: `analysis.py`, `client.py`, `config.py`
 
 ---
 

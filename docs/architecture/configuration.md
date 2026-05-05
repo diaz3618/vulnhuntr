@@ -32,7 +32,7 @@ Shell environment variables override `.env` because `dotenv.load_dotenv()` only 
 ## CLI Arguments
 
 ```
-vulnhuntr -r <root> [-a <analyze>] [-l {claude,gpt,ollama,openrouter}] [-v]
+vulnhuntr -r <root> [-a <analyze>] [-l PROVIDER] [-v] [--fallback1 PROVIDER:MODEL] [--fallback2 PROVIDER:MODEL]
 
 Required:
   -r, --root PATH       Root directory of target repository
@@ -41,8 +41,16 @@ Optional:
   -a, --analyze PATH    Specific file or subdirectory to analyze
                         (relative to root or absolute path)
 
-  -l, --llm CHOICE      LLM provider: claude, gpt, ollama, openrouter
-                        Default: claude
+  -l, --llm PROVIDER    LLM provider to use (default: claude).
+                        API providers: {claude,gpt,ollama,openrouter} — call HTTP APIs, require an API key.
+                        CLI providers: {claude-code,gemini-cli,codex,qwen-code} — spawn local binaries, no API key needed.
+
+  --fallback1 PROVIDER:MODEL
+                        First fallback if primary provider fails
+                        (e.g., openrouter:qwen/qwen3-coder:free)
+
+  --fallback2 PROVIDER:MODEL
+                        Second fallback LLM
 
   -v, --verbosity       Increase output verbosity
                         -v: Show verbose analysis output
@@ -67,12 +75,25 @@ The 8192 limit was raised from the original 4096 after analysis responses consis
 
 ```python
 structlog.configure(
-    processors=[structlog.processors.JSONRenderer()],
-    logger_factory=structlog.WriteLoggerFactory(
-        file=Path('vulnhuntr').with_suffix(".log").open("wt")
-    )
+    processors=[
+        structlog.stdlib.filter_by_level,
+        structlog.stdlib.add_logger_name,
+        structlog.stdlib.add_log_level,
+        structlog.stdlib.PositionalArgumentsFormatter(),
+        structlog.processors.TimeStamper(fmt="iso"),
+        structlog.processors.StackInfoRenderer(),
+        structlog.processors.format_exc_info,
+        structlog.processors.UnicodeDecoder(),
+        structlog.processors.JSONRenderer(),
+    ],
+    context_class=dict,
+    logger_factory=structlog.stdlib.LoggerFactory(),
+    wrapper_class=structlog.stdlib.BoundLogger,
+    cache_logger_on_first_use=True,
 )
 ```
+
+Log output goes to stderr by default (stdlib integration).
 
 **Log Levels**:
 
@@ -81,7 +102,7 @@ structlog.configure(
 - `log.warning()`: Validation failures, missing context
 - `log.error()`: Exceptions, API errors
 
-**Output Format** (`vulnhuntr.log`):
+**Output Format**:
 
 ```json
 {"event": "Summarizing project README", "level": "info", "timestamp": "..."}
