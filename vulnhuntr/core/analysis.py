@@ -145,9 +145,8 @@ class VulnerabilityAnalyzer:
     ) -> tuple[list[AnalysisResult], ExecutionTracer | None]:
         """Run analysis over a list of files and return results + tracer.
 
-        This satisfies D-05: callers that want structured access to trace
-        data can use this method; the CLI runner continues to use
-        runner.run_analysis() which calls analyze_file() directly.
+        Callers that need structured access to trace data can use this directly;
+        the CLI runner calls runner.run_analysis() → analyze_file() instead.
 
         Args:
             file_paths: List of files to analyze.
@@ -409,7 +408,9 @@ class VulnerabilityAnalyzer:
             else:
                 same_context_count = 0
 
-        return report or Response(), stored_code_definitions
+        if report is None:
+            report = Response()
+        return report, stored_code_definitions
 
     def _build_initial_prompt(
         self,

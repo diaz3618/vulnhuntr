@@ -1,9 +1,8 @@
 """
 MCP Client Manager — manages connections to configured MCP servers.
 
-This module is standalone and NOT integrated into Vulnhuntr's analysis
-pipeline. It provides a generic interface for connecting to any MCP server,
-discovering tools, and invoking them.
+Standalone, not wired into Vulnhuntr's analysis pipeline. Provides a generic
+interface for connecting to any MCP server, discovering tools, and invoking them.
 """
 
 from __future__ import annotations
@@ -60,14 +59,10 @@ class ServerConnection:
 class MCPClientManager:
     """Manages connections to multiple MCP servers.
 
-    This class handles the full lifecycle of MCP server connections:
-    - Reading server configs from MCPSettings
-    - Establishing connections via the appropriate transport
-    - Discovering tools from each server
-    - Routing tool calls to the correct server
-    - Graceful shutdown of all connections
+    Covers the full lifecycle: reading configs, connecting via the appropriate
+    transport, discovering tools, routing tool calls, and shutting down cleanly.
 
-    Designed to be used as an async context manager::
+    Use as an async context manager::
 
         async with MCPClientManager(settings) as manager:
             tools = await manager.list_all_tools()
@@ -268,7 +263,7 @@ class MCPClientManager:
         """Disconnect from all servers.
 
         Note: Actual cleanup happens via the AsyncExitStack in __aexit__.
-        This method just resets internal state.
+        Resets internal state only.
         """
         for name, conn in self._connections.items():
             if conn.connected:

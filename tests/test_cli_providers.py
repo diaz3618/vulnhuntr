@@ -899,9 +899,8 @@ class TestGeminiCLILLM:
 # ---------------------------------------------------------------------------
 # TestClaudeCodeLLM — consolidated class (CLAUDECLI-01, Plan 04-03)
 #
-# This class consolidates all ClaudeCodeLLM behaviors into a single class,
-# adding test_send_message_binary_not_found and test_env_stripping variants
-# that were not covered by the split classes above.
+# Consolidated ClaudeCodeLLM tests — covers send_message failure paths
+# (binary_not_found, env stripping) not reached by the split classes above.
 # ---------------------------------------------------------------------------
 
 _CLAUDE_SUCCESS_JSON = (
