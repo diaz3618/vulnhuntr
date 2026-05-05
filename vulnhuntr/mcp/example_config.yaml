@@ -107,17 +107,15 @@ mcp:
       timeout: 60
       description: "Python language server for diagnostics, search, and symbols"
 
-    # Example: Memory Bank (Node.js/npx)
+    # Example: Memory Bank for persistent context (Node.js/npx)
     memory-bank:
       transport: stdio
       command: npx
       args:
         - "-y"
-        - "@diazstg/memory-bank-mcp"
+        - "memory-bank-mcp"
         - "--mode"
         - "code"
-        - "--username"
-        - "your-username"
       enabled: false
       description: "Persistent context memory across sessions"
 

@@ -85,7 +85,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Added
 
 - Language support module structure (`vulnhuntr/language_support/`)
-- MCP client integration (`vulnhuntr/mcp/`) with Memory Bank configuration
+- MCP client integration (`vulnhuntr/mcp/`) with configurable MCP server support
 - Cost tracking and budget management (`--budget`, `--dry-run` flags)
 - Report generation: SARIF, HTML, JSON, CSV, Markdown formats
 - Checkpoint/resume functionality (`--resume`, `--no-checkpoint`)

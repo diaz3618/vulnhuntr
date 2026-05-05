@@ -163,17 +163,10 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 .idea/
 
-# repos
-repos/
-docs/development_path/
-
 # Project-specific exclusions (not needed in Docker image)
 .git/
 .github/
 tests/
-internal/
-memory-bank/
 reports/
-.agents/
 *.md
 !README.md
