@@ -43,7 +43,7 @@ jobs:
     needs: [build]
 
     permissions:
-      id-token: write
+      contents: read
 
     environment:
       name: pypi
@@ -51,7 +51,7 @@ jobs:
 
     steps:
       - name: Retrieve release distributions
-        uses: actions/download-artifact@v4.1.8
+        uses: actions/download-artifact@v4
         with:
           name: release-dists
           path: dist/
@@ -59,6 +59,7 @@ jobs:
       - name: Publish release distributions to PyPI
         uses: pypa/gh-action-pypi-publish@v1.12.4
         with:
+          password: ${{ secrets.PYPI_TOKEN }}
           skip-existing: true
 
   publish-to-testpypi:
@@ -67,7 +68,7 @@ jobs:
     needs: [build]
 
     permissions:
-      id-token: write
+      contents: read
 
     environment:
       name: testpypi
@@ -75,7 +76,7 @@ jobs:
 
     steps:
       - name: Retrieve release distributions
-        uses: actions/download-artifact@v4.1.8
+        uses: actions/download-artifact@v4
         with:
           name: release-dists
           path: dist/
@@ -84,4 +85,5 @@ jobs:
         uses: pypa/gh-action-pypi-publish@v1.12.4
         with:
           repository-url: https://test.pypi.org/legacy/
+          password: ${{ secrets.TEST_PYPI_TOKEN }}
           skip-existing: true
