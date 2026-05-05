@@ -211,3 +211,55 @@ class TestSessionModeInvariants:
         llm = self._make_llm("bad_mode")
         with pytest.raises(RuntimeError):
             llm.send_message("hello", max_tokens=256)
+
+
+# ---------------------------------------------------------------------------
+# TestRepeatTrialStability — EVAL-04 (repeated-trial routing stability)
+# ---------------------------------------------------------------------------
+
+
+class TestRepeatTrialStability:
+    """Partitions tested:
+      fallback_progression_stable: FallbackLLM always progresses primary→fallback0
+        across 3 independent runs with identical inputs and mocked side-effects
+      session_decision_flag_stable: ClaudeCodeLLM always produces the same flag string
+        for the same CLIPolicy across 3 independent runs
+
+    Repeated-trial rationale (D-10): These routing decisions are deterministic
+    by design. Running them 3 times confirms the absence of hidden state that could
+    cause the same call to behave differently on a second or third execution.
+    """
+
+    @pytest.mark.slow
+    @pytest.mark.repeat(3)
+    def test_fallback_progression_stable(self):
+        """FallbackLLM always progresses primary → fallback-0 on identical inputs (run × 3)."""
+        primary = MagicMock()
+        primary.chat.side_effect = LLMError("forced failure")
+        fallback0 = MagicMock()
+        fallback0.chat.return_value = "from_fallback0"
+        fallback0.set_context = MagicMock()
+
+        llm = FallbackLLM(primary=primary, fallbacks=[fallback0])
+        result = llm.chat("hello")
+
+        assert result == "from_fallback0"
+        assert llm._active is fallback0
+
+    @pytest.mark.slow
+    @pytest.mark.repeat(3)
+    def test_session_decision_flag_stable(self):
+        """ClaudeCodeLLM always produces identical flags for the same CLIPolicy (run × 3)."""
+        policy = CLIPolicy(session_mode="stateless")
+        llm = ClaudeCodeLLM(policy=policy)
+
+        payload = json.dumps({"result": "done", "usage": {}, "modelUsage": {}})
+        fake = MagicMock(stdout=payload, returncode=0)
+
+        with patch.object(llm, "_run_subprocess", return_value=fake) as m:
+            llm.send_message("hello", max_tokens=256)
+            cmd = m.call_args[0][0]
+
+        assert "--no-session-persistence" in cmd
+        assert "--continue" not in cmd
+        assert "--resume" not in cmd
