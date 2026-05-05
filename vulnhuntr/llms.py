@@ -14,7 +14,7 @@ import structlog
 from pydantic import BaseModel, ValidationError
 
 from vulnhuntr.core.models import LLMUsage
-from vulnhuntr.core.trace import ExecutionTracer
+from vulnhuntr.core.trace import ExecutionTracer, InvariantViolationError
 
 log = structlog.get_logger()
 
@@ -502,6 +502,12 @@ class FallbackLLM:
         Tries the active LLM first. On failure, syncs conversation history
         to the next fallback and retries. Raises if all LLMs fail.
         """
+        if self._active not in self._all_llms:
+            raise InvariantViolationError(
+                "FallbackLLM._active is not a member of _all_llms",
+                invariant="active_in_registry",
+                actual_value=type(self._active).__name__,
+            )
         active_idx = self._all_llms.index(self._active)
 
         for i in range(active_idx, len(self._all_llms)):

@@ -50,3 +50,23 @@ class ExecutionTracer:
 
     def filter(self, event_type: TraceEventType) -> list[TraceEvent]:
         return [e for e in self.events if e.event_type == event_type]
+
+
+class InvariantViolationError(RuntimeError):
+    """Raised when an internal state invariant is broken at runtime.
+
+    This is a programming error, not a recoverable LLM-level failure.
+    Prefer this over bare RuntimeError for debuggability — callers can
+    inspect `.invariant` and `.actual_value` without parsing the message.
+
+    Args:
+        message: Human-readable description of the violation.
+        invariant: Machine-readable key identifying which invariant fired
+                   (e.g. "active_in_registry", "session_mode_is_known").
+        actual_value: The observed value that triggered the violation, or None.
+    """
+
+    def __init__(self, message: str, *, invariant: str, actual_value: Any = None) -> None:
+        super().__init__(message)
+        self.invariant = invariant
+        self.actual_value = actual_value

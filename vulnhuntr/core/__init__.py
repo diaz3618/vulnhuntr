@@ -13,6 +13,7 @@ from vulnhuntr.core.models import (
     VulnType,
 )
 from vulnhuntr.core.repo import RepoOps
+from vulnhuntr.core.trace import ExecutionTracer, InvariantViolationError
 from vulnhuntr.core.xml_models import (
     AnalysisApproach,
     CodeDefinition,
@@ -44,6 +45,9 @@ __all__ = [
     "ExampleBypasses",
     "CodeDefinition",
     "CodeDefinitions",
+    # Observability
+    "ExecutionTracer",
+    "InvariantViolationError",
     # Repo Operations
     "RepoOps",
     # Analysis

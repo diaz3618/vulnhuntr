@@ -23,7 +23,7 @@ from vulnhuntr.cli_providers.base import (
 )
 from vulnhuntr.config import CLIPolicy
 from vulnhuntr.core.models import LLMUsage
-from vulnhuntr.core.trace import ExecutionTracer
+from vulnhuntr.core.trace import ExecutionTracer, InvariantViolationError
 
 log = structlog.get_logger(__name__)
 
@@ -169,6 +169,13 @@ class ClaudeCodeLLM(CLIProviderLLM):
 
         tool_mode = self._policy.tool_mode if self._policy else "none"
         session_mode = self._policy.session_mode if self._policy else "stateless"
+        _valid_session_modes = frozenset({"stateless", "continue", "resume"})
+        if session_mode not in _valid_session_modes:
+            raise InvariantViolationError(
+                f"Unrecognized session_mode: {session_mode!r}",
+                invariant="session_mode_is_known",
+                actual_value=session_mode,
+            )
 
         if tool_mode == "read-only":
             permission_mode = "plan"
