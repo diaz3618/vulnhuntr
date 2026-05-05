@@ -1,0 +1,130 @@
+# Vulnhuntr example configuration
+# Copy to .vulnhuntr.yaml in your project root or pass with --config path/to/file.yaml
+#
+# Full reference: https://github.com/bountx/vulnhuntr
+# Quick start:    QUICKSTART.md#cli-providers
+# Troubleshooting: docs/troubleshooting.md#cli-providers
+
+# ---------------------------------------------------------------------------
+# Provider selection
+# ---------------------------------------------------------------------------
+
+# Primary LLM provider. Matches the --llm / -l CLI flag.
+# API providers: claude, gpt, ollama, openrouter
+# CLI providers: claude-code, gemini-cli, codex, qwen-code
+provider: claude-code
+
+# Optional fallback chain. If the primary provider fails, Vulnhuntr retries
+# with fallback1, then fallback2. Format: "provider:model" for API providers.
+# fallback1: claude:claude-sonnet-4-5
+# fallback2: gpt:gpt-4o-mini
+
+# ---------------------------------------------------------------------------
+# CLI provider policy (applies to all CLI providers unless overridden below)
+# ---------------------------------------------------------------------------
+
+cli:
+  # Maximum seconds to wait for the subprocess to return. Default: 300.
+  # Increase for large repos or slow machines.
+  timeout: 300
+
+  # Working directory for the subprocess. The provider binary is run here.
+  # Default: /tmp/vulnhuntr
+  workdir: /tmp/vulnhuntr
+
+  # Auth mode. "auto" lets the provider use its own stored credentials.
+  # "manual" disables automatic auth (rarely needed).
+  # Valid: auto | manual
+  auth_mode: auto
+
+  # Session mode controls context carry-over between prompts.
+  # "stateless" starts a fresh session for every send_message() call (default).
+  # "continue"  reuses the last session if the provider supports it.
+  # "resume"    attempts to resume a named session (provider-dependent).
+  # Valid: stateless | continue | resume
+  session_mode: stateless
+
+  # Approval mode controls whether the CLI provider asks for tool-use confirmation.
+  # "auto" suppresses interactive prompts (required for headless operation).
+  # Valid: auto | manual
+  approval_mode: auto
+
+  # Sandbox mode (Codex-specific). Restricts filesystem and network access.
+  # Valid: none | workspace | container
+  sandbox_mode: none
+
+  # Maximum number of agentic turns per send_message() call.
+  # Increase for complex analysis tasks that require multi-step tool use.
+  max_turns: 10
+
+  # MCP mode controls whether Vulnhuntr's MCP server is injected into the
+  # provider session. See docs/mcp-setup/ for setup instructions.
+  # Valid: none | vulnhuntr | provider | both
+  mcp_mode: none
+
+  # Tool mode controls whether the CLI provider can use file-system and shell tools.
+  # "none"      disables all tools (fastest, lowest risk).
+  # "read-only" allows read-only file access (for context-gathering prompts).
+  # "full"      allows write and shell access (use with caution).
+  # Valid: none | read-only | full
+  tool_mode: none
+
+  # Environment variables to strip from the subprocess environment before spawning.
+  # Useful when shell env vars would override the provider's own stored auth.
+  # Example: unset ANTHROPIC_API_KEY so claude uses its own stored credentials.
+  strip_env_vars: []
+  # strip_env_vars:
+  #   - ANTHROPIC_API_KEY
+
+  # Per-provider policy overrides. Keys are --llm values; values override any
+  # field from the cli block above for that specific provider only.
+  overrides: {}
+  # overrides:
+  #   codex:
+  #     timeout: 600
+  #     sandbox_mode: workspace
+  #   qwen-code:
+  #     max_turns: 20
+
+# ---------------------------------------------------------------------------
+# Example: claude-code specific overrides
+# ---------------------------------------------------------------------------
+# To use claude-code with a longer timeout and read-only tool access:
+#
+# provider: claude-code
+# cli:
+#   timeout: 600
+#   tool_mode: read-only
+#   strip_env_vars:
+#     - ANTHROPIC_API_KEY
+
+# ---------------------------------------------------------------------------
+# Example: codex with sandbox isolation
+# ---------------------------------------------------------------------------
+# provider: codex
+# cli:
+#   timeout: 600
+#   sandbox_mode: workspace
+#   strip_env_vars:
+#     - OPENAI_API_KEY
+
+# ---------------------------------------------------------------------------
+# Example: gemini-cli with fallback to API provider
+# ---------------------------------------------------------------------------
+# provider: gemini-cli
+# fallback1: claude:claude-sonnet-4-5
+# cli:
+#   timeout: 300
+#   strip_env_vars:
+#     - GOOGLE_API_KEY
+#     - GEMINI_API_KEY
+
+# ---------------------------------------------------------------------------
+# Example: qwen-code
+# ---------------------------------------------------------------------------
+# provider: qwen-code
+# cli:
+#   timeout: 300
+#   max_turns: 20
+#   strip_env_vars:
+#     - DASHSCOPE_API_KEY
