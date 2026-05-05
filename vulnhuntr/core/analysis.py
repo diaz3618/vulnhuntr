@@ -138,6 +138,31 @@ class VulnerabilityAnalyzer:
         self._on_iteration: Callable | None = None
         self._should_continue: Callable | None = None
 
+    def run_analysis(
+        self,
+        file_paths: list[Path],
+        vuln_types: list[VulnType] | None = None,
+    ) -> tuple[list[AnalysisResult], ExecutionTracer | None]:
+        """Run analysis over a list of files and return results + tracer.
+
+        This satisfies D-05: callers that want structured access to trace
+        data can use this method; the CLI runner continues to use
+        runner.run_analysis() which calls analyze_file() directly.
+
+        Args:
+            file_paths: List of files to analyze.
+            vuln_types: Unused (analyze_file handles all types internally).
+                        Accepted for API symmetry with the plan contract.
+
+        Returns:
+            Tuple of (list of AnalysisResult, ExecutionTracer | None).
+        """
+        results: list[AnalysisResult] = []
+        for path in file_paths:
+            result = self.analyze_file(path, file_paths)
+            results.append(result)
+        return results, self.tracer
+
     def set_iteration_callback(self, callback: Callable) -> None:
         """Set callback for each analysis iteration."""
         self._on_iteration = callback

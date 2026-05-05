@@ -227,6 +227,16 @@ class MCPAnalysisHelper:
                     )
                 )
                 log.warning("Blocked destructive tool call", tool=req.tool, server=req.server)
+                if self._tracer is not None:
+                    self._tracer.emit(
+                        "tool_call",
+                        provider="MCPAnalysisHelper",
+                        server=req.server,
+                        tool=req.tool,
+                        success=False,
+                        error="blocked by destructive-tool policy",
+                        duration_ms=0,
+                    )
                 continue
 
             try:
