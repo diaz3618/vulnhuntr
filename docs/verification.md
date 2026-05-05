@@ -4,7 +4,7 @@ This document defines the trace evidence, invariant gates, and stability thresho
 required before declaring a CLI provider integration ready for release.
 
 See [QUICKSTART.md](../QUICKSTART.md#cli-providers) for installation instructions and
-[docs/troubleshooting.md](troubleshooting.md#cli-providers) for failure resolution.
+the README for failure resolution.
 
 ---
 

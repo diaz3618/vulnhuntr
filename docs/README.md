@@ -33,7 +33,6 @@ Split into `mcp-setup/`:
 
 ### Troubleshooting
 
-- [troubleshooting.md](troubleshooting.md) — Common issues and fixes
 
 ### Project Documentation (Academic)
 

@@ -42,7 +42,7 @@ vulnhuntr -r /path/to/repo -a server.py --budget 3.0
 
 ## Troubleshooting
 
-See [docs/troubleshooting.md](docs/troubleshooting.md) for common issues like JSON validation errors, model 404s, and rate limiting.
+Common issues include JSON validation errors (use a model with sufficient context), model 404s (check the model name), and rate limiting (add delays between scans).
 
 ## CLI Reference
 
@@ -96,8 +96,7 @@ With a fallback to an API-based provider if the binary fails:
 vulnhuntr -l codex --fallback1 claude:claude-sonnet-4-5 -r /path/to/repo
 ```
 
-See [docs/troubleshooting.md](docs/troubleshooting.md#cli-providers) for missing binary,
-timeout, and auth troubleshooting.
+See the README for missing binary, timeout, and auth troubleshooting.
 
 See [docs/example-config.yaml](docs/example-config.yaml) for the full set of configurable
 CLI policy options.
