@@ -246,7 +246,7 @@ Plans:
 **Plans:** 3 plans
 
 Plans:
-- [ ] 08-01-PLAN.md — Core trace module (trace.py), CLIProviderLLM template method + tracer kwarg, CLIPolicy validation
+- [x] 08-01-PLAN.md — Core trace module (trace.py), CLIProviderLLM template method + tracer kwarg, CLIPolicy validation
 - [ ] 08-02-PLAN.md — Provider probe renames, session_decision + fallback_triggered + tool_call wiring, VulnerabilityAnalyzer.tracer
 - [ ] 08-03-PLAN.md — test_trace.py, test_behavior.py, TestCLIPolicyBoundaries, TestProviderSelectionBoundaries
 
