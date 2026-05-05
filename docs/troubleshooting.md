@@ -82,3 +82,68 @@ Check `vulnhuntr.log` for detailed output:
 ```bash
 tail -f vulnhuntr.log
 ```
+
+---
+
+## CLI Providers
+
+### Binary not found
+
+Vulnhuntr raises `CLIBinaryNotFoundError` when the provider binary is not on `PATH`.
+
+Check with:
+
+```bash
+which claude
+which gemini
+which codex
+which qwen
+```
+
+Fix by re-running the install command from [QUICKSTART.md](../QUICKSTART.md#cli-providers).
+Note that adding the binary to `PATH` after installing sometimes requires opening a new shell.
+
+### Subprocess timeout
+
+Vulnhuntr kills the subprocess and raises `CLITimeoutError` after the configured timeout
+(default 300 seconds). For large repositories or slow machines, increase the limit in
+`.vulnhuntr.yaml`:
+
+```yaml
+cli:
+  timeout: 600
+```
+
+### Auth failures
+
+Shell environment variables take precedence over both `.env` and the provider's own stored
+credentials. If `ANTHROPIC_API_KEY` is set in the shell, the `claude` binary ignores its
+own stored auth and fails with an invalid-API-key error.
+
+Vulnhuntr strips its own provider keys from the subprocess environment automatically, but
+any variables set in your shell before Vulnhuntr starts are not stripped unless you
+configure it explicitly. To force the provider to use its own stored auth:
+
+```bash
+unset ANTHROPIC_API_KEY
+vulnhuntr -l claude-code -r /path/to/repo
+```
+
+Or configure Vulnhuntr to strip the variable:
+
+```yaml
+cli:
+  strip_env_vars:
+    - ANTHROPIC_API_KEY
+```
+
+### Provider auth reference
+
+| Provider | Vulnhuntr strips | Provider's own auth mechanism |
+|----------|-----------------|-------------------------------|
+| `claude-code` | `ANTHROPIC_API_KEY` | `claude login` or `~/.claude/config.json` |
+| `gemini-cli` | `GOOGLE_API_KEY`, `GEMINI_API_KEY` | `gemini login` or `~/.gemini/config.json` |
+| `codex` | `OPENAI_API_KEY` | `OPENAI_API_KEY` in env or codex config |
+| `qwen-code` | `DASHSCOPE_API_KEY` | `DASHSCOPE_API_KEY` or `qwen login` |
+
+See also: [QUICKSTART.md](../QUICKSTART.md#cli-providers)

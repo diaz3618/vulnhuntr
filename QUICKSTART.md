@@ -61,3 +61,43 @@ vulnhuntr -r ROOT [-a FILE] [-l {claude,gpt,ollama,openrouter}] [-v]
 | `--dry-run` | Estimate cost without running |
 | `--budget` | Stop at USD limit |
 | `--resume` | Resume from checkpoint |
+
+## CLI Providers
+
+If you do not have an API key, or prefer to run analysis locally, Vulnhuntr supports
+four headless CLI providers. Each provider delegates to an external binary rather than
+calling an API directly.
+
+| `--llm` value | Binary | Install |
+|---------------|--------|---------|
+| `claude-code` | `claude` | `npm i -g @anthropic-ai/claude-code` |
+| `gemini-cli` | `gemini` | `pip install gemini-cli` |
+| `codex` | `codex` | `npm i -g @openai/codex` |
+| `qwen-code` | `qwen` | `npm i -g @qwen-code/qwen-code` |
+
+### Authentication
+
+Each provider handles its own auth — run `claude login`, `gemini login`, etc. once before
+using Vulnhuntr. Vulnhuntr strips its own API key env vars (`ANTHROPIC_API_KEY`,
+`OPENAI_API_KEY`, `GOOGLE_API_KEY`, `DASHSCOPE_API_KEY`) from the subprocess environment
+before spawning, so the provider uses its own stored credentials rather than any keys you
+have exported for the API-based providers. If the provider's own auth fails, consult the
+provider's documentation.
+
+### Usage
+
+```bash
+vulnhuntr -l claude-code -r /path/to/repo
+```
+
+With a fallback to an API-based provider if the binary fails:
+
+```bash
+vulnhuntr -l codex --fallback1 claude:claude-sonnet-4-5 -r /path/to/repo
+```
+
+See [docs/troubleshooting.md](docs/troubleshooting.md#cli-providers) for missing binary,
+timeout, and auth troubleshooting.
+
+See [docs/example-config.yaml](docs/example-config.yaml) for the full set of configurable
+CLI policy options.
