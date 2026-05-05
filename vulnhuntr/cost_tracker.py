@@ -86,6 +86,10 @@ def get_model_pricing(model: str) -> dict[str, float]:
         return PRICING_TABLE.get("gpt-4-turbo", DEFAULT_PRICING)
     if "gpt-3" in model_lower:
         return PRICING_TABLE.get("gpt-3.5-turbo", DEFAULT_PRICING)
+    if "gemini" in model_lower:
+        # CLI-provider models report names like "gemini-3.1-pro-preview";
+        # treat all Gemini variants as subscription/zero-cost for tracking.
+        return {"input": 0.0, "output": 0.0}
 
     log.warning("Unknown model, using default pricing", model=model)
     return DEFAULT_PRICING

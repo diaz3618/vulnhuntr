@@ -6,6 +6,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [1.2.2] - 2026-05-05
+
 ### Added
 
 - **CLI provider support** (`--llm claude-code`, `gemini-cli`, `codex`, `qwen-code`):
@@ -31,6 +33,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `checkpoint.save_now()` call (was incorrectly using `checkpoint.save()`).
 - `GeminiCLILLM` and `CodexLLM` were not wired to accept a `tracer=` argument,
   meaning trace events were silently dropped for those providers.
+- Gemini CLI models (e.g. `gemini-3.1-pro-preview`) now reported as zero-cost
+  subscription usage rather than triggering an "Unknown model" warning.
 
 ### Changed
 
