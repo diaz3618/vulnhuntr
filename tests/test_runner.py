@@ -114,3 +114,46 @@ class TestInitializeLlmCliProviders:
         r2 = initialize_llm("gemini-cli", config=cfg)
         assert r1 is not None
         assert r2 is not None
+
+    def test_tracer_forwarded_to_claude_code(self):
+        """initialize_llm passes tracer= down to ClaudeCodeLLM when supplied."""
+        from vulnhuntr.cli.runner import initialize_llm
+        from vulnhuntr.cli_providers.claude_code import ClaudeCodeLLM
+        from vulnhuntr.core.trace import ExecutionTracer
+
+        tracer = ExecutionTracer()
+        cfg = _make_config()
+        result = initialize_llm("claude-code", config=cfg, tracer=tracer)
+        assert isinstance(result, ClaudeCodeLLM)
+        assert result._tracer is tracer
+
+    def test_tracer_forwarded_to_gemini_cli(self):
+        """initialize_llm passes tracer= down to GeminiCLILLM when supplied."""
+        from vulnhuntr.cli.runner import initialize_llm
+        from vulnhuntr.cli_providers.gemini_cli import GeminiCLILLM
+        from vulnhuntr.core.trace import ExecutionTracer
+
+        tracer = ExecutionTracer()
+        cfg = _make_config()
+        result = initialize_llm("gemini-cli", config=cfg, tracer=tracer)
+        assert isinstance(result, GeminiCLILLM)
+        assert result._tracer is tracer
+
+
+class TestSessionMetadataPersistence:
+    """Regression tests for checkpoint session-metadata persistence (SESSION-02)."""
+
+    def test_checkpoint_save_now_called_not_save(self):
+        """run_analysis calls checkpoint.save_now(), not the non-existent save()."""
+        import inspect
+
+        from vulnhuntr.cli.runner import run_analysis
+
+        source = inspect.getsource(run_analysis)
+        # save_now() must appear
+        assert "checkpoint.save_now()" in source, "checkpoint.save_now() not found in run_analysis"
+        # bare save() must not appear (excluding save_now)
+        import re
+
+        bare_saves = re.findall(r"checkpoint\.save\(\)", source)
+        assert len(bare_saves) == 0, f"checkpoint.save() (bare) still present: {bare_saves}"

@@ -752,7 +752,7 @@ class TestInitProviders:
         config = SimpleNamespace(model=None, fallback1=None, fallback2=None, provider=None)
         args = self._make_args()
         _init_providers(args, config)
-        mock_init.assert_called_once_with("claude", "", None, model_override=None, config=config)
+        mock_init.assert_called_once_with("claude", "", None, model_override=None, config=config, tracer=None)
 
     @patch("vulnhuntr.cli.runner.initialize_llm")
     @patch("vulnhuntr.cli.runner.wrap_with_fallbacks")
@@ -763,7 +763,9 @@ class TestInitProviders:
         config = SimpleNamespace(model=None, fallback1=None, fallback2=None, provider=None)
         args = self._make_args()
         _init_providers(args, config, system_prompt="<instructions/>")
-        mock_init.assert_called_once_with("claude", "<instructions/>", None, model_override=None, config=config)
+        mock_init.assert_called_once_with(
+            "claude", "<instructions/>", None, model_override=None, config=config, tracer=None
+        )
         mock_wrap.assert_called_once()
         # system_prompt is the 4th positional arg to wrap_with_fallbacks
         assert mock_wrap.call_args[0][3] == "<instructions/>"
@@ -777,7 +779,9 @@ class TestInitProviders:
         config = SimpleNamespace(model="claude-opus-4-5", fallback1=None, fallback2=None, provider=None)
         args = self._make_args()
         _init_providers(args, config)
-        mock_init.assert_called_once_with("claude", "", None, model_override="claude-opus-4-5", config=config)
+        mock_init.assert_called_once_with(
+            "claude", "", None, model_override="claude-opus-4-5", config=config, tracer=None
+        )
 
     @patch("vulnhuntr.cli.runner.initialize_llm")
     @patch("vulnhuntr.cli.runner.wrap_with_fallbacks")

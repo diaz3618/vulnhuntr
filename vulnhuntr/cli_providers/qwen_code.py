@@ -34,6 +34,7 @@ from vulnhuntr.cli_providers.base import (
 )
 from vulnhuntr.config import CLIPolicy
 from vulnhuntr.core.models import LLMUsage
+from vulnhuntr.core.trace import ExecutionTracer
 
 log = structlog.get_logger(__name__)
 
@@ -63,8 +64,9 @@ class QwenCodeLLM(CLIProviderLLM):
         timeout: int = 300,
         workdir: str | None = None,
         policy: CLIPolicy | None = None,
+        tracer: ExecutionTracer | None = None,
     ) -> None:
-        super().__init__(system_prompt, cost_callback, timeout, workdir)
+        super().__init__(system_prompt, cost_callback, timeout, workdir, tracer=tracer)
         self._policy = policy
 
     def _build_env(self) -> dict[str, str]:

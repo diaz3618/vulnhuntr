@@ -13,6 +13,7 @@ import structlog
 from vulnhuntr.checkpoint import AnalysisCheckpoint
 from vulnhuntr.config import load_config, merge_config_with_args
 from vulnhuntr.core.repo import RepoOps
+from vulnhuntr.core.trace import ExecutionTracer
 from vulnhuntr.cost_tracker import (
     BudgetEnforcer,
     CostTracker,
@@ -42,6 +43,7 @@ def initialize_llm(
     cost_callback: Callable | None = None,
     model_override: str | None = None,
     config: Any | None = None,
+    tracer: ExecutionTracer | None = None,
 ):
     """Initialize LLM client with optional cost tracking callback.
 
@@ -100,6 +102,7 @@ def initialize_llm(
                 timeout=timeout,
                 workdir=workdir,
                 policy=policy,
+                tracer=tracer,
             )
         elif llm_arg == "gemini-cli":
             from vulnhuntr.cli_providers.gemini_cli import GeminiCLILLM
@@ -110,6 +113,7 @@ def initialize_llm(
                 timeout=timeout,
                 workdir=workdir,
                 policy=policy,
+                tracer=tracer,
             )
         elif llm_arg == "codex":
             from vulnhuntr.cli_providers.codex import CodexLLM
@@ -120,6 +124,7 @@ def initialize_llm(
                 timeout=timeout,
                 workdir=workdir,
                 policy=policy,
+                tracer=tracer,
             )
         elif llm_arg == "qwen-code":
             from vulnhuntr.cli_providers.qwen_code import QwenCodeLLM
@@ -130,6 +135,7 @@ def initialize_llm(
                 timeout=timeout,
                 workdir=workdir,
                 policy=policy,
+                tracer=tracer,
             )
 
     else:
@@ -243,6 +249,7 @@ def wrap_with_fallbacks(
     cost_callback: Callable | None = None,
     system_prompt: str = "",
     config: Any | None = None,
+    tracer: ExecutionTracer | None = None,
 ):
     """Wrap primary LLM with FallbackLLM if fallback args are specified.
 
@@ -289,7 +296,7 @@ def wrap_with_fallbacks(
         log.info("Fallback 2 configured", spec=fallback2)
 
     log.info("Wrapping LLM with fallback support", fallback_count=len(fallbacks))
-    return FallbackLLM(primary, fallbacks)
+    return FallbackLLM(primary, fallbacks, tracer=tracer)
 
 
 def get_model_name(llm_arg: str) -> str:
@@ -349,6 +356,7 @@ def _init_providers(
     cost_callback: Callable | None = None,
     system_prompt: str = "",
     llm_factory: Callable | None = None,
+    tracer: ExecutionTracer | None = None,
 ) -> Any:
     """Initialize the primary LLM and wrap with fallbacks if configured.
 
@@ -367,7 +375,9 @@ def _init_providers(
     if llm_factory is not None:
         llm = llm_factory(args.llm, system_prompt, cost_callback, config.model)
     else:
-        llm = initialize_llm(args.llm, system_prompt, cost_callback, model_override=config.model, config=config)
+        llm = initialize_llm(
+            args.llm, system_prompt, cost_callback, model_override=config.model, config=config, tracer=tracer
+        )
 
     # Probe CLI providers on the unwrapped instance — BEFORE FallbackLLM wrapping.
     # Calling probe() after wrapping risks delegating to the wrong inner provider (Pitfall 2).
@@ -396,7 +406,7 @@ def _init_providers(
             binary_found=result.binary_found,
             version=result.version,
         )
-    return wrap_with_fallbacks(llm, args, cost_callback, system_prompt, config=config)
+    return wrap_with_fallbacks(llm, args, cost_callback, system_prompt, config=config, tracer=tracer)
 
 
 def run_analysis(args: argparse.Namespace, llm_factory: Callable | None = None) -> int:
@@ -454,6 +464,9 @@ def run_analysis(args: argparse.Namespace, llm_factory: Callable | None = None) 
     if not args.llm:
         args.llm = "claude"
 
+    # One tracer per scan — wired into providers, analyzer, and MCP helper
+    tracer = ExecutionTracer()
+
     # ---- MCP initialisation (no-op when mode == "off") ----
     mcp_helper: _MCPAnalysisHelper | None = None
     try:
@@ -462,7 +475,7 @@ def run_analysis(args: argparse.Namespace, llm_factory: Callable | None = None) 
 
         mcp_settings = load_mcp_config(start_dir=Path(args.root))
         if should_use_mcp(mcp_settings):
-            mcp_helper = _MCPAnalysisHelper(mcp_settings)
+            mcp_helper = _MCPAnalysisHelper(mcp_settings, tracer=tracer)
             try:
                 run_async(mcp_helper.initialize())
                 if mcp_helper.is_active:
@@ -553,10 +566,12 @@ def run_analysis(args: argparse.Namespace, llm_factory: Callable | None = None) 
         )
 
     # Stage 1: init providers (no system prompt — README summarization pass)
-    llm = _init_providers(args, config, cost_callback, llm_factory=llm_factory)
+    llm = _init_providers(args, config, cost_callback, llm_factory=llm_factory, tracer=tracer)
 
     # Create analyzer for README summarization
-    analyzer = VulnerabilityAnalyzer(llm, code_extractor, AnalysisConfig(verbosity=getattr(args, "verbosity", 0)))
+    analyzer = VulnerabilityAnalyzer(
+        llm, code_extractor, AnalysisConfig(verbosity=getattr(args, "verbosity", 0)), tracer=tracer
+    )
 
     # Get and summarize README
     readme_content = repo.get_readme_content()
@@ -579,7 +594,7 @@ def run_analysis(args: argparse.Namespace, llm_factory: Callable | None = None) 
         if mcp_tool_section:
             system_prompt += "\n" + mcp_tool_section
 
-    llm = _init_providers(args, config, cost_callback, system_prompt, llm_factory=llm_factory)
+    llm = _init_providers(args, config, cost_callback, system_prompt, llm_factory=llm_factory, tracer=tracer)
 
     # Create analyzer with system-prompt-configured LLM
     analysis_config = AnalysisConfig(
@@ -587,7 +602,7 @@ def run_analysis(args: argparse.Namespace, llm_factory: Callable | None = None) 
         min_confidence_for_finding=5,
         verbosity=getattr(args, "verbosity", 0),
     )
-    analyzer = VulnerabilityAnalyzer(llm, code_extractor, analysis_config, mcp_helper=mcp_helper)
+    analyzer = VulnerabilityAnalyzer(llm, code_extractor, analysis_config, mcp_helper=mcp_helper, tracer=tracer)
 
     # Wire budget checking into analyzer callbacks
     if budget_enforcer:
@@ -633,7 +648,7 @@ def run_analysis(args: argparse.Namespace, llm_factory: Callable | None = None) 
         metadata = llm.get_session_metadata()
         if metadata is not None and checkpoint._data is not None:
             checkpoint._data.session_metadata = metadata
-            checkpoint.save()
+            checkpoint.save_now()
 
     # Shutdown MCP connections
     if mcp_helper is not None:
