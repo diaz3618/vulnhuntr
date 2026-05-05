@@ -2,20 +2,20 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: foundation-mcp-ai-cli-integration
-status: ready_to_plan
-last_updated: "2026-05-04T00:00:00.000Z"
-last_activity: 2026-05-04 -- Phase 06 complete (4/4 plans, commits 0bc03e5 ef22305 5899aaa 7eac60c)
+status: ready_to_execute
+last_updated: "2025-07-17T00:00:00.000Z"
+last_activity: 2025-07-18 -- Phase 09 complete (all 4 plans executed and committed)
 progress:
   total_phases: 10
-  completed_phases: 6
-  total_plans: 18
-  completed_plans: 19
-  percent: 83
+  completed_phases: 9
+  total_plans: 22
+  completed_plans: 22
+  percent: 95
 ---
 
 # Project State: Vulnhuntr
 
-**As of:** 2026-05-01
+**As of:** 2026-05-08
 **Milestone:** v1.0 — Foundation, MCP, AI CLI Integration, and Verification Hardening
 **Status:** Ready to plan
 
@@ -32,8 +32,8 @@ progress:
 | 5: Codex & Qwen Code | ✅ Complete | 2 / 2 |
 | 6: Sessions, Native Tools, and MCP Policy | ✅ Complete | 4 / 4 |
 | 7: MCP Completion, Routing, and Cost Hardening | 🔲 Not started | 0 / 9 |
-| 8: Behavioral Evaluation & Trace Capture | 🔲 Not started | 0 / 3 |
-| 9: State, Branch, and Data-Flow Hardening | 🔲 Not started | 0 / 3 |
+| 8: Behavioral Evaluation & Trace Capture | ✅ Complete | 3 / 3 |
+| 9: State, Branch, and Data-Flow Hardening | ✅ Complete | 3 / 3 |
 | 10: Verification, Docs, and Release Hardening | 🔲 Not started | 0 / 6 |
 
 ---
@@ -49,10 +49,10 @@ progress:
 
 ## Current Position
 
-Phase: 7
-Plan: Not started
-Status: Phase 6 complete — ready to plan Phase 7
-Last activity: 2026-05-04
+Phase: 9
+Plan: 09-01 (wave 1, ready to execute)
+Status: Phase 9 planned — 4 plans ready (09-01 wave1, 09-02+09-03 wave2, 09-04 wave3)
+Last activity: 2025-07-17
 
 ---
 

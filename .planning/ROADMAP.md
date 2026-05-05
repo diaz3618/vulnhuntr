@@ -269,11 +269,13 @@ Plans:
 - EVAL-05
 - EVAL-06
 
-**Plans:**
-1. Define explicit states and guarded transitions for provider selection, resume, fallback, and MCP execution
-2. Add branch and state-transition coverage around those flows
-3. Add targeted data-flow-aware tests for parse results, tool outputs, and propagated context
-4. Encode and test runtime invariants for ordering and legality of transitions
+**Plans:** 4 plans
+
+Plans:
+- [x] 09-01-PLAN.md — Add InvariantViolationError and production guards (FallbackLLM, ClaudeCodeLLM)
+- [x] 09-02-PLAN.md — Create tests/test_state_transitions.py (fallback transitions + invariant tests)
+- [x] 09-03-PLAN.md — Add TestDataFlowParsing and TestMCPToolResultPropagation to tests/test_behavior.py
+- [x] 09-04-PLAN.md — Add repeat-trial stability tests and verify all EVAL requirements satisfied
 
 **Success Criteria:**
 1. Critical transitions have dedicated tests for allowed and forbidden paths
