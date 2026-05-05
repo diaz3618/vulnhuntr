@@ -335,7 +335,8 @@ class MCPAnalysisHelper:
             if r.success:
                 lines.append(f"    {r.truncated_output()}")
             else:
-                lines.append(f"    ERROR: {r.error}")
+                error_text = r.error if r.error is not None else "(no error message)"
+                lines.append(f"    ERROR: {error_text}")
             lines.append("  </tool_result>")
         lines.append("</mcp_tool_results>")
         return "\n".join(lines)
@@ -386,11 +387,9 @@ def run_async(coro):
         loop = None
 
     if loop and loop.is_running():
-        # We're inside an async context — schedule and block
-        import concurrent.futures
-
-        with concurrent.futures.ThreadPoolExecutor() as pool:
-            future = pool.submit(asyncio.run, coro)
-            return future.result()
+        # We're inside an async context — schedule on the running loop from a
+        # new thread so we can block without deadlocking the caller's coroutine.
+        future = asyncio.run_coroutine_threadsafe(coro, loop)
+        return future.result()
     else:
         return asyncio.run(coro)
