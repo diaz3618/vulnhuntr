@@ -11,7 +11,7 @@ import os
 import subprocess
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 import structlog
@@ -207,7 +207,7 @@ class CLIProviderLLM(LLM, ABC):
         return {
             "provider": self.__class__.__name__,
             "session_id": self.session_id,
-            "started_at": datetime.utcnow().isoformat(),
+            "started_at": datetime.now(timezone.utc).isoformat(),
             "workdir": self.workdir,
             "binary_version": self._last_probe_version,
         }
