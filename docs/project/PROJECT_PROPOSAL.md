@@ -28,11 +28,10 @@ This project improves trustworthiness by adding cost governance (predictable spe
 
 1. Generate persistent report artifacts: SARIF (CI/Code Scanning), plus human-readable HTML.
 2. Add additional exports for triage workflows (JSON/CSV/Markdown) without changing core analysis logic.
-3. Add optional integrations to route findings to external systems (e.g., GitHub Issues and/or generic webhooks).
-4. MCP server integration to expand Vulnhuntr's abilities. Current considerations include: Filesystem MCP server, Ripgrep MCP server, Tree-sitter MCP server, CodeQL MCP server, Process MCP server. Some may be integrated directly, while others will be added through a config file.
-5. Provide usage examples and verification steps showing baseline upstream behavior vs. the new trustworthy-operational controls.
-6. Improve documentation.
-7. Possible refactor to make the codebase more modular and easier to maintain; the current codebase concentrates large amounts of code in a few .py files.
+3. MCP server integration to expand Vulnhuntr's abilities. Current considerations include: Filesystem MCP server, Ripgrep MCP server, Tree-sitter MCP server, CodeQL MCP server, Process MCP server. Some may be integrated directly, while others will be added through a config file.
+4. Provide usage examples and verification steps showing baseline upstream behavior vs. the new trustworthy-operational controls.
+5. Improve documentation.
+6. Possible refactor to make the codebase more modular and easier to maintain; the current codebase concentrates large amounts of code in a few .py files.
 
 ## References
 

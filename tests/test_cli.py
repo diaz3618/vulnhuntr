@@ -1008,10 +1008,6 @@ class TestDispatchReports:
             csv=None,
             markdown=None,
             export_all=None,
-            create_issues=False,
-            webhook=None,
-            webhook_format="json",
-            webhook_secret=None,
         )
         _dispatch_reports(args, [], CostTracker(), [])  # should not raise
 

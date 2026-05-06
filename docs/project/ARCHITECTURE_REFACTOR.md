@@ -56,11 +56,6 @@ vulnhuntr/
 │   ├── markdown_reporter.py
 │   └── orchestrator.py            # NEW: Coordinates all report generation
 │
-├── integrations/                  # (existing - already well-structured)
-│   ├── __init__.py
-│   ├── github_issues.py
-│   └── webhook.py
-│
 ├── prompts/                       # Prompt templates (from prompts.py)
 │   ├── __init__.py
 │   ├── templates.py               # Prompt templates

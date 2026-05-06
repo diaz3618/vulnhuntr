@@ -157,7 +157,6 @@
 - Add HTML/PDF report generation
 - Support for JIRA/GitHub Issues automatic creation
 - Add VS Code extension for inline warnings; caching would be essential
-- Implement webhook support for custom integrations
 - Export to security platforms (Snyk, SonarQube, etc.)
 - OS tool access could vastly improve vulnhuntr; deploy it in a kali container?
 
