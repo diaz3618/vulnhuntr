@@ -32,26 +32,26 @@ class LLM:
 ```
 LLM Response (text)
          │
-         v
+         ▼
 ┌──────────────────┐
 │  Add prefill if  │
 │  it exists       │
 └────────┬─────────┘
          │
-         v
+         ▼
 ┌──────────────────┐
 │ Regex extract    │
 │ JSON from        │
 │ markdown blocks  │  (Strip ```json...```)
 └────────┬─────────┘
          │
-         v
+         ▼
 ┌──────────────────┐
 │ Pydantic model   │
 │ validation       │
 └────────┬─────────┘
          │
-         v
+         ▼
    Validated JSON
 ```
 
