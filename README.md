@@ -125,8 +125,7 @@ usage: vulnhuntr [-h] -r ROOT [-a ANALYZE] [-l PROVIDER] [--fallback1 PROVIDER:M
                  [--fallback2 PROVIDER:MODEL] [-v]
                  [--dry-run] [--budget BUDGET] [--resume [RESUME]] [--no-checkpoint]
                  [--sarif PATH] [--html PATH] [--json PATH] [--csv PATH] [--markdown PATH]
-                 [--export-all DIR] [--create-issues] [--webhook URL]
-                 [--webhook-format {json,slack,discord,teams}] [--webhook-secret SECRET]
+                 [--export-all DIR]
 
 Analyze a GitHub project for vulnerabilities. Set API keys via environment variables or .env file.
 
@@ -158,11 +157,6 @@ Report Generation:
   --csv PATH            Output CSV report to specified file
   --markdown PATH       Output Markdown report to specified file
   --export-all DIR      Export all report formats to specified directory
-
-Integrations:
-  --create-issues       Create GitHub issues for findings
-  --webhook URL         Send findings to webhook URL
-  --webhook-format      Webhook payload format (json, slack, discord, teams)
 ```
 
 ### Cost Management Features
