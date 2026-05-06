@@ -9,7 +9,7 @@ repositories via iterative analysis with context expansion.
 
 from __future__ import annotations
 
-__version__ = "1.2.2"
+__version__ = "1.3.0"
 __author__ = "Protect AI"
 __maintainer__ = "Daniel Diaz Santiago"
 

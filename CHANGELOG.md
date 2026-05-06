@@ -6,6 +6,23 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-05-06
+
+### Removed
+
+- **GitHub Issues integration**: `--create-issues` CLI flag, runner dispatch logic, and
+  `vulnhuntr/integrations/github_issues.py` deleted. The scanner no longer creates GitHub
+  issues for findings.
+- **Webhook delivery integration**: `--webhook-url`, `--webhook-secret`, `--webhook-format`
+  CLI flags, runner dispatch logic, and `vulnhuntr/integrations/webhook.py` deleted. Findings
+  are no longer posted to external webhook endpoints.
+
+### Changed
+
+- All user-facing docs (README, QUICKSTART) updated to reflect the current feature set.
+- Architecture docs and diagrams (`docs/architecture/`) updated to match the v1.0 codebase.
+- Stale integration references removed from `docs/project/` files.
+
 ## [1.2.2] - 2026-05-05
 
 ### Added
