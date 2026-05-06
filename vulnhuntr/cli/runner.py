@@ -804,32 +804,9 @@ def _generate_reports(
     if hasattr(args, "export_all") and args.export_all:
         _export_all_reports(args, all_findings)
 
-    _dispatch_integrations(args, all_findings, cost_tracker, files_to_analyze)
-
 
 #: Stage alias — RUNNER-04 requires this name; implementation is _generate_reports.
 _dispatch_reports = _generate_reports
-
-
-def _dispatch_integrations(
-    args: argparse.Namespace,
-    findings: list[Finding],
-    cost_tracker: CostTracker,
-    files_to_analyze: list[Path],
-) -> None:
-    """Dispatch findings to external integrations (GitHub issues, webhook).
-
-    Args:
-        args:             Parsed CLI arguments (uses args.create_issues, args.webhook,
-                          args.webhook_format, args.webhook_secret).
-        findings:         All findings from the analysis run.
-        cost_tracker:     Cost tracker (passed through to _send_webhook for summary).
-        files_to_analyze: File list analyzed (passed through to _send_webhook).
-    """
-    if args.create_issues:
-        _create_github_issues(findings)
-    if args.webhook:
-        _send_webhook(args, findings, cost_tracker, files_to_analyze)
 
 
 def _export_all_reports(args: argparse.Namespace, findings: list[Finding]) -> None:
@@ -868,81 +845,3 @@ def _export_all_reports(args: argparse.Namespace, findings: list[Finding]) -> No
     except Exception as e:
         console.print(f"[red]✗ Failed to export all reports: {e}[/red]")
         log.error("Export all failed", error=str(e))
-
-
-def _create_github_issues(findings: list[Finding]) -> None:
-    """Create GitHub issues for findings."""
-    from vulnhuntr.integrations import GitHubConfig, GitHubIssueCreator
-
-    github_token = os.getenv("GITHUB_TOKEN")
-    github_owner = os.getenv("GITHUB_OWNER")
-    github_repo = os.getenv("GITHUB_REPO")
-
-    if not all([github_token, github_owner, github_repo]):
-        console.print(
-            "[red]✗ GitHub integration requires GITHUB_TOKEN, GITHUB_OWNER, and GITHUB_REPO environment variables[/red]"
-        )
-        return
-
-    # Narrowed by the check above
-    assert github_token is not None
-    assert github_owner is not None
-    assert github_repo is not None
-
-    try:
-        github_config = GitHubConfig(
-            token=github_token,
-            owner=github_owner,
-            repo=github_repo,
-            labels=["security", "vulnhuntr"],
-        )
-        issue_creator = GitHubIssueCreator(github_config)
-        results = issue_creator.create_issues_for_findings(findings)
-
-        created = sum(1 for r in results if r.success and r.error != "Issue already exists")
-        skipped = sum(1 for r in results if r.success and r.error == "Issue already exists")
-        failed = sum(1 for r in results if not r.success)
-
-        console.print(
-            f"[green]✓ GitHub issues: {created} created, {skipped} skipped (duplicates), {failed} failed[/green]"
-        )
-    except Exception as e:
-        console.print(f"[red]✗ Failed to create GitHub issues: {e}[/red]")
-        log.error("GitHub issue creation failed", error=str(e))
-
-
-def _send_webhook(
-    args: argparse.Namespace,
-    findings: list[Finding],
-    cost_tracker: CostTracker,
-    files_to_analyze: list[Path],
-) -> None:
-    """Send findings to webhook."""
-    from vulnhuntr.integrations import PayloadFormat, WebhookConfig, WebhookNotifier
-
-    try:
-        format_map = {
-            "json": PayloadFormat.JSON,
-            "slack": PayloadFormat.SLACK,
-            "discord": PayloadFormat.DISCORD,
-            "teams": PayloadFormat.TEAMS,
-        }
-        webhook_format = format_map.get(args.webhook_format, PayloadFormat.JSON)
-        webhook_secret = args.webhook_secret or os.getenv("WEBHOOK_SECRET")
-
-        config = WebhookConfig(
-            url=args.webhook,
-            format=webhook_format,
-            secret=webhook_secret,
-        )
-        notifier = WebhookNotifier(config=config)
-        result = notifier.send_batch(
-            findings=findings,
-        )
-        if result.success:
-            console.print(f"[green]✓ Findings sent to webhook: {args.webhook}[/green]")
-        else:
-            console.print("[red]✗ Failed to send findings to webhook[/red]")
-    except Exception as e:
-        console.print(f"[red]✗ Webhook notification failed: {e}[/red]")
-        log.error("Webhook notification failed", error=str(e))

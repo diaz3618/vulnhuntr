@@ -145,31 +145,6 @@ Examples:
         help="Default directory for all reports (default: 'reports/')",
     )
 
-    # Integration arguments
-    integration_group = parser.add_argument_group("Integrations")
-
-    integration_group.add_argument(
-        "--create-issues",
-        action="store_true",
-        help="Create GitHub issues for findings (requires GITHUB_TOKEN, GITHUB_OWNER, GITHUB_REPO env vars)",
-    )
-
-    integration_group.add_argument("--webhook", type=str, metavar="URL", help="Send findings to webhook URL")
-
-    integration_group.add_argument(
-        "--webhook-format",
-        type=str,
-        choices=["json", "slack", "discord", "teams"],
-        default="json",
-        help="Webhook payload format (default: json)",
-    )
-
-    integration_group.add_argument(
-        "--webhook-secret",
-        type=str,
-        help="Secret for HMAC webhook signature (or set WEBHOOK_SECRET env var)",
-    )
-
     return parser
 
 
