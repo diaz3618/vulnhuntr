@@ -17,7 +17,6 @@ from vulnhuntr.config import CLIPolicy
 from vulnhuntr.core import InvariantViolationError
 from vulnhuntr.llms import FallbackLLM, LLMError
 
-
 # ---------------------------------------------------------------------------
 # TestFallbackTransitions — EVAL-04 (state-transition coverage)
 # ---------------------------------------------------------------------------
@@ -25,10 +24,10 @@ from vulnhuntr.llms import FallbackLLM, LLMError
 
 class TestFallbackTransitions:
     """Partitions tested:
-      (primary_active, primary_succeeds) → result returned, _active stays primary
-      (primary_active, primary_fails) → fallback_0_active, result from fallback_0
-      (fallback_0_active, fallback_0_fails) → fallback_1_active, result from fallback_1
-      (all_failed) → LLMError raised
+    (primary_active, primary_succeeds) → result returned, _active stays primary
+    (primary_active, primary_fails) → fallback_0_active, result from fallback_0
+    (fallback_0_active, fallback_0_fails) → fallback_1_active, result from fallback_1
+    (all_failed) → LLMError raised
     """
 
     def _make_failing(self) -> MagicMock:
@@ -100,9 +99,9 @@ class TestFallbackTransitions:
 
 class TestFallbackInvariants:
     """Partitions tested:
-      (_active in _all_llms) → normal chat() progression, no invariant error
-      (_active not in _all_llms) → InvariantViolationError raised with invariant="active_in_registry"
-      (actual_value) → error carries the class name of the rogue _active instance
+    (_active in _all_llms) → normal chat() progression, no invariant error
+    (_active not in _all_llms) → InvariantViolationError raised with invariant="active_in_registry"
+    (actual_value) → error carries the class name of the rogue _active instance
     """
 
     def _make_succeeding(self, return_value: str = "ok") -> MagicMock:
@@ -161,11 +160,11 @@ class TestFallbackInvariants:
 
 class TestSessionModeInvariants:
     """Partitions tested:
-      (session_mode="stateless") → no raise, --no-session-persistence flag added
-      (session_mode="continue") → no raise, --continue flag added
-      (session_mode="resume", session_id set) → no raise, --resume flag added
-      (session_mode not in valid set) → InvariantViolationError raised with invariant="session_mode_is_known"
-      (actual_value) → error carries the invalid session_mode string
+    (session_mode="stateless") → no raise, --no-session-persistence flag added
+    (session_mode="continue") → no raise, --continue flag added
+    (session_mode="resume", session_id set) → no raise, --resume flag added
+    (session_mode not in valid set) → InvariantViolationError raised with invariant="session_mode_is_known"
+    (actual_value) → error carries the invalid session_mode string
     """
 
     def _make_payload(self) -> str:
